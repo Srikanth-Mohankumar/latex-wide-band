@@ -1,0 +1,58 @@
+% Test: non-balancing full-width band. Compile with lualatex.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{lipsum}
+\usepackage{wideband}
+\setlength{\columnseprule}{0.2pt}
+
+\begin{document}
+
+\section{Band anchored mid column one}
+\lipsum[1][1-8]
+
+\begin{wideband}
+\begin{equation}
+  \mathcal{Z}[J] = \int \mathcal{D}\phi \,
+  \exp\!\Bigl( i\!\int\! d^4x \,\bigl[\tfrac12 \partial_\mu\phi\,\partial^\mu\phi
+  - \tfrac12 m^2\phi^2 - \tfrac{\lambda}{4!}\phi^4 + J\phi\bigr] \Bigr)
+  \qquad\text{(full-width band, columns not balanced)}
+  \label{eq:band1}
+\end{equation}
+\end{wideband}
+
+Text resumes immediately after the band in the same left column, and the
+right column has a matching gap at the same height.
+\lipsum[2-4]
+
+Reference check: the band above is Eq.~(\ref{eq:band1}).
+\lipsum[5-7]
+
+\clearpage
+\section{Band near the top of a page}
+\begin{wideband}
+\begin{equation}
+  S_{\mathrm{eff}}[\phi] = S[\phi]
+  + \tfrac{\hbar}{2}\operatorname{Tr}\log
+    \frac{\delta^2 S}{\delta\phi\,\delta\phi}
+  + \mathcal{O}(\hbar^2)
+\end{equation}
+\end{wideband}
+\lipsum[8-13]
+
+\clearpage
+\section{Band that does not fit the current column}
+% enough text so the band request arrives near the bottom of column 1;
+% the package must push it to the top of the next column.
+\lipsum[1-2]
+\lipsum[3][1-10]
+
+\begin{wideband}
+\begin{align}
+  G^{(2)}(x_1,x_2) &= \frac{\delta^2 W[J]}{\delta J(x_1)\,\delta J(x_2)}
+     \Big|_{J=0}, &
+  W[J] &= -i \log \mathcal{Z}[J]
+\end{align}
+\end{wideband}
+\lipsum[4-8]
+
+\end{document}

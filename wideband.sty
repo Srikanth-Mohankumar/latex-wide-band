@@ -1,0 +1,224 @@
+%% wideband.sty -- proof of concept
+%%
+%% Full-width band (e.g. a wide equation) inside a twocolumn page,
+%% WITHOUT balancing or flushing the columns first.  Text in both
+%% columns continues below the band.
+%%
+%% Requires LuaLaTeX.  One band per page.  No interaction with floats
+%% on the same page has been implemented.  See the documentation for
+%% the full list of limitations -- this is a POC, not production code.
+%%
+%% Usage:
+%%   \usepackage{wideband}
+%%   ...
+%%   \begin{wideband}
+%%     \begin{equation} ...wide equation... \end{equation}
+%%   \end{wideband}
+%%
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{wideband}[2026/07/09 v0.1 non-balancing full-width band (POC)]
+
+\RequirePackage{iftex}
+\RequireLuaTeX
+
+%% ------------------------------------------------------------------
+%% registers and parameters
+%% ------------------------------------------------------------------
+\newbox\wb@band     % the band content, \textwidth wide
+\newbox\wb@Ltop     % left column above the band
+\newbox\wb@Lbot     % left column below the band
+\newbox\wb@Rtop     % right column above the band
+
+\newcount\wb@found  \edef\wb@found@num{\the\allocationnumber}
+\newdimen\wb@h      \edef\wb@h@num{\the\allocationnumber}
+\newdimen\wb@reserve
+\newcount\wb@state  % 0 idle / 1 split pending / 2 deferred to next page top
+\newcount\wb@defer@request
+
+\newskip\wideband@sep
+\wideband@sep=14\p@ \@plus 4\p@ \@minus 2\p@
+\newcommand\setwidebandsep[1]{\setlength\wideband@sep{#1}}
+
+\directlua{
+  wideband = require("wideband")
+  wideband.setup{ found = \wb@found@num, h = \wb@h@num }
+}
+
+%% ------------------------------------------------------------------
+%% the environment
+%% ------------------------------------------------------------------
+\newenvironment{wideband}{%
+  \if@twocolumn\else
+    \PackageError{wideband}{wideband used outside twocolumn mode}%
+      {The environment only makes sense in twocolumn documents.}%
+  \fi
+  \par
+  \global\setbox\wb@band\vbox\bgroup
+    \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
+    \@parboxrestore
+    \abovedisplayskip\z@skip \belowdisplayskip\z@skip
+    \abovedisplayshortskip\z@skip \belowdisplayshortskip\z@skip
+    \noindent\ignorespaces
+}{%
+  \egroup
+  \wb@place
+}
+
+\def\wb@place{%
+  \global\wb@reserve\dimexpr\ht\wb@band+\dp\wb@band+2\wideband@sep\relax
+  % if the band cannot fit in what remains of the current column,
+  % force a column break so the marker lands at the top of the next one
+  \begingroup
+    \dimen@\pagegoal
+    \ifdim\dimen@=\maxdimen \dimen@\vsize \fi
+    \advance\dimen@-\pagetotal
+    \ifdim\dimen@<\dimexpr\wb@reserve+\baselineskip\relax
+      \vfil\penalty-\@M
+    \fi
+  \endgroup
+  \directlua{wideband.mark(\number\wb@reserve)}%
+  \penalty\z@
+}
+
+%% ------------------------------------------------------------------
+%% output routine surgery
+%% (based on \@outputdblcol from latex.ltx, 2023 kernel)
+%% ------------------------------------------------------------------
+\def\@outputdblcol{%
+  \if@firstcolumn
+    \wb@scan@first
+    \global\@firstcolumnfalse
+    \global\setbox\@leftcolumn\copy\@outputbox
+    \splitmaxdepth\maxdimen
+    \vbadness\maxdimen
+    \setbox\@outputbox\vbox{\unvbox\@outputbox\unskip}%
+    \setbox\@outputbox\vsplit\@outputbox to\maxdimen
+    \toks@\expandafter{\topmark}%
+    \xdef\@firstcoltopmark{\the\toks@}%
+    \toks@\expandafter{\splitfirstmark}%
+    \xdef\@firstcolfirstmark{\the\toks@}%
+    \ifx\@firstcolfirstmark\@empty
+      \global\let\@setmarks\relax
+    \else
+      \gdef\@setmarks{%
+        \let\firstmark\@firstcolfirstmark
+        \let\topmark\@firstcoltopmark}%
+    \fi
+  \else
+    \global\@firstcolumntrue
+    \wb@scan@second
+    \ifcase\wb@state
+      % --- state 0: stock kernel assembly --------------------------
+      \setbox\@outputbox\vbox{%
+        \hb@xt@\textwidth{%
+          \hb@xt@\columnwidth{\box\@leftcolumn \hss}%
+          \hfil
+          {\normalcolor\vrule \@width\columnseprule}%
+          \hfil
+          \hb@xt@\columnwidth{\box\@outputbox \hss}}}%
+    \or
+      \wb@assemble@split
+    \or
+      \wb@assemble@deferred
+    \fi
+    \@combinedblfloats
+    \@setmarks
+    \@outputpage
+    \wb@after@page
+    \begingroup
+      \@dblfloatplacement
+      \@startdblcolumn
+      \@whilesw\if@fcolmade \fi{\@outputpage
+      \@startdblcolumn}%
+    \endgroup
+  \fi}%
+
+%% scan column 1 for the marker; if present, remember its position and
+%% shorten the room available to column 2 by the reserved amount.
+%% (\@startcolumn copies \@colht into \@colroom and \vsize after every
+%% output cycle, so \@colht is the knob that actually controls the
+%% height of the next column.)
+\def\wb@scan@first{%
+  \ifnum\wb@state=\z@
+    \directlua{wideband.find(\number\@outputbox)}%
+    \ifnum\wb@found>\@ne
+      \PackageWarning{wideband}{More than one band on this page;
+        only the first is honoured (POC limitation)}%
+    \fi
+    \ifnum\wb@found>\z@
+      \global\wb@state\@ne
+      \global\advance\@colht-\wb@reserve
+      \PackageInfo{wideband}{band anchored in column 1 at \the\wb@h}%
+    \fi
+  \fi}
+
+%% if the marker only shows up while assembling column 2, the band
+%% cannot be anchored on this page any more (column 1 has already been
+%% built at full height).  Fallback: strip the reservation and move the
+%% band to the top of the next page.
+\def\wb@scan@second{%
+  \ifnum\wb@state=\z@
+    \directlua{wideband.find(\number\@outputbox)}%
+    \ifnum\wb@found>\z@
+      \directlua{wideband.strip(\number\@outputbox)}%
+      \global\wb@defer@request\@ne
+      \PackageWarning{wideband}{Band fell into the second column;
+        moving it to the top of the next page}%
+    \fi
+  \fi}
+
+%% state 1: cut both columns at \wb@h and slot the band in between
+\def\wb@assemble@split{%
+  \global\wb@state\z@
+  \global\advance\@colht\wb@reserve    % back to full page height
+  % left column: exact cut at the marker (Lua)
+  \directlua{wideband.split(\number\@leftcolumn,
+     \number\wb@Ltop, \number\wb@Lbot,
+     \number\wb@h,
+     \number\dimexpr\@colht-\wb@h-\wb@reserve\relax)}%
+  % right column: \vsplit at the same height
+  \begingroup
+    \vbadness\maxdimen \vfuzz\maxdimen
+    \splittopskip\topskip \splitmaxdepth\@maxdepth
+    \global\setbox\wb@Rtop\vsplit\@outputbox to\wb@h
+  \endgroup
+  \global\setbox\@outputbox\vbox to\@colht{%
+    \hb@xt@\textwidth{%
+      \hb@xt@\columnwidth{\box\wb@Ltop\hss}\hfil
+      \hb@xt@\columnwidth{\box\wb@Rtop\hss}}%
+    \vskip\wideband@sep
+    \hb@xt@\textwidth{\box\wb@band\hss}%
+    \vskip\wideband@sep
+    \hb@xt@\textwidth{%
+      \hb@xt@\columnwidth{\wb@vtop{\wb@Lbot}\hss}\hfil
+      \hb@xt@\columnwidth{\wb@vtop{\@outputbox}\hss}}%
+    \kern\z@
+    \vss}}
+
+%% state 2: band across the top of this page, columns below
+\def\wb@assemble@deferred{%
+  \global\wb@state\z@
+  \global\advance\@colht\wb@reserve
+  \global\setbox\@outputbox\vbox to\@colht{%
+    \hb@xt@\textwidth{\box\wb@band\hss}%
+    \vskip\wideband@sep
+    \hb@xt@\textwidth{%
+      \hb@xt@\columnwidth{\box\@leftcolumn\hss}\hfil
+      \hb@xt@\columnwidth{\box\@outputbox\hss}}%
+    \kern\z@
+    \vss}}
+
+%% top-aligned rebox: height comes from a leading kern, so tops of the
+%% two half-columns line up on the row's baseline
+\def\wb@vtop#1{\vtop{\kern\z@\unvbox#1}}
+
+%% a deferral scheduled during this page shortens the next page's
+%% columns (\@outputpage has just reset \@colht to \textheight)
+\def\wb@after@page{%
+  \ifnum\wb@defer@request>\z@
+    \global\wb@defer@request\z@
+    \global\wb@state\tw@
+    \global\advance\@colht-\wb@reserve
+  \fi}
+
+\endinput

@@ -1,0 +1,65 @@
+% Edge-case / regression tests for wideband.sty. Compile with lualatex.
+% Expected outcomes are described in comments; check the log and the PDF.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{lipsum}
+\usepackage{wideband}
+\setlength{\columnseprule}{0.2pt}
+
+\begin{document}
+
+% --- 1. footnotes above and below the band -------------------------
+% Expected: footnotes stay at the bottom of their own column; the one
+% attached below the band must not vanish.
+\section{Footnotes}
+\lipsum[1][1-4]\footnote{Footnote issued above the band.}
+\lipsum[1][5-8]
+
+\begin{wideband}
+\begin{equation}
+  \nabla\times\mathbf{B} - \frac1c\,\frac{\partial\mathbf E}{\partial t}
+   = \frac{4\pi}{c}\,\mathbf{j}
+\end{equation}
+\end{wideband}
+
+Text after the band.\footnote{Footnote issued below the band.}
+\lipsum[2-4]
+
+\clearpage
+% --- 2. two bands requested on the same page -----------------------
+% Expected: PackageWarning "More than one band"; output degraded but
+% the run must not crash.
+\section{Two bands, one page}
+\lipsum[1][1-3]
+\begin{wideband}\begin{equation}a=b\end{equation}\end{wideband}
+\lipsum[1][4-6]
+\begin{wideband}\begin{equation}c=d\end{equation}\end{wideband}
+\lipsum[2-3]
+
+\clearpage
+% --- 3. band taller than half the page -----------------------------
+% Expected: still placed (it fits a fresh column); a band taller than
+% \textheight would be an unrecoverable error and is out of scope.
+\section{Tall band}
+\lipsum[1][1-2]
+\begin{wideband}
+\begin{align}
+  a_1 &= b_1 & c_1 &= d_1\\ a_2 &= b_2 & c_2 &= d_2\\
+  a_3 &= b_3 & c_3 &= d_3\\ a_4 &= b_4 & c_4 &= d_4\\
+  a_5 &= b_5 & c_5 &= d_5\\ a_6 &= b_6 & c_6 &= d_6\\
+  a_7 &= b_7 & c_7 &= d_7\\ a_8 &= b_8 & c_8 &= d_8
+\end{align}
+\end{wideband}
+\lipsum[2-5]
+
+\clearpage
+% --- 4. band as the very first thing on a page ---------------------
+% Expected: band at the top, both columns start below it.
+\begin{wideband}
+\begin{equation}
+  e^{i\pi}+1=0
+\end{equation}
+\end{wideband}
+\lipsum[6-9]
+
+\end{document}
