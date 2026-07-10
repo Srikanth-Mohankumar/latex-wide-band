@@ -1,0 +1,28 @@
+% Baseline comparison using the same real technical prose.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{cuted}
+\input{test-content}
+\setlength{\columnseprule}{0.2pt}
+\begin{document}
+\section{Existing cuted strip}
+\WBTextA
+\begin{strip}
+\begin{equation}
+ \mathcal Z[J]=\int\mathcal D\phi\,
+ \exp\!\left(i\int d^4x\,[\mathcal L(\phi)+J\phi]\right)
+\end{equation}
+\end{strip}
+\WBTextB\WBTextC
+
+\clearpage
+\section{Naive one-column switch}
+\WBTextA
+\onecolumn
+\begin{equation}
+ \mathcal Z[J]=\int\mathcal D\phi\,
+ \exp\!\left(i\int d^4x\,[\mathcal L(\phi)+J\phi]\right)
+\end{equation}
+\twocolumn
+\WBTextB\WBTextC
+\end{document}

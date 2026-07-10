@@ -2,7 +2,7 @@
 # wideband driver — build, drive, and visually verify the package.
 #
 # Runs against the project sources at the repo root (wideband.sty,
-# wideband.lua, test-*.tex). It copies them into a scratch directory so the
+# wideband.lua, tests/*.tex). It copies them into a scratch directory so the
 # repo itself is never polluted with .aux/.log/.pdf/.png build junk, then:
 #   1. compiles every test (twice, for \ref/\eqref) and checks exit codes
 #   2. greps the log to confirm each band scenario path was exercised
@@ -23,7 +23,7 @@ if [ ! -f "$root/wideband.sty" ]; then echo "FATAL: cannot find wideband.sty abo
 
 OUT=${WB_OUT:-/tmp/wb-driver}
 rm -rf "$OUT"; mkdir -p "$OUT"
-cp "$root"/wideband.sty "$root"/wideband.lua "$root"/test-*.tex "$OUT"/ 2>/dev/null
+cp "$root"/wideband.sty "$root"/wideband.lua "$root"/tests/*.tex "$OUT"/ 2>/dev/null
 cd "$OUT" || exit 2
 echo "scratch: $OUT   (sources copied from $root)"
 echo

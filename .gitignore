@@ -1,5 +1,10 @@
-tests/test*
-test/authpack-test-suite.tex
+# Local build output
+build/
+.test-renders/
+__pycache__/
+*.pyc
+
+# LaTeX-generated files
 *.log
 *.aux
 *.out

@@ -1,0 +1,65 @@
+% Main visual test. Compile twice with lualatex.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband}
+\input{test-content}
+\setlength{\columnseprule}{0.2pt}
+
+% Requested public controls:
+\setwidebandrule{0.4pt}{0.75}
+\setwidebandrulesep{6pt}
+
+\begin{document}
+\title{Non-balancing Full-width Equation Bands in LuaLaTeX}
+\author{Wideband regression document}
+\date{}
+\maketitle
+
+\section{Band anchored in the first column}
+\WBTextA
+
+\begin{wideband}
+\begin{equation}
+  \mathcal{Z}[J] = \int \mathcal{D}\phi\,
+  \exp\!\left(i\!\int d^4x\,
+  \left[\frac12\partial_\mu\phi\,\partial^\mu\phi
+  -\frac12m^2\phi^2-\frac{\lambda}{4!}\phi^4+J\phi\right]\right)
+  \label{eq:generating-functional}
+\end{equation}
+\end{wideband}
+
+The full-width expression is Eq.~\ref{eq:generating-functional}. The paragraphs
+following it remain part of the original two-column flow.
+\WBTextB
+\WBTextC
+
+\clearpage
+\section{Plain band with the decoration disabled}
+\widebandrulesoff
+\WBTextD
+\begin{wideband}
+\begin{equation}
+  S_{\mathrm{eff}}[\phi]=S[\phi]
+  +\frac{\hbar}{2}\operatorname{Tr}\log
+   \left(\frac{\delta^2S}{\delta\phi\,\delta\phi}\right)
+  +\mathcal{O}(\hbar^2)
+\end{equation}
+\end{wideband}
+\WBTextE
+
+\clearpage
+\section{Band requested near the end of a column}
+\widebandruleson
+\setwidebandrule{0.6pt}{0.75}
+\setwidebandrulesep{8pt}
+\WBTextA\WBTextB\WBTextF
+\begin{wideband}
+\begin{align}
+  G^{(2)}(x_1,x_2)
+    &=\left.\frac{\delta^2W[J]}
+      {\delta J(x_1)\,\delta J(x_2)}\right|_{J=0}, &
+  W[J]&=-i\log\mathcal{Z}[J]
+\end{align}
+\end{wideband}
+\WBTextG\WBTextH
+\end{document}

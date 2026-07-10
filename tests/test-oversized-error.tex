@@ -1,0 +1,9 @@
+% Expected-failure regression: oversized content must be rejected safely.
+\documentclass[twocolumn]{article}
+\usepackage{wideband}
+\begin{document}
+\begin{wideband}
+\rule{1pt}{1.2\textheight}
+\end{wideband}
+Normal text remains compilable after the rejected request.
+\end{document}

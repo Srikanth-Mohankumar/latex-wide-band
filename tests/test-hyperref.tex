@@ -1,0 +1,17 @@
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{wideband}
+\input{test-content}
+\begin{document}
+\section{Hyperlink and equation destination}
+\WBTextA
+\begin{wideband}
+\begin{equation}\label{eq:gaussian}
+ \int_0^\infty e^{-x^2}\,dx=\frac{\sqrt\pi}{2}
+\end{equation}
+\end{wideband}
+Equation~\ref{eq:gaussian} must resolve after the second compilation and its
+link destination must remain associated with the displayed equation.
+\WBTextB\WBTextC
+\end{document}

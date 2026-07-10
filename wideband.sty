@@ -4,9 +4,10 @@
 %% WITHOUT balancing or flushing the columns first.  Text in both
 %% columns continues below the band.
 %%
-%% Requires LuaLaTeX.  One band per page.  No interaction with floats
-%% on the same page has been implemented.  See the documentation for
-%% the full list of limitations -- this is a POC, not production code.
+%% Requires LuaLaTeX. One pending band is supported. Requests found in
+%% column 1 may be placed on the current page; requests found in column 2
+%% are deterministically deferred to the top of the next page. This avoids
+%% destructive reconstruction of an already-finalized left column.
 %%
 %% Usage:
 %%   \usepackage{wideband}
@@ -16,7 +17,7 @@
 %%   \end{wideband}
 %%
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{wideband}[2026/07/10 v0.2 non-balancing full-width band (POC)]
+\ProvidesPackage{wideband}[2026/07/10 v0.4 production-safe policy A (deterministic right-column deferral)]
 
 \RequirePackage{iftex}
 \RequireLuaTeX
@@ -24,7 +25,9 @@
 %% ------------------------------------------------------------------
 %% registers and parameters
 %% ------------------------------------------------------------------
-\newbox\wb@band     % the band content, \textwidth wide
+\newbox\wb@band     % the decorated band, \textwidth wide
+\newbox\wb@body     % captured environment body before decoration
+\newbox\wb@discard  % rejected nested/pending request body
 \newbox\wb@Ltop     % left column above the band
 \newbox\wb@Lbot     % left column below the band
 \newbox\wb@Rtop     % right column above the band
@@ -32,29 +35,50 @@
 \newcount\wb@found  \edef\wb@found@num{\the\allocationnumber}
 \newdimen\wb@h      \edef\wb@h@num{\the\allocationnumber}
 \newdimen\wb@reserve
+\newdimen\wb@botgoal
+\newdimen\wb@botnat \edef\wb@botnat@num{\the\allocationnumber}
 \newcount\wb@state  % 0 idle / 1 split pending / 2 deferred to next page top
 \newcount\wb@defer@request
+\newif\ifwb@busy    % a captured band exists until it is actually shipped
+\newif\ifwb@reject  % reject a request that would overwrite a pending band
 
 \newskip\wideband@sep
 \wideband@sep=14\p@ \@plus 4\p@ \@minus 2\p@
 \newcommand\setwidebandsep[1]{\setlength\wideband@sep{#1}}
 
-%% decorative rules: top rule flush left, bottom rule flush right,
-%% each a fraction of \textwidth
-\newif\ifwideband@rules \wideband@rulestrue
+%% Optional asymmetric rules decorating the captured band.
+%% The top rule starts at the left edge; the bottom rule ends at the
+%% right edge. The fraction is interpreted as a fraction of \textwidth.
+\newdimen\wideband@rulethickness
+\wideband@rulethickness=.4\p@
+\newskip\wideband@rulesep
+\wideband@rulesep=6\p@
+\def\wideband@rulefraction{.75}
+\newif\ifwideband@rules
+\wideband@rulestrue
+\newcommand\setwidebandrule[2]{%
+  \wideband@rulethickness=#1\relax
+  \def\wideband@rulefraction{#2}%
+}
+\newcommand\setwidebandrulesep[1]{\setlength\wideband@rulesep{#1}}
 \newcommand\widebandruleson{\wideband@rulestrue}
 \newcommand\widebandrulesoff{\wideband@rulesfalse}
-\newdimen\wideband@rulethick \wideband@rulethick=.4\p@
-\def\wideband@rulefrac{0.75}
-\newcommand\setwidebandrule[2]{%   {<thickness>}{<fraction of \textwidth>}
-  \setlength\wideband@rulethick{#1}%
-  \def\wideband@rulefrac{#2}}
-\newdimen\wideband@rulesep \wideband@rulesep=6\p@
-\newcommand\setwidebandrulesep[1]{\setlength\wideband@rulesep{#1}}
 
 \directlua{
   wideband = require("wideband")
-  wideband.setup{ found = \wb@found@num, h = \wb@h@num }
+  wideband.setup{ found = \wb@found@num, h = \wb@h@num, botnat = \wb@botnat@num }
+}
+
+
+%% Conservative compatibility checks. These are warnings because the POC can
+%% still be useful for visual research, but users must not infer compatibility.
+\AtBeginDocument{%
+  \@ifpackageloaded{stfloats}{\PackageWarningNoLine{wideband}{stfloats also patches two-column output; compatibility is not guaranteed}}{}%
+  \@ifpackageloaded{dblfloatfix}{\PackageWarningNoLine{wideband}{dblfloatfix also patches two-column output; compatibility is not guaranteed}}{}%
+  \@ifpackageloaded{cuted}{\PackageWarningNoLine{wideband}{cuted also patches the output routine; do not use strip and wideband on the same page}}{}%
+  \@ifpackageloaded{balance}{\PackageWarningNoLine{wideband}{balance may conflict with wideband page surgery}}{}%
+  \@ifpackageloaded{flushend}{\PackageWarningNoLine{wideband}{flushend may conflict with wideband page surgery}}{}%
+  \@ifpackageloaded{tagpdf}{\PackageWarningNoLine{wideband}{Tagged PDF is unsupported; structure order can be incorrect on band pages}}{}%
 }
 
 %% ------------------------------------------------------------------
@@ -66,7 +90,17 @@
       {The environment only makes sense in twocolumn documents.}%
   \fi
   \par
-  \global\setbox\wb@band\vbox\bgroup
+  \ifwb@busy
+    \global\wb@rejecttrue
+    \PackageError{wideband}{A previous wideband is still pending}%
+      {This hardened POC supports one pending band at a time.\MessageBreak
+       The new band is discarded instead of overwriting the earlier band.\MessageBreak
+       Move it later, force a page break, or wait for queue support.}%
+    \global\setbox\wb@discard\vbox\bgroup
+  \else
+    \global\wb@rejectfalse
+    \global\setbox\wb@band\vbox\bgroup
+  \fi
     \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
     \@parboxrestore
     \abovedisplayskip\z@skip \belowdisplayskip\z@skip
@@ -74,37 +108,57 @@
     \noindent\ignorespaces
 }{%
   \egroup
-  \wb@place
+  \ifwb@reject
+    \global\wb@rejectfalse
+  \else
+    \global\setbox\wb@body=\box\wb@band
+    \global\setbox\wb@band=\vbox{%
+      \hsize\textwidth \linewidth\textwidth
+      \ifwideband@rules
+        \hbox to\textwidth{%
+          \rule{\wideband@rulefraction\textwidth}{\wideband@rulethickness}\hfil}%
+        \vskip\wideband@rulesep
+      \fi
+      \unvbox\wb@body
+      \ifwideband@rules
+        \vskip\wideband@rulesep
+        \hbox to\textwidth{\hfil
+          \rule{\wideband@rulefraction\textwidth}{\wideband@rulethickness}}%
+      \fi
+    }%
+    \global\wb@busytrue
+    \wb@place
+  \fi
 }
 
 \def\wb@place{%
-  % wrap the band with its rules first, so the reservation measures the
-  % final decorated box
-  \ifwideband@rules
-    \global\setbox\wb@band\vbox{%
-      \hb@xt@\textwidth{%
-        \vrule\@height\wideband@rulethick\@depth\z@
-          \@width\dimexpr\wideband@rulefrac\textwidth\relax\hss}%
-      \vskip\wideband@rulesep
-      \box\wb@band
-      \vskip\wideband@rulesep
-      \hb@xt@\textwidth{\hss
-        \vrule\@height\wideband@rulethick\@depth\z@
-          \@width\dimexpr\wideband@rulefrac\textwidth\relax}}%
+  \ifx\@deferlist\@empty\else
+    \PackageWarning{wideband}{Single-column floats are pending; placement on this band page is not guaranteed}%
+  \fi
+  \ifx\@dbldeferlist\@empty\else
+    \PackageWarning{wideband}{Double-column floats are pending; placement on this band page is not guaranteed}%
   \fi
   \global\wb@reserve\dimexpr\ht\wb@band+\dp\wb@band+2\wideband@sep\relax
-  % if the band cannot fit in what remains of the current column,
-  % force a column break so the marker lands at the top of the next one
-  \begingroup
-    \dimen@\pagegoal
-    \ifdim\dimen@=\maxdimen \dimen@\vsize \fi
-    \advance\dimen@-\pagetotal
-    \ifdim\dimen@<\dimexpr\wb@reserve+\baselineskip\relax
-      \vfil\penalty-\@M
-    \fi
-  \endgroup
-  \directlua{wideband.mark(\number\wb@reserve)}%
-  \penalty\z@
+  \ifdim\wb@reserve>\dimexpr\textheight-2\baselineskip\relax
+    \PackageError{wideband}{Wideband is too tall to fit on a page}%
+      {The captured band plus its vertical separation is \the\wb@reserve,\MessageBreak
+       but this POC requires at least two text baselines on the page.\MessageBreak
+       The oversized band is discarded.}%
+    \global\wb@busyfalse
+  \else
+    % if the band cannot fit in what remains of the current column,
+    % force a column break so the marker lands at the top of the next one
+    \begingroup
+      \dimen@\pagegoal
+      \ifdim\dimen@=\maxdimen \dimen@\vsize \fi
+      \advance\dimen@-\pagetotal
+      \ifdim\dimen@<\dimexpr\wb@reserve+\baselineskip\relax
+        \vfil\penalty-\@M
+      \fi
+    \endgroup
+    \directlua{wideband.mark(\number\wb@reserve)}%
+    \penalty\z@
+  \fi
 }
 
 %% ------------------------------------------------------------------
@@ -189,42 +243,72 @@
     \ifnum\wb@found>\z@
       \directlua{wideband.strip(\number\@outputbox)}%
       \global\wb@defer@request\@ne
-      \PackageWarning{wideband}{Band fell into the second column;
-        moving it to the top of the next page}%
+      \PackageWarning{wideband}{Wideband request encountered in column 2; the saved left column is already finalized. The band is being deferred intact to the top of the next page. The current page may end with unused vertical space; no post-band text is moved ahead of the band}%
     \fi
   \fi}
 
 %% state 1: cut both columns at \wb@h and slot the band in between
 \def\wb@assemble@split{%
   \global\wb@state\z@
-  \global\advance\@colht\wb@reserve    % back to full page height
-  % left column: exact cut at the marker (Lua)
+  \global\advance\@colht\wb@reserve    % restore full page height
+  \global\wb@botgoal\dimexpr\@colht-\wb@h-\wb@reserve\relax
+  % Left column: cut at the marker. Lua returns the lower part at its
+  % natural height so we can reject an overfull page instead of hiding
+  % excess material below the PDF page boundary.
   \directlua{wideband.split(\number\@leftcolumn,
      \number\wb@Ltop, \number\wb@Lbot,
-     \number\wb@h,
-     \number\dimexpr\@colht-\wb@h-\wb@reserve\relax)}%
-  % right column: \vsplit at the same height
-  \begingroup
-    \vbadness\maxdimen \vfuzz\maxdimen
-    \splittopskip\topskip \splitmaxdepth\@maxdepth
-    \global\setbox\wb@Rtop\vsplit\@outputbox to\wb@h
-  \endgroup
-  \global\setbox\@outputbox\vbox to\@colht{%
-    \hb@xt@\textwidth{%
-      \hb@xt@\columnwidth{\box\wb@Ltop\hss}\hfil
-      \hb@xt@\columnwidth{\box\wb@Rtop\hss}}%
-    \vskip\wideband@sep
-    \hb@xt@\textwidth{\box\wb@band\hss}%
-    \vskip\wideband@sep
-    \hb@xt@\textwidth{%
-      \hb@xt@\columnwidth{\wb@vtop{\wb@Lbot}\hss}\hfil
-      \hb@xt@\columnwidth{\wb@vtop{\@outputbox}\hss}}%
-    \kern\z@
-    \vss}}
+     \number\wb@h)}%
+  \ifdim\wb@botnat>\dimexpr\wb@botgoal+1sp\relax
+    \PackageWarning{wideband}{Post-band material does not fit safely;
+      deferring the band to the next page}%
+    \global\wb@defer@request\@ne
+    % Reconstruct a conservative ordinary page. Column 2 was built at
+    % reduced height, so it may finish early, but no material is clipped.
+    \global\setbox\@leftcolumn\vbox to\@colht{%
+      \unvbox\wb@Ltop\unvbox\wb@Lbot\vss}%
+    \global\setbox\@outputbox\vbox to\@colht{%
+      \unvbox\@outputbox\vss}%
+    \setbox\@outputbox\vbox{%
+      \hb@xt@\textwidth{%
+        \hb@xt@\columnwidth{\box\@leftcolumn\hss}%
+        \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+        \hb@xt@\columnwidth{\box\@outputbox\hss}}}%
+  \else
+    \global\wb@busyfalse
+    \begingroup
+      \vbadness\maxdimen \vfuzz\maxdimen
+      \global\setbox\wb@Lbot\vbox to\wb@botgoal{%
+        \unvbox\wb@Lbot\vss}%
+      \splittopskip\topskip \splitmaxdepth\@maxdepth
+      \global\setbox\wb@Rtop\vsplit\@outputbox to\wb@h
+      \global\setbox\@outputbox\vbox to\wb@botgoal{%
+        \unvbox\@outputbox\vss}%
+    \endgroup
+    \global\setbox\@outputbox\vbox to\@colht{%
+      \hb@xt@\textwidth{%
+        \hb@xt@\columnwidth{\box\wb@Ltop\hss}\hfil
+        \hb@xt@\columnwidth{\box\wb@Rtop\hss}}%
+      \vskip\wideband@sep
+      \hb@xt@\textwidth{\box\wb@band\hss}%
+      \vskip\wideband@sep
+      \hb@xt@\textwidth{%
+        \hb@xt@\columnwidth{\wb@vtop{\wb@Lbot}\hss}\hfil
+        \hb@xt@\columnwidth{\wb@vtop{\@outputbox}\hss}}%
+      \kern\z@\vss}%
+  \fi}
 
 %% state 2: band across the top of this page, columns below
 \def\wb@assemble@deferred{%
   \global\wb@state\z@
+  \global\wb@busyfalse
+  \dimen@\@colht % available column height below the deferred band
+  \begingroup
+    \vbadness\maxdimen \vfuzz\maxdimen
+    \global\setbox\@leftcolumn\vbox to\dimen@{%
+      \unvbox\@leftcolumn\vss}%
+    \global\setbox\@outputbox\vbox to\dimen@{%
+      \unvbox\@outputbox\vss}%
+  \endgroup
   \global\advance\@colht\wb@reserve
   \global\setbox\@outputbox\vbox to\@colht{%
     \hb@xt@\textwidth{\box\wb@band\hss}%
@@ -232,8 +316,7 @@
     \hb@xt@\textwidth{%
       \hb@xt@\columnwidth{\box\@leftcolumn\hss}\hfil
       \hb@xt@\columnwidth{\box\@outputbox\hss}}%
-    \kern\z@
-    \vss}}
+    \kern\z@\vss}}
 
 %% top-aligned rebox: height comes from a leading kern, so tops of the
 %% two half-columns line up on the row's baseline
@@ -246,17 +329,6 @@
     \global\wb@defer@request\z@
     \global\wb@state\tw@
     \global\advance\@colht-\wb@reserve
-  \fi}
-
-%% a band deferred on the last page of the document would otherwise be
-%% dropped silently (no further output cycle ever runs).  Force one
-%% more page for it.
-\AtEndDocument{%
-  \clearpage
-  \ifnum\wb@state=\tw@
-    \PackageWarning{wideband}{Deferred band pending at end of document;
-      forcing an extra page for it}%
-    \null\clearpage
   \fi}
 
 \endinput

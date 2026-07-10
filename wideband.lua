@@ -25,11 +25,12 @@ local UD      = node.subtype and node.subtype("user_defined") or 8
 -- unique tag for our marker whatsit
 local USER_ID = 0x57424e44 -- "WBND"
 
-local reg = { found = nil, h = nil }
+local reg = { found = nil, h = nil, botnat = nil }
 
 function wideband.setup(t)
   reg.found = assert(tonumber(t.found), "wideband: bad count register")
   reg.h     = assert(tonumber(t.h),     "wideband: bad dimen register")
+  reg.botnat = assert(tonumber(t.botnat), "wideband: bad bottom-natural dimen register")
 end
 
 local function info(msg)
@@ -120,8 +121,8 @@ end
 --   topreg   receives everything above the marker, packed to h exactly
 --   botreg   receives everything below, packed to botgoal exactly
 ----------------------------------------------------------------------
-function wideband.split(src, topreg, botreg, h, botgoal)
-  h, botgoal = tonumber(h) or 0, tonumber(botgoal) or 0
+function wideband.split(src, topreg, botreg, h)
+  h = tonumber(h) or 0
   local b = tex.box[src]
   if not (b and b.list) then
     info("split: source box empty")
@@ -159,7 +160,9 @@ function wideband.split(src, topreg, botreg, h, botgoal)
 
   local function empty() local k = node.new(KERN, 1); k.kern = 0; return k end
   local topbox = node.vpack(top_head or empty(), h, "exactly")
-  local botbox = node.vpack(rest or empty(), botgoal, "exactly")
+  local botbox = node.vpack(rest or empty())
+  local botnat = (botbox.height or 0) + (botbox.depth or 0)
+  tex.setdimen("global", reg.botnat, botnat)
   tex.setbox("global", topreg, topbox)
   tex.setbox("global", botreg, botbox)
 end

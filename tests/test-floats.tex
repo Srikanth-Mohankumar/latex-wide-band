@@ -1,0 +1,22 @@
+% Compatibility stress test. Warnings are expected.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband}
+\input{test-content}
+\begin{document}
+\section{Float interaction diagnostics}
+\begin{figure}[t]
+\centering\rule{.8\columnwidth}{24mm}
+\caption{A single-column diagnostic float requested before the band.}
+\end{figure}
+\WBTextA
+\begin{wideband}
+\begin{equation}E^2=p^2c^2+m^2c^4\end{equation}
+\end{wideband}
+\WBTextB\WBTextC
+\begin{figure*}[t]
+\centering\rule{.8\textwidth}{20mm}
+\caption{A double-column diagnostic float requested after the band.}
+\end{figure*}
+\WBTextD\WBTextE\WBTextF
+\end{document}

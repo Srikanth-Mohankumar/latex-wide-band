@@ -15,7 +15,7 @@ because box-surgery bugs produce silently-wrong pages (overlaps, lost text,
 wrong column heights).
 
 Paths below are relative to the **repo root** (the directory holding
-`wideband.sty`). The driver lives at
+`wideband.sty`); regression inputs live in `tests/`. The driver lives at
 `.claude/skills/run-wideband/driver.sh`.
 
 ## Prerequisites
@@ -73,7 +73,7 @@ band, overlapping text, or a flushed/half-empty page = a real bug, not a pass.
 To iterate on one change without the full suite, work in a scratch dir:
 
 ```bash
-mkdir -p /tmp/wb && cp wideband.sty wideband.lua test-wideband.tex /tmp/wb && cd /tmp/wb
+mkdir -p /tmp/wb && cp wideband.sty wideband.lua tests/test-wideband.tex /tmp/wb && cd /tmp/wb
 lualatex -interaction=nonstopmode test-wideband.tex   # run TWICE for \eqref
 lualatex -interaction=nonstopmode test-wideband.tex
 grep -iE "anchored|fell|deferred|undefined" test-wideband.log

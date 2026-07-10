@@ -1,0 +1,27 @@
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,margin=18mm]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\input{test-content.tex}
+\setwidebandrule{0.4pt}{0.75}
+\setwidebandrulesep{6pt}
+\begin{document}
+\section*{Right-column deferral and content accounting}
+RIGHT-PRE-0001. \WBTextA
+RIGHT-PRE-0002. \WBTextB
+RIGHT-PRE-0003. \WBTextC
+RIGHT-PRE-0004. \WBTextD
+\begin{wideband}
+\begin{equation}
+  \mathcal{R}(x)=\int_0^x \frac{1+t^2}{1+t^4}\,dt
+  +\sum_{k=1}^{12}\frac{(-1)^k}{k^2+x^2}
+  \label{eq:right-deferred}
+\end{equation}
+BAND-UNIQUE-0001.
+\end{wideband}
+RIGHT-POST-0001. \WBTextE
+RIGHT-POST-0002. \WBTextF
+RIGHT-POST-0003. \WBTextG
+RIGHT-POST-0004. \WBTextH
+Reference token RIGHT-REF-0001 points to Equation~\ref{eq:right-deferred}.
+\end{document}

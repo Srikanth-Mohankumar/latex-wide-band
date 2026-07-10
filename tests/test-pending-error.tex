@@ -1,0 +1,12 @@
+% Expected controlled failure: second pending band must not overwrite first.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband}
+\input{test-content}
+\begin{document}
+\WBTextA
+\begin{wideband}\begin{equation}a=b\end{equation}\end{wideband}
+\WBTextB
+\begin{wideband}\begin{equation}c=d\end{equation}\end{wideband}
+\WBTextC
+\end{document}

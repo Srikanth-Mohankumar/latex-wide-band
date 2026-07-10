@@ -1,0 +1,56 @@
+% Edge cases using editable technical prose, not lipsum.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{wideband}
+\input{test-content}
+\setlength{\columnseprule}{0.2pt}
+\setwidebandrule{0.4pt}{0.75}
+\setwidebandrulesep{6pt}
+
+\begin{document}
+\section{Footnotes around a decorated band}
+\WBTextA
+A marker issued before the band carries this note.\footnote{Footnote generated before the wideband request.}
+\begin{wideband}
+\begin{equation}\label{eq:maxwell-band}
+ \nabla\times\mathbf B-\frac{1}{c}\frac{\partial\mathbf E}{\partial t}
+ =\frac{4\pi}{c}\mathbf j
+\end{equation}
+\end{wideband}
+A marker issued after Eq.~\ref{eq:maxwell-band} carries another note.\footnote{Footnote generated after the wideband request.}
+\WBTextC\WBTextE
+
+\clearpage
+\section{Tall band that still fits}
+\WBTextB
+\begin{wideband}
+\begin{align}
+ a_1&=b_1+c_1 & a_2&=b_2+c_2\\
+ a_3&=b_3+c_3 & a_4&=b_4+c_4\\
+ a_5&=b_5+c_5 & a_6&=b_6+c_6\\
+ a_7&=b_7+c_7 & a_8&=b_8+c_8\\
+ a_9&=b_9+c_9 & a_{10}&=b_{10}+c_{10}
+\end{align}
+\end{wideband}
+\WBTextD\WBTextF
+
+\clearpage
+\section{Band at the beginning of a page}
+\begin{wideband}
+\begin{equation}e^{i\pi}+1=0\end{equation}
+\end{wideband}
+\WBTextA\WBTextB\WBTextC\WBTextD
+
+\clearpage
+\section{Custom short rules}
+\setwidebandrule{1pt}{0.50}
+\setwidebandrulesep{4pt}
+\WBTextG
+\begin{wideband}
+\begin{equation}
+  \operatorname{Var}(X)=\mathbb E[X^2]-\mathbb E[X]^2
+\end{equation}
+\end{wideband}
+\WBTextH\WBTextE\WBTextF
+\end{document}
