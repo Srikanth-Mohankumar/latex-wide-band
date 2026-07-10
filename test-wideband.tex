@@ -1,58 +1,275 @@
-% Test: non-balancing full-width band. Compile with lualatex.
+%% test-wideband.tex -- demonstration of wideband.sty with real content
+%% Compile with: lualatex test-wideband.tex
 \documentclass[twocolumn]{article}
 \usepackage{amsmath}
-\usepackage{lipsum}
 \usepackage{wideband}
-\setlength{\columnseprule}{0.2pt}
+
+\title{Functional Methods for the Self-Interacting Scalar Field:\\
+  a Worked Tour of the $\phi^4$ Generating Functional}
+\author{Test document for \texttt{wideband.sty}}
+\date{July 2026}
 
 \begin{document}
+\maketitle
 
-\section{Band anchored mid column one}
-\lipsum[1][1-8]
+\section{The generating functional}
+
+The central object of the functional approach to quantum field theory is
+the generating functional of correlation functions. For a single real
+scalar field $\phi(x)$ in four spacetime dimensions, every time-ordered
+vacuum expectation value can be obtained by differentiating a single
+functional of an external source $J(x)$. The philosophy mirrors that of
+statistical mechanics: just as the partition function encodes all
+thermodynamic information about a system in equilibrium, the generating
+functional encodes the complete set of Green functions of the theory.
+
+The construction begins with the classical action. We take the standard
+Lagrangian density of a massive scalar with a quartic self-interaction,
+$\mathcal{L} = \tfrac12\,\partial_\mu\phi\,\partial^\mu\phi
+- \tfrac12 m^2\phi^2 - \tfrac{\lambda}{4!}\phi^4$,
+where $m$ is the bare mass and $\lambda$ the bare coupling. The factor
+of $1/4!$ is a convention that cancels the combinatorial factor arising
+from the four identical fields meeting at a vertex, so that the Feynman
+rule for the vertex is simply $-i\lambda$.
+
+Coupling the field linearly to the source and integrating over all field
+configurations with appropriate boundary conditions yields the object we
+are after. Written as a formal path integral it reads as follows.
 
 \begin{wideband}
 \begin{equation}
-  \mathcal{Z}[J] = \int \mathcal{D}\phi \,
-  \exp\!\Bigl( i\!\int\! d^4x \,\bigl[\tfrac12 \partial_\mu\phi\,\partial^\mu\phi
-  - \tfrac12 m^2\phi^2 - \tfrac{\lambda}{4!}\phi^4 + J\phi\bigr] \Bigr)
+  \mathcal{Z}[J] \;=\; \int \mathcal{D}\phi\,
+  \exp\!\Bigl( i\!\int d^4x\,
+  \bigl[\tfrac12\,\partial_\mu\phi\,\partial^\mu\phi
+  - \tfrac12 m^2\phi^2 - \tfrac{\lambda}{4!}\phi^4
+  + J\phi\bigr]\Bigr)
   \qquad\text{(full-width band, columns not balanced)}
-  \label{eq:band1}
+  \label{eq:Z}
 \end{equation}
 \end{wideband}
 
-Text resumes immediately after the band in the same left column, and the
-right column has a matching gap at the same height.
-\lipsum[2-4]
+The measure $\mathcal{D}\phi$ denotes integration over all field
+configurations, and the $i\epsilon$ prescription hiding inside the mass
+term selects the vacuum-to-vacuum amplitude. Functional derivatives of
+$\mathcal{Z}[J]$ with respect to the source pull down factors of the
+field: the $n$-point function is
+$\langle 0|\,T\,\phi(x_1)\cdots\phi(x_n)\,|0\rangle
+= (-i)^n\,\delta^n \mathcal{Z}/\delta J(x_1)\cdots\delta J(x_n)$
+evaluated at $J=0$, up to the normalization $\mathcal{Z}[0]$.
 
-Reference check: the band above is Eq.~(\ref{eq:band1}).
-\lipsum[5-7]
+Two related functionals are worth introducing immediately. The logarithm
+$W[J] = -i\ln\mathcal{Z}[J]$ generates only the \emph{connected} Green
+functions, discarding the disconnected pieces that merely repeat
+lower-point information. Its Legendre transform
+$\Gamma[\varphi] = W[J] - \int d^4x\, J\varphi$, taken with respect to
+the classical field $\varphi(x) = \delta W/\delta J(x)$, generates the
+one-particle-irreducible vertices. It is $\Gamma$ that satisfies the
+quantum-corrected equations of motion and whose second derivative is the
+full inverse propagator.
+
+For the free theory, $\lambda = 0$, the integral is Gaussian and can be
+done exactly. Completing the square gives
+$\mathcal{Z}_0[J] = \mathcal{Z}_0[0]\exp\bigl(-\tfrac{i}{2}\int d^4x\,
+d^4y\, J(x)\,\Delta_F(x-y)\,J(y)\bigr)$,
+where $\Delta_F$ is the Feynman propagator, the Green function of the
+Klein--Gordon operator with causal boundary conditions. In momentum
+space $\tilde\Delta_F(p) = i/(p^2 - m^2 + i\epsilon)$, and the pole at
+$p^2 = m^2$ identifies the mass of the free particle.
+
+Everything hard about the interacting theory is contained in the quartic
+term. No closed form for the integral is known in four dimensions, and
+the two systematic strategies available are the perturbative expansion
+in powers of $\lambda$, organized by Feynman diagrams, and
+non-perturbative evaluation on a spacetime lattice. We follow the first
+route here, since it makes the combinatorial structure of the theory
+most transparent and connects directly to scattering experiments through
+the LSZ reduction formula.
+
+Before expanding, one should appreciate what the generating functional
+already tells us at the formal level. Symmetries of the action become
+identities among Green functions: invariance of the measure and the
+action under $\phi \to -\phi$ forces every odd correlation function to
+vanish, so the perturbative series contains only even powers of the
+field. Translation invariance makes all correlators functions of
+coordinate differences, which is why momentum space is the natural
+arena. These exact statements survive renormalization and serve as
+checks on any explicit calculation.
 
 \clearpage
-\section{Band near the top of a page}
+\section{Perturbative expansion}
+
 \begin{wideband}
 \begin{equation}
-  S_{\mathrm{eff}}[\phi] = S[\phi]
-  + \tfrac{\hbar}{2}\operatorname{Tr}\log
-    \frac{\delta^2 S}{\delta\phi\,\delta\phi}
-  + \mathcal{O}(\hbar^2)
+  \mathcal{Z}[J] \;=\;
+  \exp\!\Bigl(-\tfrac{i\lambda}{4!}\!\int d^4x\,
+  \Bigl(\tfrac{1}{i}\frac{\delta}{\delta J(x)}\Bigr)^{\!4}\,\Bigr)\,
+  \mathcal{Z}_0[J]
+  \;=\; \sum_{V=0}^{\infty}\frac{1}{V!}
+  \Bigl(-\tfrac{i\lambda}{4!}\Bigr)^{\!V}
+  \Bigl[\int d^4x\,
+  \Bigl(\tfrac{1}{i}\frac{\delta}{\delta J(x)}\Bigr)^{\!4}\Bigr]^V
+  \mathcal{Z}_0[J]
+  \label{eq:pert}
 \end{equation}
 \end{wideband}
-\lipsum[8-13]
+
+The trick behind equation~\eqref{eq:pert} is standard but worth spelling
+out. Inside the path integral, every factor of the field $\phi(x)$ can
+be generated by a functional derivative $\tfrac{1}{i}\delta/\delta J(x)$
+acting on the source term. The interaction part of the exponential can
+therefore be pulled out of the integral as a differential operator
+acting on the free generating functional, which we computed exactly in
+the previous section. Expanding both exponentials produces a double
+series: $V$ counts interaction vertices and the expansion of
+$\mathcal{Z}_0$ counts propagators.
+
+Each term of the double series is a sum of Feynman diagrams. A diagram
+with $V$ vertices, $P$ propagators and $E$ external sources contributes
+at order $\lambda^V$, with the propagators pairing up the $4V + E$
+functional derivatives in all possible ways. Wick's theorem is nothing
+more than this counting of pairings. The $1/V!$ and the $1/4!$ per
+vertex are largely eaten by the number of equivalent pairings, leaving
+the residual symmetry factor of the diagram --- the order of its
+automorphism group --- in the denominator.
+
+The first nontrivial effects appear at one loop. The two-point function
+receives the tadpole correction, a single propagator closed on itself
+and attached to one vertex, which shifts the mass. The four-point
+function receives the one-loop bubble in the $s$, $t$ and $u$ channels,
+which makes the effective coupling depend on the energy at which it is
+measured. Both diagrams are ultraviolet divergent, and the divergences
+are the entry point of renormalization theory.
+
+In dimensional regularization one continues the loop integrals to
+$d = 4 - \epsilon$ dimensions, where they converge, and isolates the
+divergences as poles in $1/\epsilon$. The tadpole gives
+$\delta m^2 \propto \lambda\, m^2/\epsilon$ and the bubble gives
+$\delta\lambda \propto \lambda^2/\epsilon$. Both poles can be absorbed
+into a redefinition of the bare parameters, which is the statement that
+$\phi^4$ theory is perturbatively renormalizable: the counterterms
+required have the same form as the terms already present in the
+Lagrangian.
+
+The price of the subtraction is the appearance of an arbitrary scale
+$\mu$, and physical quantities can only be independent of it if the
+renormalized coupling runs. The one-loop beta function,
+$\beta(\lambda) = 3\lambda^2/16\pi^2 + O(\lambda^3)$, is positive: the
+coupling grows in the ultraviolet, and the theory is infrared free. The
+same calculation, with the sign flipped by the non-abelian gauge boson
+loops, is what produces asymptotic freedom in QCD; the scalar theory is
+the cleanest laboratory in which to learn the machinery.
+
+The positive beta function has a famous consequence. Integrating the
+flow, the running coupling blows up at a finite energy, the Landau pole,
+signalling that the perturbative theory cannot be a complete description
+up to arbitrarily high scales. Lattice studies strengthen this into the
+triviality scenario: in four dimensions the continuum limit of $\phi^4$
+theory appears to be a free field unless a finite cutoff is retained.
+Viewed as an effective field theory with a cutoff, however, the model is
+perfectly predictive at low energies, and this modern reading is the one
+under which the Higgs sector of the Standard Model operates.
 
 \clearpage
-\section{Band that does not fit the current column}
-% enough text so the band request arrives near the bottom of column 1;
-% the package must push it to the top of the next column.
-\lipsum[1-2]
-\lipsum[3][1-10]
+\section{A band that does not fit the current column}
+
+This section reproduces the deferral scenario: by the time the wide
+equation is issued, the first column is nearly full, the reservation
+check in the package fails, and the band is carried over rather than
+overprinting the text. To set the stage we summarize the LSZ reduction
+formula, which converts the Green functions generated by
+$\mathcal{Z}[J]$ into scattering amplitudes.
+
+The formula rests on the observation that the full two-point function,
+whatever the interactions, retains a pole at the physical particle mass
+$m_{\mathrm{ph}}^2$, with residue $Z$, the field-strength renormalization.
+Near the pole the interacting field behaves like $\sqrt{Z}$ times a free
+field, and asymptotic particle states can be constructed from it. An
+$n$-point Green function with all external momenta pushed onto the mass
+shell then factorizes into $n$ single-particle poles multiplying the
+scattering amplitude.
+
+Concretely, one Fourier transforms the connected $n$-point function,
+amputates each external leg by multiplying with the inverse full
+propagator, supplies one factor of $\sqrt{Z}$ per leg, and takes the
+on-shell limit. What survives is the invariant matrix element
+$\mathcal{M}$ that enters cross sections. At tree level in $\phi^4$
+theory the $2\to2$ amplitude is simply $\mathcal{M} = -\lambda$; at one
+loop it acquires the channel-dependent logarithms computed from the
+bubble diagrams of the previous section. Beyond one loop the amplitude
+develops branch cuts demanded by unitarity: the optical theorem relates
+the imaginary part of the forward amplitude to the total cross section,
+and checking it order by order is a classic consistency test of the
+diagrammatic rules. Renormalization-group improvement then resums the
+channel logarithms into the running coupling evaluated at the scale of
+the process. The full statement, for $n$
+incoming and outgoing particles combined, reads:
 
 \begin{wideband}
-\begin{align}
-  G^{(2)}(x_1,x_2) &= \frac{\delta^2 W[J]}{\delta J(x_1)\,\delta J(x_2)}
-     \Big|_{J=0}, &
-  W[J] &= -i \log \mathcal{Z}[J]
-\end{align}
+\begin{equation}
+  \prod_{k=1}^{n}\;\lim_{p_k^2\to m_{\mathrm{ph}}^2}
+  \frac{p_k^2 - m_{\mathrm{ph}}^2}{i\sqrt{Z}}\;
+  \tilde G^{(n)}_{\mathrm{conn}}(p_1,\dots,p_n)
+  \;=\;
+  \langle p_{\mathrm{out}}|\,S\,|p_{\mathrm{in}}\rangle_{\mathrm{amp}}
+  \qquad\text{(LSZ reduction, deferred band)}
+  \label{eq:lsz}
+\end{equation}
 \end{wideband}
-\lipsum[4-8]
+
+Equation~\eqref{eq:lsz} is the bridge between the functional formalism
+and experiment. Everything on the left is computable, order by order,
+from the diagrams generated by equation~\eqref{eq:pert}; everything on
+the right is measurable, after squaring and integrating against phase
+space, as a cross section or a decay rate.
+
+Several practical remarks are in order. The field-strength factor $Z$
+first differs from unity at two loops in $\phi^4$ theory, because the
+one-loop self-energy is momentum independent; in gauge theories it
+already appears at one loop. The reduction formula is insensitive to the
+choice of interpolating field: any operator with a nonvanishing overlap
+with the one-particle state produces the same S-matrix, a fact that
+underlies the modern effective-field-theory viewpoint in which fields
+are mere integration variables.
+
+The same functional technology extends with minor changes to
+complex scalars, where the source term splits into $J^*\phi +
+J\phi^*$ and charge conservation forbids correlators with unequal
+numbers of $\phi$ and $\phi^*$; to fermions, where the sources become
+Grassmann valued and the Gaussian integral produces a determinant in the
+numerator rather than the denominator; and to gauge fields, where the
+redundancy of the description requires the Faddeev--Popov construction
+before a propagator even exists. In every case the
+pattern set by the humble $\phi^4$ model persists: a free
+Gaussian core, an interaction promoted to a differential operator, and
+diagrams as the bookkeeping of its expansion.
+
+A final word on the status of the perturbative series itself. Dyson's
+classical argument shows that the expansion in $\lambda$ cannot
+converge: were it convergent in a disc around the origin, the theory
+would also make sense at small negative coupling, where the potential is
+unbounded below and the vacuum decays. The series is instead asymptotic,
+with coefficients growing factorially, and its information content is
+recovered through Borel summation or, more robustly, through the modern
+machinery of resurgence, in which the ambiguities of the Borel transform
+are cancelled by instanton-like contributions.
+
+None of this diminishes the practical value of the expansion. For weak
+coupling the first few orders approximate the exact answer to an
+accuracy far beyond experimental reach, and the asymptotic character
+only becomes visible at orders comparable to $1/\lambda$. The same
+structure --- divergent series, exponentially small corrections, and
+their interplay --- reappears throughout physics, from the anharmonic
+oscillator of quantum mechanics to the large-order behaviour of QED,
+where the corresponding growth was estimated by Lautrup and by Lipatov
+using precisely the functional methods rehearsed here.
+
+The reader who has followed the thread from equation~\eqref{eq:Z} to
+equation~\eqref{eq:lsz} now possesses the complete conceptual pipeline
+of perturbative quantum field theory: a path integral defines the
+theory, functional differentiation generates its correlators, diagrams
+organize their expansion, renormalization renders them finite, and LSZ
+converts them into numbers an experiment can check. Every refinement
+--- gauge symmetry, spontaneous breaking, effective actions, anomalies
+--- is a variation on this pipeline rather than a replacement for it.
 
 \end{document}

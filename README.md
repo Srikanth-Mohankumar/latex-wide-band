@@ -15,8 +15,19 @@ jumps across it, and continues in both columns below it.
 ...column text continues...
 ```
 
-`\setwidebandsep{<dimen>}` sets the vertical gap above/below the band
-(default `12pt plus 2pt minus 2pt`, applied rigid at assembly).
+Configuration:
+
+```latex
+\setwidebandsep{14pt}          % gap between columns and the band block
+\setwidebandrule{0.4pt}{0.75}  % rule {thickness}{fraction of \textwidth}
+\setwidebandrulesep{6pt}       % gap between each rule and the content
+\widebandrulesoff              % \widebandruleson to re-enable (default on)
+```
+
+The band is decorated with two rules: the top rule is flush *left*, the
+bottom rule is flush *right*, each spanning the given fraction of
+`\textwidth` (default 75%). The rules are wrapped around the content
+before the height reservation is measured, so spacing stays exact.
 
 ## How it works
 
@@ -91,6 +102,8 @@ Four approaches were evaluated:
   warning (its reservation is not honored).
 - If a new band is opened before a deferred band has been placed, the stored
   box is overwritten.
+- A band deferred on the very last page is no longer dropped: an
+  `\AtEndDocument` guard forces one extra page for it (with a warning).
 - Floats on band pages are untested and likely to misplace.
 - Baseline grids drift below the band; with `\flushbottom` (the twocolumn
   default) the split boxes generate underfull-vbox warnings — cosmetic, and

@@ -16,7 +16,7 @@
 %%   \end{wideband}
 %%
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{wideband}[2026/07/09 v0.1 non-balancing full-width band (POC)]
+\ProvidesPackage{wideband}[2026/07/10 v0.2 non-balancing full-width band (POC)]
 
 \RequirePackage{iftex}
 \RequireLuaTeX
@@ -38,6 +38,19 @@
 \newskip\wideband@sep
 \wideband@sep=14\p@ \@plus 4\p@ \@minus 2\p@
 \newcommand\setwidebandsep[1]{\setlength\wideband@sep{#1}}
+
+%% decorative rules: top rule flush left, bottom rule flush right,
+%% each a fraction of \textwidth
+\newif\ifwideband@rules \wideband@rulestrue
+\newcommand\widebandruleson{\wideband@rulestrue}
+\newcommand\widebandrulesoff{\wideband@rulesfalse}
+\newdimen\wideband@rulethick \wideband@rulethick=.4\p@
+\def\wideband@rulefrac{0.75}
+\newcommand\setwidebandrule[2]{%   {<thickness>}{<fraction of \textwidth>}
+  \setlength\wideband@rulethick{#1}%
+  \def\wideband@rulefrac{#2}}
+\newdimen\wideband@rulesep \wideband@rulesep=6\p@
+\newcommand\setwidebandrulesep[1]{\setlength\wideband@rulesep{#1}}
 
 \directlua{
   wideband = require("wideband")
@@ -65,6 +78,20 @@
 }
 
 \def\wb@place{%
+  % wrap the band with its rules first, so the reservation measures the
+  % final decorated box
+  \ifwideband@rules
+    \global\setbox\wb@band\vbox{%
+      \hb@xt@\textwidth{%
+        \vrule\@height\wideband@rulethick\@depth\z@
+          \@width\dimexpr\wideband@rulefrac\textwidth\relax\hss}%
+      \vskip\wideband@rulesep
+      \box\wb@band
+      \vskip\wideband@rulesep
+      \hb@xt@\textwidth{\hss
+        \vrule\@height\wideband@rulethick\@depth\z@
+          \@width\dimexpr\wideband@rulefrac\textwidth\relax}}%
+  \fi
   \global\wb@reserve\dimexpr\ht\wb@band+\dp\wb@band+2\wideband@sep\relax
   % if the band cannot fit in what remains of the current column,
   % force a column break so the marker lands at the top of the next one
@@ -219,6 +246,17 @@
     \global\wb@defer@request\z@
     \global\wb@state\tw@
     \global\advance\@colht-\wb@reserve
+  \fi}
+
+%% a band deferred on the last page of the document would otherwise be
+%% dropped silently (no further output cycle ever runs).  Force one
+%% more page for it.
+\AtEndDocument{%
+  \clearpage
+  \ifnum\wb@state=\tw@
+    \PackageWarning{wideband}{Deferred band pending at end of document;
+      forcing an extra page for it}%
+    \null\clearpage
   \fi}
 
 \endinput
