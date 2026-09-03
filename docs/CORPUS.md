@@ -10,6 +10,7 @@ This is the CORPUS workstream of `docs/implementation-contract.md` (section 6). 
 | `scripts/run-corpus.sh` | generates a corpus and runs the same checks over it |
 | `tests/matrix/*.tex` | the hand-written scenario matrix, one document per expressible case |
 | `tests/matrix/matrix-content.tex` | shared prose and layout helpers for the matrix (CORPUS' own copy; `tests/test-content.tex` is shared and read-only) |
+| `tests/matrix/stratum-dryrun.py` | synthesises a spec-conforming decision log for every scenario and checks the headers against it; needs no LaTeX |
 
 ## How to run
 
@@ -28,11 +29,13 @@ WB_BUILD_DIR=/tmp/wb ./scripts/run-matrix.sh   # same, through the environment
 ./scripts/check-decisions.py --selftest        # 28 checker self-tests, no LaTeX needed
 ./scripts/check-decisions.py doc.tex doc.log   # one document
 ./scripts/check-decisions.py --print-meta doc.tex
+./tests/matrix/stratum-dryrun.py               # headers vs a spec-conforming log
 ```
 
+`run-matrix.sh` runs both `check-decisions.py --selftest` and
+`tests/matrix/stratum-dryrun.py` before it compiles anything, and stops if either fails.
+
 Exit codes of the runners: `0` all good, `1` at least one document failed, `2` usage error.
-`run-matrix.sh` runs `check-decisions.py --selftest` before it compiles anything, so a broken
-checker is reported instead of being trusted.
 
 Requirements: LuaLaTeX (TeX Live 2025), Poppler (`pdftotext`), Python 3. The runners export
 `max_print_line=1000` so that long `WIDEBAND DECISION:` lines are not wrapped by TeX at 79
@@ -169,6 +172,23 @@ numbers:
   a legal cut**") would defer with D1 instead of placing flush at the bottom. The expectation
   follows the report, which records "placed"; a D1 from CORE here is a specification question, not
   necessarily a bug.
+
+### Two checks that the derivations are right
+
+1. `tests/matrix/stratum-dryrun.py` writes, for each scenario, the decision log a
+   specification-conforming CORE would produce (from the arithmetic in that scenario's header) and
+   runs `check-decisions.py --package-mode stratum --strict-format` against it. All 34 scenarios
+   with a decision log pass, so the headers are consistent with the specification rather than
+   merely unfalsifiable, and the checker will not reject a conforming CORE. `run-matrix.sh` runs
+   this before it compiles anything.
+2. The baseline package reports the marker position it measured
+   (`Package wideband info: marker found at Xpt from column top`). Compared against the `h` each
+   header predicts, 19 of the 20 documents where the baseline reaches the marker agree to within
+   2.1pt, which is exactly the last line's depth. The twentieth,
+   `m24-column-floats-t-and-b`, showed that a single-column `[t]` float counts towards `h` (it sits
+   inside the column) rather than reducing `S`; the header was corrected accordingly, and the
+   conclusion (`placed`) is unchanged. `build/probe/verify-h.py` reproduces the comparison after a
+   matrix run.
 
 Nothing in any expectation was copied from observed output. Where the geometry could not be pinned
 down (a heading's `3.5ex` space, a float's `\textfloatsep`, a split footnote's reservation), the

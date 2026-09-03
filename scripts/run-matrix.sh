@@ -131,6 +131,14 @@ if ! selftest=$("$root/scripts/check-decisions.py" --selftest 2>&1); then
   die "check-decisions.py --selftest failed; fix the checker before trusting a run"
 fi
 echo "run-matrix: $selftest"
+if [ -x "$source_dir/stratum-dryrun.py" ]; then
+  if dry=$("$source_dir/stratum-dryrun.py" 2>&1); then
+    echo "run-matrix: $(tail -1 <<<"$dry")"
+  else
+    echo "$dry" >&2
+    die "the scenario headers are not satisfiable by a spec-conforming decision log"
+  fi
+fi
 echo
 
 export max_print_line=1000 error_line=254 half_error_line=238

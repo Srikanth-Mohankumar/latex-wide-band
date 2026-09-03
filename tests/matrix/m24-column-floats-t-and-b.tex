@@ -1,11 +1,15 @@
 %% Scenario: single-column floats above and below a band.  Report section 6:
-%% "Float placed at the top of a non-first piece" and "Held footnotes ...";
-%% contract 4.3 requires \@topnum = 0 off the first piece and \@botnum = 0 off
-%% the last piece.
-%% The [t] float of 40pt plus caption and \textfloatsep shortens the stratum,
-%% so S is about 520pt; the [b] float adds about 80pt to R.
-%% h = 10 + 16*12 = 202pt, B = 66 + 24 = 90pt
-%% y + B = 292 <= S - R, which is about 440pt  -> placed at y = h.
+%% "Float placed at the top of a non-first piece"; contract 4.3 requires
+%% \@topnum = 0 off the first piece and \@botnum = 0 off the last piece.
+%% A single-column [t] float sits inside column 1, so it counts towards h and
+%% not against S: 40pt of rule, \abovecaptionskip 10pt, a two-line caption of
+%% 24pt and \textfloatsep 20pt is about 94pt, and the 17 MXA lines follow it:
+%%   h = 94 + (10 + 16*12) = 296pt  (+/- one line, the caption may set shorter)
+%% The [b] float is the bottom reservation of the same column, so R is about
+%% 94pt as well, while S stays 600pt.
+%% B = 66 + 24 = 90pt
+%% y = h = 296pt, y + B = 386 <= S - R = 506pt   -> placed at y = h
+%% bottom stratum = 506 - 386 = 120pt >= 2 lines -> minimum piece rule ok
 %% WB-EXPECT: requests=1 placed=1 deferred=0
 %% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
 %% WB-EXPECT-TOKENS: MXFIG01 MXFIG02 MXA01 MXA17 MXBAND01 MXB01 MXB40
