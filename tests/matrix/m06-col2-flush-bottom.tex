@@ -1,0 +1,35 @@
+%% Scenario: the minimum piece height rule moves the band to y_max.
+%% Report 2.8 row 6 and report 2.3 ("minimum piece height").
+%% 50 MXA lines fill column 1; 37 MXB lines precede the request in column 2.
+%% h = 10 + 36*12 = 442pt, P = 600 + 442 = 1042pt, y_min = 521pt
+%% B = 36pt band box + 24pt separation = 60pt, y_max = S - R - B = 540pt
+%% The first legal cut at or after 521pt is 526pt (break after line 44); the
+%%   bottom stratum would be 600 - 526 - 60 = 14pt, between zero and two
+%%   lines, which report 2.3 forbids.
+%% No legal cut leaves a two-line bottom stratum (that needs y <= 516 < y_min),
+%%   so y = y_max = 540pt: the band sits flush at the page bottom with a
+%%   zero-height bottom stratum, the outcome report 2.8 row 6 records.
+%% This is the one boundary row where a stricter reading of the minimum piece
+%% rule would give D1 instead; see docs/CORPUS.md.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=2 code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXA50 MXB01 MXB37 MXBAND01 MXC01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{50}{MXA}
+\WBMlines{37}{MXB}
+\begin{wideband}
+\WBMbandbox{36pt}{MXBAND01}{$\displaystyle \|u - u_h\|_{1} \le C h^{p} \, \|u\|_{p+1} \quad \text{for } u \in H^{p+1}(\Omega)$}
+\end{wideband}
+\WBMlines{10}{MXC}
+\end{document}

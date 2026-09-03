@@ -1,0 +1,27 @@
+%% Scenario: oversized band.  Deferral code D2 (report section 5), which is an
+%% error class: the band fits on no page anywhere, so the run must fail.
+%% B = 640pt band box + 2 * 12pt separation = 664pt
+%% B > S = 600pt, the column height of a fresh page   -> D2, \PackageError
+%% Both the baseline package (threshold \textheight - 2\baselineskip = 576pt)
+%% and the stratum core (threshold S = 600pt) reject this band, so the
+%% expectation is the same for both.
+%% WB-EXPECT: requests=1 placed=0 deferred=0 errors=1
+%% WB-EXPECT-COMPILE: fail
+%% WB-EXPECT-LOG: ^! Package wideband Error:
+%% WB-EXPECT-NOLOG: ^Output written on
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{6}{MXA}
+\begin{wideband}
+\WBMbandbox{640pt}{MXBAND01}{$\displaystyle \kappa(A) = \|A\| \, \|A^{-1}\|$}
+\end{wideband}
+\WBMlines{6}{MXB}
+\end{document}

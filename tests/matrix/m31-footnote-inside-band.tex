@@ -1,0 +1,32 @@
+%% Scenario: the band itself contains a footnote.  Report section 6: "Band
+%% contains footnotes -> insert stuck inside the band box, note lost"; the
+%% specification requires the insert to be extracted from the band box and
+%% re-inserted after placement.
+%% Column-1 request: h = 10 + 16*12 = 202pt; the band is the 66pt box plus one
+%% token line (12pt) plus 24pt of separation, so B is about 102pt.
+%% y = h = 202pt, 304 <= 600  -> placed, and MXNOTE01 must appear exactly once
+%% at the bottom of a column, not inside the band.
+%% Baseline: \insert nodes do not migrate out of a \vbox, so the note is
+%% trapped in the band box.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXFNB01 MXNOTE01 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\noindent\mbox{MXFNB01}\WBMnote{MXNOTE01} A note inside the band.
+\end{wideband}
+\WBMlines{20}{MXB}
+\end{document}

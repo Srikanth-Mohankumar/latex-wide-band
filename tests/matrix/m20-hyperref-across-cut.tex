@@ -1,0 +1,39 @@
+%% Scenario: a link that spans the re-cut.  Report section 6: differing box
+%% nesting between pages produced "\pdfendlink ended up in different nesting
+%% level" in the kernel's own two-column code (latex2e issue 94); the
+%% mitigation is to mirror the kernel's box nesting per stratum.
+%% The 50 MXA/MXREF lines fill column 1 and the 17 MXC lines precede the
+%% request in column 2, so h is about 202pt and the cut at y_min = 406pt falls
+%% inside the hyperref link built by the \eqref on the MXREF01 line.
+%% B is the one-line equation (about 30pt) plus the token line (12pt) plus
+%% 24pt of separation, so about 66pt: 406 + 66 = 472 <= 600  -> placed.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=2 code=OK page=1
+%% WB-EXPECT-NOLOG: ended up in different nesting level
+%% WB-EXPECT-NOLOG: pdfendlink
+%% WB-EXPECT-TOKENS: MXA01 MXREF01 MXB19 MXC17 MXBAND01 MXD01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{30}{MXA}
+\noindent\mbox{MXREF01} See~\eqref{eq:mx20} below.\par
+\WBMlines{19}{MXB}
+\WBMlines{17}{MXC}
+\begin{wideband}
+\begin{equation}\label{eq:mx20}
+  \mathcal{T}[u] = \int_{\Omega}\bigl(\tfrac12|\nabla u|^2 - fu\bigr)\,dx
+\end{equation}
+\noindent\hbox to\textwidth{\hfil\mbox{MXBAND01}\hfil}
+\end{wideband}
+\WBMlines{50}{MXD}
+\end{document}

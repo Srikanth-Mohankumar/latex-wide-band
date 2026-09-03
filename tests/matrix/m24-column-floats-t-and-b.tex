@@ -1,0 +1,30 @@
+%% Scenario: single-column floats above and below a band.  Report section 6:
+%% "Float placed at the top of a non-first piece" and "Held footnotes ...";
+%% contract 4.3 requires \@topnum = 0 off the first piece and \@botnum = 0 off
+%% the last piece.
+%% The [t] float of 40pt plus caption and \textfloatsep shortens the stratum,
+%% so S is about 520pt; the [b] float adds about 80pt to R.
+%% h = 10 + 16*12 = 202pt, B = 66 + 24 = 90pt
+%% y + B = 292 <= S - R, which is about 440pt  -> placed at y = h.
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-TOKENS: MXFIG01 MXFIG02 MXA01 MXA17 MXBAND01 MXB01 MXB40
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMfig{t}{MXFIG01}
+\WBMfig{b}{MXFIG02}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{40}{MXB}
+\end{document}

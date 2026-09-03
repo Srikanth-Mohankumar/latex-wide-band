@@ -1,0 +1,36 @@
+%% Scenario: two bands on one page.  Report 2.4 ("Multiple bands").
+%% Band 1: column 1, h = 10 + 11*12 = 142pt, B1 = 48 + 24 = 72pt
+%%   y1 = 142pt, y1 + B1 = 214 <= 600  -> placed, stratum 1
+%% Stratum 2 then begins at 214pt with S' = 600 - 214 = 386pt and h = 0 in its
+%%   column 1.  The 14 MXB lines first fill the right piece of stratum 1
+%%   (142pt, about 11 lines); the remainder starts stratum 2's column 1.
+%% Band 2: about 3 lines into stratum 2, h2 = 34pt, B2 = 72pt
+%%   34 + 72 = 106 <= 386  -> placed, stratum 2
+%% Baseline: the second request closes while band 1 is still pending, which
+%% the baseline rejects with "A previous wideband is still pending".
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=2 placed=2 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-DECISION: id=2 result=placed code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXA12 MXBAND01 MXB01 MXB14 MXBAND02 MXC01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{12}{MXA}
+\begin{wideband}
+\WBMbandbox{48pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{14}{MXB}
+\begin{wideband}
+\WBMbandbox{48pt}{MXBAND02}{$\displaystyle \|u - u_h\|_{1} \le C h^{p} \, \|u\|_{p+1} \quad \text{for } u \in H^{p+1}(\Omega)$}
+\end{wideband}
+\WBMlines{20}{MXC}
+\end{document}

@@ -1,0 +1,31 @@
+%% Scenario: recut=always-earliest on a column-1 request.  Report 2.3: the
+%% band is always re-cut to the earliest legal position, the behaviour of a
+%% page-layout application's "span columns" paragraph.
+%% h = 10 + 16*12 = 202pt, y_min = ceil(h/2) = 101pt -> first legal cut at or
+%%   after 101pt is 106pt (break after line 9)
+%% B = 66 + 24 = 90pt, 106 + 90 = 196 <= 600  -> placed at y = 106pt with
+%%   note=col1-recut rather than note=col1-at-h.
+%% Baseline: no options are declared, so the run fails with
+%%   ! LaTeX Error: Unknown option `recut' for package `wideband'.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*note=col1-recut
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXB01 MXB40
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage[recut=always-earliest]{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{40}{MXB}
+\end{document}

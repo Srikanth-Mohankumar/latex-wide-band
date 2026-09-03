@@ -1,0 +1,32 @@
+%% Scenario: column-2 request that fits after the re-cut.  Report 2.8 row 4.
+%% Exactly 50 \WBMlines fill a 600pt column (measured band-free), so the 50
+%% MXA lines fill column 1 and the 17 MXB lines are set in column 2.
+%% h = 10 + 16*12 = 202pt, S1 = S = 600pt, P = S1 + h = 802pt
+%% y_min = P/2 = 401pt -> first legal cut at or after 401pt is the break after
+%%   line 34 of column 1 at 10 + 33*12 = 406pt
+%% B = 66 + 24 = 90pt; y + B = 496 <= S - R = 600   -> placed, note col2-recut
+%% bottom strata = 600 - 496 = 104pt >= 2 lines
+%% Baseline: every column-2 request is deferred to the next page top.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=2 code=OK page=1
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*col=2 .*result=placed code=OK note=col2-recut
+%% WB-EXPECT-TOKENS: MXA01 MXA50 MXB01 MXB17 MXBAND01 MXC01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{50}{MXA}
+\WBMlines{17}{MXB}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXC}
+\end{document}
