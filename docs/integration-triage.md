@@ -1,0 +1,95 @@
+# Integration triage: stratum-v0.5, iteration 1
+
+Branch `integration/stratum-v0.5` merges the three workstream branches (core a131973, audit 2847a61,
+corpus 60b7da7..69921d2) cleanly. Results of the full run (with `max_print_line=2000` exported):
+
+- `make test`: fails on one point only, `test-pending-error` now compiles (multiple bands are allowed
+  by spec) but `scripts/run-tests.sh` still lists it fail-expected. Runner not yet updated.
+- `scripts/run-matrix.sh`: 11 pass / 24 fail of 35. The core same-page mechanism works for the
+  central cases: m01 col1 mid-column, m04 col2 fits, m09 re-cut across a heading, m10 two bands,
+  m12 band at page start, m20 hyperref across the cut, m21 xcolor across the band, m23 figure* on a
+  band page, m25 raggedbottom, m26 flushbottom, m34 equation-number order. Failures are specific and
+  localized, below.
+- `scripts/run-corpus.sh --seed 1 --count 30`: first document fails only on the ymax sentinel
+  invariant (item F), not on layout.
+
+## Real defects (content or geometry), all in `wideband.sty`/`wideband.lua`
+
+**A. Deferred band at top of next page overflows the type area by the band height B.** 12 documents
+(m03, m05, m06, m07, m14, m15, m17, m19, m22, m27, m30, m35). The audit reports
+`geometry-textarea FAIL edge=bottom by=(B−0.5)pt` on the `col=0 note=top-of-page` page; the rendered
+m03 page 2 shows the columns hanging below the text area. Root cause: the `\@colht -= B` applied in
+`\wb@after@page` (via the `build/page/after` hook) does not persist to the next page's first cycle,
+so `\wb@ensurepage` sets `\wb@S = \@colht = \textheight` (not `\textheight − B`) and `\wb@pageht =
+\textheight + B`; the columns under the band are then built B too tall. The architecture doc
+(section 4, kernel fact 3) warned the adjustment must take effect after `\@outputpage` resets
+`\@colht`. Fix so the deferred page's columns are built at `\textheight − ΣB`; verify by rendering
+m03 page 2 and by the audit `geometry-textarea` check passing.
+
+**B. Column-1 and column-2 re-cut drops the top piece (`\wb@cuttop`).** m02, m08, m29 (col1 re-cut)
+and the col2 re-cut family. The left piece above the band, built into `\wb@Lpiece` from `\wb@cuttop`
+in `\wb@docut`, is not emitted into the assembled page: rendered m02 page 1 starts at token MXA24,
+so MXA01–MXA23 are gone; the audit reports `ledger-unique lost=23` and the token check reports the
+missing tokens count 0. This is content loss and the most serious failure. Fix so the top piece is
+emitted as the left piece of the re-cut stratum; verify by ledger-unique clean and every unique
+token present exactly once.
+
+**C. Short stratum under a band ships zero pages (total content loss).** m33 (band at h=478, B=90,
+32 pt stratum below). The decision line is written (`placed col1-at-h`) but no page is ever shipped:
+the log ends `WBAUDIT SUMMARY: pages=0 lines=0` and `no pages of output`, so the whole document is
+lost and no PDF is produced. The short-stratum path fails to trigger a ship and the end-of-document
+flush does not recover it. Fix so a band whose lower stratum is short still ships, and the
+end-of-document guard forces a page if one is pending; verify m33 produces a PDF with every token.
+
+**D. Stacked bands violate reading order and double-emit.** m11: band 1 requested at h=142 is placed
+at y=82 (above its own request, so pre-request text would fall below it), band 2 emits two
+`result=placed` lines, and an `Overfull \vbox (16.84pt)` occurs. Fix the multi-band-in-one-column
+path so each band places at y ≥ its request position and emits exactly one placement.
+
+**E. Column floats on a band page overflow.** m24: `Overfull \vbox (100.05pt too high)`. R is
+computed in the decision (R=106.11) but the reserved float space is not subtracted from the built
+piece heights during assembly. Fix so the assembled column height accounts for R.
+
+## Logging / expectation mismatches (not content bugs)
+
+**F. ymax sentinel for non-geometric deferrals.** For D2 (oversized), D5 (gate disabled), and D4
+`nested`, the decision line logs `S=0 R=0 B=… ymax=0`, and the checker's invariant `ymax = S − R − B`
+then fails (0 vs −B). Contract 4.2 says inapplicable fields use `-`, which the checker already
+skips. Fix in core: emit `S=- R=- ymin=- ymax=-` (keep `B`) when no feasible interval was computed
+(stratum=0 gate/oversized/nested and any deferral before geometry). Clears m18, m19, m35 and the
+corpus doc-1 failure.
+
+**G. Note vocabulary.** `float-in-moved-material` (m30) is outside the contract 4.2 vocabulary; add
+it to the vocabulary list in `README.md` (it is a legitimate phase-1 D4 sub-reason).
+
+**H. Audit excludes running heads.** m22 (fancyhdr): the bounds check flags the running-head words
+`Stratum`/`model` as outside the type area. The audit `geometry-textarea` check must exclude kind-4
+(running head/foot) material, and `check-pdf-bounds.py` is a shared checker so the matrix should not
+run it on a document whose head sits in the margin by design; exclude head/foot in the audit and
+mark m22 accordingly.
+
+## Genuine feature gaps (mark xfail, do not fake a pass)
+
+- **m06 flush-bottom placement**: a col2 request whose only fit is at `y_max` (empty stratum below)
+  must place flush at the bottom; core currently defers D1. This is report section 2.3 `policy`
+  behaviour, not yet implemented. Mark the scenario `%% WB-BASELINE-DIFFERS` / xfail and list it as
+  remaining phase-2 work.
+- **m28 enlargethispage on a col1-at-h placement**: the D4 `enlargethispage` guard currently only
+  covers the re-cut path; extend it to any same-page placement, or mark xfail and document.
+- **m30 tall-top-float**: phase 1 refuses floats in moved material (D4 `float-in-moved-material`);
+  the scenario expected a placement. Adjust the expectation to the phase-1 D4 outcome.
+- **m08 col2-empty**: the scenario triggers a col1 re-cut, not a col2 placement; re-examine whether
+  the request position matches the intended "column 2 still empty" case.
+
+## Robustness
+
+- **m18 oversized**: the `\PackageError` fires (correct) but one LuaTeX pass segfaulted. Expected-fail
+  overall, but a clean error is preferable to a crash; investigate if cheap.
+
+## Assignment
+
+All of A–G and the m18 crash are `wideband.sty`/`wideband.lua` (plus `README.md`, `run-tests.sh`),
+owned by CORE. H is split: audit exclusion in `wideband-audit.lua` (AUDIT), matrix wiring in
+`run-matrix.sh` (CORPUS). The feature-gap xfays are `tests/matrix/*` (CORPUS). This pass is driven as
+one core fix agent on the integration branch, with the small audit/corpus adjustments folded in by
+the integrator afterwards.
