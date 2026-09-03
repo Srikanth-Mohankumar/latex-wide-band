@@ -1,0 +1,55 @@
+% Inertness proof for wideband-audit: this document and
+% tests/test-audit-inert-ref.tex differ in the \usepackage line only and
+% must render pixel-identically (scripts/run-tests.sh compares
+% test-no-band the same way; docs/AUDIT.md gives the commands).
+%
+% It is also the plain two-column acceptance document of contract section 8:
+% footnotes, column floats, a figure*, marginal notes and displays, with no
+% wideband package loaded at all.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-audit}
+\input{test-content}
+\setlength{\columnseprule}{0.2pt}
+\begin{document}
+\section{Plain two-column material under audit}
+\WBTextA
+A sentence carrying a note before the first float.\footnote{First footnote,
+set in the left column of the first page.}
+
+\begin{figure}[t]
+\centering\rule{.7\columnwidth}{22mm}
+\caption{A single-column float requested early.}
+\label{fig:audit-column}
+\end{figure}
+
+\WBTextB
+\marginpar{\raggedright A marginal note beside the second block.}
+The generating functional is
+\begin{equation}\label{eq:audit-display}
+  \mathcal{Z}[J]=\int\mathcal{D}\phi\,
+  \exp\!\left(i\int d^4x\,[\mathcal{L}(\phi)+J\phi]\right)
+\end{equation}
+and Eq.~\ref{eq:audit-display} is referenced from Fig.~\ref{fig:audit-column}.
+
+\begin{figure*}[t]
+\centering\rule{.7\textwidth}{18mm}
+\caption{A double-column float requested after the display.}
+\label{fig:audit-double}
+\end{figure*}
+
+\WBTextC
+A second note follows the double-column float.\footnote{Second footnote,
+which the kernel attaches under the column that holds its mark.}
+\WBTextD
+
+\begin{align}
+  G^{(2)}(x_1,x_2) &= \left.\frac{\delta^2 W[J]}
+     {\delta J(x_1)\,\delta J(x_2)}\right|_{J=0}, &
+  W[J] &= -i\log\mathcal{Z}[J]
+\end{align}
+
+\WBTextE
+\marginpar{\raggedright A second marginal note, on a later page.}
+\WBTextF\WBTextG\WBTextH
+\end{document}

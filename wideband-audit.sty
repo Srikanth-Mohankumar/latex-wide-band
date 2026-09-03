@@ -1,0 +1,209 @@
+%% wideband-audit.sty -- material ledger for two-column LuaLaTeX documents
+%%
+%% Proves that a document lost, duplicated, misordered or misplaced no
+%% material: every line box, display and footnote gets an identity, the
+%% shipped pages are walked in content order, and six checks are written to
+%% the log as
+%%
+%%     WBAUDIT: <check> ok|FAIL|skipped <details>
+%%     WBAUDIT SUMMARY: pages=<n> lines=<n> bands=<n> footnotes=<n> fails=<n>
+%%
+%% scripts/check-audit.py turns the summary into an exit status.
+%%
+%% The package must not change layout.  It only assigns LuaTeX attributes
+%% (which carry no typographic meaning), reads the shipped page, and writes
+%% to the log; tests/test-audit-inert.tex proves pixel identity against
+%% tests/test-audit-inert-ref.tex.
+%%
+%% Usage:
+%%   \usepackage{wideband-audit}                 % json sidecar on
+%%   \usepackage[json=false,verbose]{wideband-audit}
+%%
+%% See docs/AUDIT.md for the checks, their blind spots and how to run them.
+%%
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesPackage{wideband-audit}[2026/09/03 v0.5 wideband material ledger]
+
+\RequirePackage{iftex}
+\RequireLuaTeX
+
+%% ------------------------------------------------------------------
+%% attributes (contract section 5.2)
+%% ------------------------------------------------------------------
+%% seq   sequence id of a line box or display box
+%% kind  0 body, 1 float, 2 footnote, 3 marginal note, 4 running head/foot
+%% fn    footnote id, shared by the mark in the text and the footnote text
+%% frame private: marks \@outputbox, so the walk can measure the text area
+\newattribute\wbaudit@attr@seq
+\newattribute\wbaudit@attr@kind
+\newattribute\wbaudit@attr@fn
+\newattribute\wbaudit@attr@frame
+
+\newcount\wbaudit@fn
+\newif\ifwbaudit@fnfresh
+
+%% attributes are unset by assigning LuaTeX's "unset" marker
+\def\wbaudit@unset#1{#1=-"7FFFFFFF\relax}
+
+%% ------------------------------------------------------------------
+%% options
+%% ------------------------------------------------------------------
+\newif\ifwbaudit@json    \wbaudit@jsontrue
+\newif\ifwbaudit@verbose
+\DeclareKeys
+  {
+    json    .if = wbaudit@json ,
+    verbose .if = wbaudit@verbose
+  }
+\ProcessKeyOptions
+
+%% ------------------------------------------------------------------
+%% Lua side
+%% ------------------------------------------------------------------
+\directlua{
+  wbaudit = require("wideband-audit")
+  wbaudit.setup{
+    json    = \ifwbaudit@json true\else false\fi,
+    verbose = \ifwbaudit@verbose true\else false\fi }
+  luatexbase.add_to_callback("post_linebreak_filter",
+    wbaudit.line_filter, "wbaudit.sequence")
+  luatexbase.add_to_callback("pre_shipout_filter",
+    wbaudit.shipout, "wbaudit.ledger")
+  luatexbase.add_to_callback("wrapup_run",
+    wbaudit.wrapup, "wbaudit.summary")
+}
+
+%% The document level checks and the summary must reach the transcript, and
+%% LuaTeX 1.22 closes it before wrapup_run runs, so they are written from the
+%% last kernel hook of the run instead; the wrapup_run callback above is only
+%% a safety net (see docs/AUDIT.md, "Limits").
+\AddToHook{enddocument/end}{\directlua{wbaudit.finish()}}
+
+\def\wbaudit@display{\directlua{wbaudit.display()}}
+
+%% ------------------------------------------------------------------
+%% kernel patches
+%% ------------------------------------------------------------------
+%% \wbaudit@noparams{<cs>}{<true>}{<false>}: true when <cs> is a macro
+%% without parameters, i.e. when \g@addto@macro is safe on it.
+\def\wbaudit@noparams#1{%
+  \ifnum\directlua{tex.sprint(wbaudit.noparams(
+      "\luaescapestring{\meaning#1}") and 1 or 0)}=\@ne
+    \expandafter\@firstoftwo
+  \else
+    \expandafter\@secondoftwo
+  \fi}
+
+\def\wbaudit@patchok#1{\directlua{wbaudit.patch("#1", true)}}
+\def\wbaudit@patchbad#1{%
+  \directlua{wbaudit.patch("#1", false)}%
+  \PackageWarningNoLine{wideband-audit}{%
+    Cannot patch #1; the checks that depend on it are skipped}}
+
+%% Attribute values are inherited by every node created while they are set,
+%% so tagging the kernel's own reset macros tags whole floats, marginal
+%% notes and footnotes.
+\def\wbaudit@patchkinds{%
+  \wbaudit@noparams\@floatboxreset
+    {\g@addto@macro\@floatboxreset{\wbaudit@attr@kind=\@ne}%
+     \wbaudit@patchok{floatboxreset}}
+    {\wbaudit@patchbad{floatboxreset}}%
+  \wbaudit@noparams\@marginparreset
+    {\g@addto@macro\@marginparreset{\wbaudit@attr@kind=\thr@@}%
+     \wbaudit@patchok{marginparreset}}
+    {\wbaudit@patchbad{marginparreset}}%
+}
+
+%% The running head and foot are typeset inside \@outputpage's group, after
+%% the build/page/reset hook and after \@outputbox has been assembled, so a
+%% local assignment in that hook tags exactly the head and the foot.
+\def\wbaudit@patchheadfoot{%
+  \IfHookExistsTF{build/page/reset}
+    {\AddToHook{build/page/reset}{\wbaudit@attr@kind=4\relax}%
+     \wbaudit@patchok{headfoot}}
+    {\wbaudit@patchbad{headfoot}}%
+}
+
+%% Footnote mark and footnote text share an id.  The mark is tagged around
+%% the kernel's \@footnotemark (it sits inside a paragraph line, so the
+%% attribute is set and unset again without opening a group); the text is
+%% tagged before the \insert, which makes everything inside it kind 2.
+\def\wbaudit@patchfootnotes{%
+  \ifdefined\wbaudit@saved@footnotemark
+    \wbaudit@patchbad{footnotemark}%
+  \else
+    \let\wbaudit@saved@footnotemark\@footnotemark
+    \def\@footnotemark{%
+      \global\advance\wbaudit@fn\@ne
+      \global\wbaudit@fnfreshtrue
+      \wbaudit@attr@fn=\wbaudit@fn
+      \wbaudit@saved@footnotemark
+      \wbaudit@unset\wbaudit@attr@fn}%
+    \wbaudit@patchok{footnotemark}%
+  \fi
+  \ifdefined\wbaudit@saved@footnotetext
+    \wbaudit@patchbad{footnotetext}%
+  \else
+    \let\wbaudit@saved@footnotetext\@footnotetext
+    \long\def\@footnotetext##1{%
+      \ifwbaudit@fnfresh
+        \global\wbaudit@fnfreshfalse
+      \else
+        \global\advance\wbaudit@fn\@ne
+      \fi
+      \wbaudit@attr@kind=\tw@
+      \wbaudit@attr@fn=\wbaudit@fn
+      \wbaudit@saved@footnotetext{##1}%
+      \wbaudit@unset\wbaudit@attr@kind
+      \wbaudit@unset\wbaudit@attr@fn}%
+    \wbaudit@patchok{footnotetext}%
+  \fi
+}
+
+%% ------------------------------------------------------------------
+%% per page geometry
+%% ------------------------------------------------------------------
+%% \@themargin is only \let inside \@outputpage's shipout box, so mirror the
+%% kernel's choice here.
+\def\wbaudit@setmargin{%
+  \if@twoside
+    \ifodd\count\z@ \dimen@\oddsidemargin \else \dimen@\evensidemargin \fi
+  \else
+    \dimen@\oddsidemargin
+  \fi}
+
+%% build/page/before runs before \@outputpage boxes \@outputbox: the text
+%% area is handed over in the coordinate system of the shipout box (origin
+%% at its top left corner), so the 1in origin, \hoffset and \voffset cancel.
+\def\wbaudit@pagesetup{%
+  \begingroup
+    \wbaudit@setmargin
+    \directlua{wbaudit.page_setup{
+      box        = \number\@outputbox,
+      twocolumn  = \if@twocolumn 1\else 0\fi,
+      page       = \number\count\z@,
+      margin     = \number\dimen@,
+      topmargin  = \number\topmargin,
+      headheight = \number\headheight,
+      headsep    = \number\headsep,
+      textwidth  = \number\textwidth,
+      textheight = \number\textheight,
+      maxdepth   = \number\@maxdepth}}%
+  \endgroup}
+
+\AddToHook{build/page/before}{\wbaudit@pagesetup}
+
+%% ------------------------------------------------------------------
+%% installation
+%% ------------------------------------------------------------------
+%% Late, so that packages which redefine the footnote macros in their own
+%% \AtBeginDocument (hyperref) are wrapped rather than overwritten, and so
+%% that \everydisplay is appended to rather than replaced (amsmath).
+\AddToHook{begindocument/end}{%
+  \wbaudit@patchkinds
+  \wbaudit@patchheadfoot
+  \wbaudit@patchfootnotes
+  \global\everydisplay\expandafter{\the\everydisplay\wbaudit@display}%
+}
+
+\endinput

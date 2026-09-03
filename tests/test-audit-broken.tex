@@ -1,0 +1,48 @@
+% Negative control for wideband-audit: this document sabotages its own
+% pages so that the ledger MUST report FAIL and scripts/check-audit.py MUST
+% exit non-zero.  If this document ever passes, the audit is broken.
+%
+% The sabotage is a pre_shipout_filter hook installed by the document
+% itself, registered before wideband-audit so that it runs first and the
+% audit sees the damaged page: page 1 gets a body line duplicated, page 2
+% gets a body line dropped.
+\documentclass[twocolumn]{article}
+\makeatletter
+\directlua{
+  local HLIST = node.id("hlist")
+  local VLIST = node.id("vlist")
+  local page  = 0
+  local function firstline(head)
+    for n in node.traverse(head) do
+      if n.id == HLIST and n.subtype == 1 then return n, head end
+      if n.id == HLIST or n.id == VLIST then
+        local found, list = firstline(n.list)
+        if found then return found, list end
+      end
+    end
+    return nil, nil
+  end
+  luatexbase.add_to_callback("pre_shipout_filter", function(box)
+    page = page + 1
+    local line, list = firstline(box.list)
+    if not line then return true end
+    if page == 1 then
+      local copy = node.copy(line)
+      copy.next, copy.prev = nil, nil
+      node.insert_after(list, line, copy)
+      texio.write_nl("term and log", "SABOTAGE: duplicated a line on page 1")
+    elseif page == 2 then
+      node.remove(list, line)
+      line.next, line.prev = nil, nil
+      texio.write_nl("term and log", "SABOTAGE: dropped a line on page 2")
+    end
+    return true
+  end, "test.sabotage")
+}
+\makeatother
+\usepackage{wideband-audit}
+\input{test-content}
+\begin{document}
+\section{Deliberately damaged pages}
+\WBTextA\WBTextB\WBTextC\WBTextD\WBTextE\WBTextF
+\end{document}
