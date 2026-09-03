@@ -1,0 +1,34 @@
+%% Scenario: two adjacent requests stack.  Report 2.4: "band 2 goes directly
+%% under band 1 with a zero-height stratum between them, and the text that
+%% followed request 2 fills the right piece above band 1".
+%% Band 1: column 1, h = 142pt, B1 = 48 + 24 = 72pt  -> y1 = 142pt
+%% Band 2: requested with nothing in between, so h = 0 in stratum 2 and
+%%   y2 = 0 within it: band 2 sits directly below band 1 (note=stacked).
+%% 142 + 72 + 72 = 286 <= 600, and the bottom stratum is 314pt.
+%% Baseline: rejects the second pending band.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=2 placed=2 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-DECISION: id=2 result=placed code=OK page=1
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=2 .*note=stacked
+%% WB-EXPECT-TOKENS: MXA01 MXA12 MXBAND01 MXBAND02 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{12}{MXA}
+\begin{wideband}
+\WBMbandbox{48pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\begin{wideband}
+\WBMbandbox{48pt}{MXBAND02}{$\displaystyle \|u - u_h\|_{1} \le C h^{p} \, \|u\|_{p+1} \quad \text{for } u \in H^{p+1}(\Omega)$}
+\end{wideband}
+\WBMlines{20}{MXB}
+\end{document}

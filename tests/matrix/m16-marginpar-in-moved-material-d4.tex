@@ -1,0 +1,42 @@
+%% Scenario: a marginal note inside the material the re-cut would move.
+%% Report section 6 and contract 4.3: deferred in phase 1 (D4,
+%% note=marginpar-in-moved-material) because the note would end up on the
+%% wrong side of the page.
+%% This document needs room for the margin, so it uses a narrower type block:
+%% textwidth 388pt with a 104pt left margin, marginparsep 8pt and
+%% marginparwidth 38pt keeps every marginal note inside the envelope
+%% scripts/check-pdf-bounds.py enforces.  \textheight is still 600pt, so
+%% S = 600pt, but \columnwidth is 185pt, which is why the flowing \WBMpara
+%% blocks are used instead of the exact-height \WBMlines blocks.
+%% Eight \WBMpara paragraphs of six sentences fill column 1 (about 48 lines);
+%% MXMG01 sits near its line 30 and MXMG02 near its line 42, and the cut at
+%% y_min = (600 + h)/2 with h about 142pt is at about 371pt, that is line 31.
+%% MXMG02 is therefore certainly inside the moved material.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=2 code=D4 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*code=D4 note=marginpar-in-moved-material
+%% WB-EXPECT-TOKENS: MXA01 MXMG01 MXMG02 MXBAND01 MXE01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=388pt,left=104pt,top=80pt,columnsep=18pt,marginparsep=8pt,marginparwidth=38pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMpara{5}{MXA}
+\WBMmargin{MXMG01}
+\WBMpara{2}{MXB}
+\WBMmargin{MXMG02}
+\WBMpara{1}{MXC}
+\WBMpara{2}{MXD}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMpara{10}{MXE}
+\end{document}

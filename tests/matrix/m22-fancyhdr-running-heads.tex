@@ -1,0 +1,34 @@
+%% Scenario: running heads on a band page.  Report section 6: the first and
+%% last mark of a band page must be taken from the pieces in reading order,
+%% and contract 4.3 requires the marks API to be fed from the pieces in that
+%% order.  fancyhdr sets its head and foot from those marks.
+%% Column-1 request: h = 202pt, B = 90pt, y = h  -> placed on page 1.
+%% The head and foot carry no unique token, because they repeat on every page
+%% and verify-token-counts.py requires exactly one occurrence per token.
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXB01 MXB40
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{fancyhdr}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Wideband scenario matrix}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{Stratum model, phase 1}
+\begin{document}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{40}{MXB}
+\end{document}

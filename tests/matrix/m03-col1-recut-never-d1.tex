@@ -1,0 +1,30 @@
+%% Scenario: the same column-1 request as m02 with the re-cut switched off.
+%% Report 2.8 row 2 and report 5, D1.
+%% h = 538pt, B = 90pt.  With recut=never the only candidate is y = h:
+%%   538 + 90 = 628 > S - R = 600pt  -> D1 insufficient space
+%% The band is then placed at the top of page 2 (col=0, y=0).
+%% Baseline: the baseline package declares no options, so
+%%   ! LaTeX Error: Unknown option `recut' for package `wideband'.
+%% aborts the run.  The expectation below is the specified behaviour.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=1 code=D1 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-TOKENS: MXA01 MXA45 MXBAND01 MXB01 MXB50
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage[recut=never]{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{45}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXB}
+\end{document}

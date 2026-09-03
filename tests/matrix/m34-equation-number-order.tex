@@ -1,0 +1,35 @@
+%% Scenario: equation numbers out of visual order.  Report 2.7: a band's
+%% number is assigned before the request, so a narrower numbered display in
+%% the right piece above the band can carry a higher number and still appear
+%% above it.  The specification accepts and documents this; the check here is
+%% that both numbers resolve and every token survives exactly once.
+%% Column-1 request: h = 10 + 16*12 = 202pt; B is the one-line equation
+%% (about 30pt) plus the token line (12pt) plus 24pt of separation, about
+%% 66pt.  y = h = 202pt, 268 <= 600  -> placed on page 1.
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXREF01 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\begin{equation}\label{eq:mx34band}
+  \mathcal{T}[u] = \int_{\Omega}\bigl(\tfrac12|\nabla u|^2 - fu\bigr)\,dx
+\end{equation}
+\noindent\hbox to\textwidth{\hfil\mbox{MXBAND01}\hfil}
+\end{wideband}
+\noindent\mbox{MXREF01} Band \eqref{eq:mx34band}, then \eqref{eq:mx34after}.\par
+\begin{equation}\label{eq:mx34after}
+  \|u - u_h\|_{1} \le C h^{p}\,\|u\|_{p+1}
+\end{equation}
+\WBMlines{20}{MXB}
+\end{document}

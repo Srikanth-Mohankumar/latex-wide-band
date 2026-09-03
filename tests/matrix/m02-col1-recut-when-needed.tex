@@ -1,0 +1,34 @@
+%% Scenario: column-1 request near the column bottom, default recut=when-needed.
+%% Report 2.8 rows 2 and 3, and report 2.1 ("If y = h does not fit ...").
+%% h  = \topskip + 44*\baselineskip = 10 + 528 = 538pt   (45 lines, MXA01..45)
+%% B  = 66pt band box + 2*12pt separation                = 90pt
+%% y = h: 538 + 90 = 628 > S - R = 600pt              -> does not fit at y = h
+%% recut=when-needed (the default) re-cuts column 1: y_min = ceil(h/2) = 269pt,
+%%   moved up to the first legal cut, the break after line 23 at 10 + 22*12
+%%   = 274pt.  274 + 90 = 364 <= 600                  -> placed, note col1-recut
+%% bottom stratum = 600 - 364 = 236pt >= 2 lines      -> minimum piece rule ok
+%% Baseline: \wb@place forces a column break because the band does not fit in
+%% the remainder of column 1, so the request is discovered in column 2 and the
+%% band is deferred to the top of the next page instead.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*col=1 .*result=placed code=OK note=col1-recut
+%% WB-EXPECT-TOKENS: MXA01 MXA45 MXBAND01 MXB01 MXB50
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{45}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXB}
+\end{document}

@@ -1,0 +1,36 @@
+%% Scenario: no legal cut in the feasible interval.  Report section 5, D3.
+%% Column 1: 32 one-line paragraphs (382pt), then a single \vbox of height
+%%   160pt with no internal breakpoint, occupying 382pt..542pt, then the
+%%   first 4 MXB lines to the column bottom.
+%% Column 2: the remaining 18 MXB lines precede the request,
+%%   h = 10 + 17*12 = 214pt, P = 600 + 214 = 814pt, y_min = 407pt
+%% B = 66 + 24 = 90pt, y_max = S - R - B = 510pt
+%% The only breakpoints near the interval are 382pt (before the block, and
+%%   forbidden by the \nobreak in \WBMblock) and 542pt (after it); neither is
+%%   in [407, 510]                                  -> D3, no legal cut
+%% The band is then placed at the top of page 2.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=2 code=D3 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*code=D3 note=unbreakable-range
+%% WB-EXPECT-TOKENS: MXA01 MXA32 MXBLK01 MXB01 MXB22 MXBAND01 MXC01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{32}{MXA}
+\WBMblock{160pt}{MXBLK01}
+\WBMlines{22}{MXB}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXC}
+\end{document}

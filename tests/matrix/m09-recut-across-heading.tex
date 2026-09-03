@@ -1,0 +1,33 @@
+%% Scenario: the re-cut must restore the discardable items trimmed at the
+%% original column break.  Report section 6, row 1: otherwise a heading at the
+%% top of the moved material loses its space above (the documented ltxgrid
+%% bug); the mitigation is \pagediscards / page_discards_head.
+%% Column 1 holds 33 one-line paragraphs (h = 394pt), a \section heading
+%% (about 40pt with its 3.5ex above and 2.3ex below) and the first 13 MXB
+%% lines; the remaining 7 MXB lines start column 2, so h is about 82pt.
+%% P = 600 + 82 = 682pt, y_min = 341pt, B = 66 + 24 = 90pt
+%% 341 + 90 = 431 <= 600  -> placed, and the cut falls inside material that
+%% contains the heading, so the heading's space above must survive it.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=2 code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXA33 MXB01 MXB20 MXBAND01 MXC01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{33}{MXA}
+\section{Cutting across a heading}
+\WBMlines{20}{MXB}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXC}
+\end{document}

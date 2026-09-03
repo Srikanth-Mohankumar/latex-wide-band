@@ -1,0 +1,31 @@
+%% Scenario: column-2 request with a band too tall for the same page.
+%% Report 2.8 row 5, with the margin widened from the report's illustrative
+%% 10pt to 52pt so the expectation survives one line of prose drift.
+%% h = 202pt, P = 802pt, y_min = 406pt (as in m04)
+%% B = 222pt band box + 24pt separation = 246pt
+%% y_min + B = 652 > S - R = 600pt   -> D1 insufficient space
+%% The band is placed at the top of page 2 (col=0).
+%% Baseline: also defers a column-2 request to the next page top, so the
+%% observable outcome agrees; only the decision log is missing.
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=2 code=D1 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-TOKENS: MXA01 MXA50 MXB01 MXB17 MXBAND01 MXC01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{50}{MXA}
+\WBMlines{17}{MXB}
+\begin{wideband}
+\WBMbandbox{222pt}{MXBAND01}{$\displaystyle A_{ij} = \int_{\Omega} \nabla \varphi_i \cdot \nabla \varphi_j \, dx, \qquad b_i = \int_{\Omega} f \varphi_i \, dx$}
+\end{wideband}
+\WBMlines{20}{MXC}
+\end{document}
