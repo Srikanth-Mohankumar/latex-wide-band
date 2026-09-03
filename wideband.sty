@@ -162,6 +162,8 @@
 \newdimen\wb@tdim
 \newdimen\wb@recB
 \newdimen\wb@skipA       % \skip\footins as the document set it
+\newdimen\wb@pagefull    % full column height of a page carrying top bands
+\newdimen\wb@topresv     % total footprint reserved for this page's top bands
 \newdimen\wb@h           % <- Lua (marker position)
 \edef\wb@h@num{\the\allocationnumber}
 \newdimen\wb@nat         % <- Lua
@@ -393,19 +395,37 @@
   \ifnum\wb@tn>\z@
     \global\wb@active\@ne
     \global\wb@pretop\@ne
+    %% \@colht was just reset to \textheight by \@outputpage; record that full
+    %% height and the reservation so \wb@ensurepage can re-apply it even after
+    %% a later \@doclearpage or \@outputpage resets \@colht again (kernel fact
+    %% 3: the only place the columns are actually built is the next page's
+    %% first cycle, so the reservation must survive to there).
+    \global\wb@pagefull\@colht
+    \global\wb@topresv\z@
     \wb@j\z@
     \loop\ifnum\wb@j<\wb@tn
       \advance\wb@j\@ne
       \wb@tdim\wb@get{top}{\wb@j}{B}\relax
+      \global\advance\wb@topresv\wb@tdim
       \global\advance\@colht-\wb@tdim
     \repeat
   \else
     \global\wb@pretop\z@
+    \global\wb@topresv\z@
   \fi}
 
 \def\wb@ensurepage{%
   \ifnum\wb@newpage>\z@
     \global\wb@newpage\z@
+    %% Re-apply the top-band reservation to \@colht here, at the first column
+    %% build of the page.  \@colht may have been reset to \textheight since
+    %% \wb@after@page ran (e.g. by \@doclearpage when the page is flushed at
+    %% end of document), which would otherwise build the columns \wb@topresv
+    %% too tall.  The assignment is idempotent: pagefull-topresv equals the
+    %% value \wb@after@page already left when nothing clobbered it.
+    \ifnum\wb@tn>\z@
+      \global\@colht\dimexpr\wb@pagefull-\wb@topresv\relax
+    \fi
     \global\wb@S\@colht
     \global\wb@y\@colht
     \global\wb@pageht\@colht
