@@ -967,8 +967,17 @@
   \directlua{wideband.strip(\number\@cclv)}%
   \wb@runcolumn}
 
-%% re-fire after a re-cut: the record is already queued
+%% re-fire after a re-cut: the record is already queued.  The material that
+%% re-fires is the RIGHT piece of the re-cut stratum (tail of the old column 1
+%% plus any old column-2 material); \wb@Lpiece already holds the LEFT piece
+%% (\wb@cuttop) built in \wb@docut.  Force second-column mode so \@outputdblcol
+%% composes the stratum with that left piece instead of overwriting it with the
+%% re-fired box.  A column-2 re-cut is already in second-column mode, so this
+%% is a no-op there; a column-1 re-cut fires while \if@firstcolumn is still
+%% true, and without this its left piece (\wb@cuttop) is lost -- the content
+%% above the band that this fixes.
 \def\wb@replace{%
+  \global\@firstcolumnfalse
   \global\wb@pcfinal\z@
   \global\@colht\wb@y
   \global\wb@setvsize\@ne
