@@ -197,10 +197,10 @@ class Document:
 
         # Band heights come from stacked gather* rows.  Measured band footprints
         # B (box + 2 x 12pt separation) on TeX Live 2025, from
-        # build/probe/probe-rows.log:
+        # tests/matrix/probes/measure.py:
         #   1 row  52pt   2 rows  78pt   3 rows 105pt   5 rows 149pt
         #   8 rows 230pt  12 rows 306pt  16 rows 412pt  18 rows 444pt
-        #  20 rows 510pt  32 rows 749pt
+        #  20 rows 510pt  32 rows 791pt
         # so 1 to 20 rows spans "a couple of lines" to "most of a column" while
         # staying below both size limits (the baseline package refuses a band
         # above \textheight - 2\baselineskip = 576pt, the stratum core above
@@ -386,9 +386,18 @@ class Document:
             lines.append("%% Baseline: " + "; ".join(reasons) + ".")
             lines.append("%% WB-BASELINE-DIFFERS")
         if not self.oversized:
+            needed = -(-len(self.tokens) // TOKENS_PER_LINE)
+            # check-decisions.py only reads the first 40 lines, so the whole
+            # header has to fit.  Truncating the token list would silently
+            # weaken content accounting, so this is an assertion, not a cap.
+            assert needed + len(lines) <= 40, (
+                "document %d needs %d token lines and %d other header lines, "
+                "which exceeds the 40-line expectation window; lower the "
+                "paragraph counts in plan()" % (self.index, needed, len(lines)))
+            assert needed <= MAX_TOKEN_LINES, (
+                "document %d needs %d token lines, more than MAX_TOKEN_LINES=%d"
+                % (self.index, needed, MAX_TOKEN_LINES))
             for i in range(0, len(self.tokens), TOKENS_PER_LINE):
-                if i // TOKENS_PER_LINE >= MAX_TOKEN_LINES:
-                    break
                 chunk = self.tokens[i:i + TOKENS_PER_LINE]
                 lines.append("%% WB-EXPECT-TOKENS: " + " ".join(chunk))
         return "\n".join(lines)

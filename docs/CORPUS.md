@@ -11,6 +11,8 @@ This is the CORPUS workstream of `docs/implementation-contract.md` (section 6). 
 | `tests/matrix/*.tex` | the hand-written scenario matrix, one document per expressible case |
 | `tests/matrix/matrix-content.tex` | shared prose and layout helpers for the matrix (CORPUS' own copy; `tests/test-content.tex` is shared and read-only) |
 | `tests/matrix/stratum-dryrun.py` | synthesises a spec-conforming decision log for every scenario and checks the headers against it; needs no LaTeX |
+| `tests/matrix/probes/measure.py` | reproduces every measurement the derivations rest on (geometry, prose helpers, generated band footprints) |
+| `tests/matrix/probes/verify-h.py` | after a matrix run, compares each scenario's predicted `h` with the marker position the package reported |
 
 ## How to run
 
@@ -94,7 +96,9 @@ Notes on the semantics `check-decisions.py` implements:
 - `WB-EXPECT-TOKENS` and `WB-EXPECT-DECISION` may be repeated; token lists are cumulative;
 - a token must never be a substring of another token in the same list, because
   `verify-token-counts.py` counts substrings — the checker rejects such a list;
-- `errors=<n>` is a CORPUS extension of contract 6.1, for the D2 error class;
+- `errors=<n>` in `WB-EXPECT` and `note=<token>` in `WB-EXPECT-DECISION` are CORPUS extensions of
+  contract 6.1 (for the D2 error class and for asserting the note vocabulary); everything else is
+  as written there;
 - exit code `3` means "the document declares decision expectations but the log has no decision
   lines at all", reported as `no decision lines: baseline package?`.
 
@@ -125,7 +129,7 @@ Every matrix document declares
 \usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
 ```
 
-which measures (TeX Live 2025, `build/probe/probe-geo.log`) as
+which measures (TeX Live 2025; reproduce with `./tests/matrix/probes/measure.py`) as
 
 | quantity | value |
 |---|---|
@@ -181,14 +185,15 @@ numbers:
    with a decision log pass, so the headers are consistent with the specification rather than
    merely unfalsifiable, and the checker will not reject a conforming CORE. `run-matrix.sh` runs
    this before it compiles anything.
-2. The baseline package reports the marker position it measured
-   (`Package wideband info: marker found at Xpt from column top`). Compared against the `h` each
-   header predicts, 19 of the 20 documents where the baseline reaches the marker agree to within
-   2.1pt, which is exactly the last line's depth. The twentieth,
-   `m24-column-floats-t-and-b`, showed that a single-column `[t]` float counts towards `h` (it sits
-   inside the column) rather than reducing `S`; the header was corrected accordingly, and the
-   conclusion (`placed`) is unchanged. `build/probe/verify-h.py` reproduces the comparison after a
-   matrix run.
+2. The package reports the marker position it measured
+   (`Package wideband info: marker found at Xpt from column top`), which is `h`.
+   `./tests/matrix/probes/verify-h.py` compares it against the `h` each header predicts, after a
+   matrix run. All 19 documents where the baseline reaches the marker now agree: 18 within 2.1pt
+   (exactly the last line's depth) and `m26-flushbottom` within 5.1pt, which is the interline
+   stretch its header predicts. The comparison is what caught the one wrong derivation:
+   `m24-column-floats-t-and-b` was off by 96pt because a single-column `[t]` float sits *inside*
+   the column and so counts towards `h` instead of reducing `S`. Its header was corrected; the
+   conclusion (`placed`, with a 120pt margin) is unchanged.
 
 Nothing in any expectation was copied from observed output. Where the geometry could not be pinned
 down (a heading's `3.5ex` space, a float's `\textfloatsep`, a split footnote's reservation), the
@@ -287,12 +292,12 @@ Parameters varied per document:
 | packages | `amsmath` always; `hyperref` 30%, `xcolor` 30%, `fancyhdr` 20% |
 
 Band footprints `B` (band box plus 2 x 12pt separation) were measured once on TeX Live 2025
-(`build/probe/probe-rows.log`) so the row counts span "a couple of lines" to "most of a column"
+(`./tests/matrix/probes/measure.py`, section 3) so the row counts span "a couple of lines" to "most of a column"
 without straying into the size limits by accident:
 
 | rows | 1 | 2 | 3 | 5 | 8 | 12 | 16 | 18 | 20 | 32 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `B` (pt) | 52 | 78 | 105 | 149 | 230 | 306 | 412 | 444 | 510 | 749 |
+| `B` (pt) | 52 | 78 | 105 | 149 | 230 | 306 | 412 | 444 | 510 | 791 |
 
 The baseline package refuses a band above `\textheight - 2\baselineskip` = 576pt and the stratum
 core above `S` = 600pt, so 1 to 20 rows is safe for both and 32 rows fails for both. Row counts in

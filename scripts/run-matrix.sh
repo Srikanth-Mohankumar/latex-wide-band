@@ -83,8 +83,9 @@ if [ "$in_place" -eq 0 ]; then
   for extra in "$source_dir"/*-content.tex "$source_dir"/*-preamble.tex; do
     [ -e "$extra" ] && cp "$extra" "$build/"
   done
-  [ -e "$root/tests/test-content.tex" ] && cp "$root/tests/test-content.tex" "$build/"
 fi
+# Contract 6.2: both runners copy the shared prose, in place or not.
+[ -e "$root/tests/test-content.tex" ] && cp -n "$root/tests/test-content.tex" "$build/"
 for pkg in wideband.sty wideband.lua wideband-audit.sty wideband-audit.lua; do
   [ -e "$root/$pkg" ] && cp "$root/$pkg" "$build/"
 done
@@ -155,8 +156,15 @@ soft_notes=()
 check_doc() {
   local base=$1 stem=${base%.tex}
   local meta compile_expect allow_overfull differs tokens has_dec
-  meta=$("$root/scripts/check-decisions.py" --print-meta "$build/$base") || {
-    echo "  $stem: expectation header is malformed" >&2; return 1; }
+  if ! meta=$("$root/scripts/check-decisions.py" --print-meta "$build/$base" 2>&1); then
+    echo "  $stem: FAIL"
+    echo "      header: the expectation comments are malformed"
+    echo "$meta" | sed 's/^/      /'
+    summary+=("$(printf '%-34s %-8s %-11s %-5s %-5s %-5s %-9s %s' \
+      "$stem" HDR-FAIL - - - - - FAIL)")
+    n_fail=$((n_fail + 1)); failed_docs+=("$stem")
+    return 1
+  fi
   compile_expect=$(sed -n 's/^compile=//p' <<<"$meta")
   allow_overfull=$(sed -n 's/^allow_overfull=//p' <<<"$meta")
   differs=$(sed -n 's/^baseline_differs=//p' <<<"$meta")

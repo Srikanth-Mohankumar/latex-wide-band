@@ -11,7 +11,8 @@
 %% Every scenario document uses
 %%     \usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,
 %%                 columnsep=18pt]{geometry}
-%% which yields, measured on TeX Live 2025 (build/probe/probe-geo.log):
+%% which yields, measured on TeX Live 2025 (reproduce all the numbers below
+%% with tests/matrix/probes/measure.py):
 %%     \textheight   600pt   -> S = \@colht = 600pt on a float-free page
 %%     \baselineskip  12pt   -> 50 lines per column
 %%     \topskip       10pt   -> first baseline 10pt below the column top
@@ -159,33 +160,6 @@
     \hfil
     \raisebox{\dimexpr#1/2-5pt\relax}[\z@][\z@]{#3\quad\mbox{#2}}%
     \hfil}}
-
-%% Realistic band bodies whose height comes from the mathematics.  Their
-%% natural heights on TeX Live 2025 are noted for the derivations; documents
-%% that need an exact B use \WBMbandbox instead.
-%% \WBMbandeqA  ~ 29pt   \WBMbandeqB  ~ 59pt   \WBMbandeqC  ~ 104pt
-\newcommand\WBMbandeqA[1]{%
-  \begin{gather*}
-    \mathcal{T}[u] = \int_{\Omega} \bigl( \tfrac12 |\nabla u|^2 - f u \bigr) \, dx
-  \end{gather*}
-  \noindent\hbox to\textwidth{\hfil\mbox{#1}\hfil}}
-\newcommand\WBMbandeqB[1]{%
-  \begin{gather*}
-    \mathcal{T}[u] = \int_{\Omega} \bigl( \tfrac12 |\nabla u|^2 - f u \bigr) \, dx \\
-    \delta\mathcal{T}[u;v] = \int_{\Omega} \bigl( \nabla u \cdot \nabla v - f v \bigr) \, dx \\
-    A_{ij} = \int_{\Omega} \nabla \varphi_i \cdot \nabla \varphi_j \, dx
-  \end{gather*}
-  \noindent\hbox to\textwidth{\hfil\mbox{#1}\hfil}}
-\newcommand\WBMbandeqC[1]{%
-  \begin{gather*}
-    \mathcal{T}[u] = \int_{\Omega} \bigl( \tfrac12 |\nabla u|^2 - f u \bigr) \, dx \\
-    \delta\mathcal{T}[u;v] = \int_{\Omega} \bigl( \nabla u \cdot \nabla v - f v \bigr) \, dx \\
-    A_{ij} = \int_{\Omega} \nabla \varphi_i \cdot \nabla \varphi_j \, dx \\
-    b_i = \int_{\Omega} f \varphi_i \, dx \\
-    \kappa(A) = \|A\| \, \|A^{-1}\| \\
-    \|u - u_h\|_{1} \le C h^{p} \, \|u\|_{p+1}
-  \end{gather*}
-  \noindent\hbox to\textwidth{\hfil\mbox{#1}\hfil}}
 
 %% ------------------------------------------------------- unbreakable material
 %% \WBMblock{<H>}{<token>}: a block of height <H> with no legal breakpoint
