@@ -138,6 +138,7 @@
 \newcount\wb@Lflt        % 1 when floats are attached to the held left piece
 \newcount\wb@busy        % 1 while any band is pending or placed
 \newcount\wb@pend        % 1 while any band is still unplaced
+\newcount\wb@pageopen    % 1 while \wb@page holds composed, unshipped rows
 \newcount\wb@dfour
 \newcount\wb@guard       % output-cycle guard on a band page
 \newcount\wb@found       % <- Lua
@@ -366,6 +367,7 @@
   \global\wb@marpar\z@
   \global\wb@Lflt\z@
   \global\wb@newpage\@ne
+  \global\wb@pageopen\z@
   \global\setbox\wb@page\box\voidb@x
   \global\setbox\wb@Lpiece\box\voidb@x
   \global\setbox\wb@Lraw\box\voidb@x
@@ -446,6 +448,14 @@
 %% ==================================================================
 \def\wb@capture{%
   \wb@ensurepage
+  %% Re-assert the intended height of the piece about to be packed.  On a band
+  %% page the kernel may have reset \@colht to \textheight since the piece
+  %% height was chosen -- \@doclearpage does so (latex.ltx line 20397) when a
+  %% trailing stratum below a band is flushed at end of document (m13, m33).
+  %% \wb@y always carries the height this piece is meant to be, and
+  %% build/column/before runs before \@makecol packs \vbox to\@colht, so this
+  %% keeps the packing correct.  Idempotent when nothing clobbered \@colht.
+  \ifnum\wb@active>\z@ \global\@colht\wb@y \fi
   \if@firstcolumn
     \global\setbox\wb@Lraw\copy\@cclv
     \global\setbox\wb@Lfn\copy\footins
@@ -1072,6 +1082,7 @@
       {\normalcolor\vrule \@width\columnseprule}%
       \hfil
       \hb@xt@\columnwidth{\box\@outputbox\hss}}}%
+  \global\wb@pageopen\@ne
   \global\advance\wb@rowsum\wb@y
   \directlua{wideband.pagerow("stratum",\number\wb@y)}%
   \global\advance\wb@S-\wb@y}
@@ -1084,6 +1095,7 @@
     \vskip\wideband@sep
     \hb@xt@\textwidth{\box\wb@slotbox#1\hss}%
     \vskip\wideband@sep}%
+  \global\wb@pageopen\@ne
   \global\advance\wb@rowsum\wb@d@B
   \directlua{wideband.pagerow("band",\number\wb@d@B,\the\wb@d@id,%
     \number\wb@d@y)}%
@@ -1134,6 +1146,7 @@
   \global\setbox\@outputbox\vbox{\wb@offskip
     \ifvoid\wb@page\else\unvbox\wb@page\fi}%
   \global\setbox\wb@page\box\voidb@x
+  \global\wb@pageopen\z@
   \ifdim\ht\@outputbox=\wb@pageht\else
     \PackageWarning{wideband}{Assembled page \the\c@page\space is
       \the\ht\@outputbox\space instead of \the\wb@pageht}%
@@ -1205,7 +1218,11 @@
   \global\wb@pend\z@
   \ifnum\wb@dn>\z@\global\wb@pend\@ne\fi
   \ifnum\wb@tn>\z@\global\wb@pend\@ne\fi
-  \ifnum\wb@xn>\z@\global\wb@pend\@ne\fi}
+  \ifnum\wb@xn>\z@\global\wb@pend\@ne\fi
+  %% A page whose last stratum below a band never received content (e.g. a
+  %% short bottom stratum with no following text, m33) is fully composed in
+  %% \wb@page but has not shipped: force a final page so it is not lost.
+  \ifnum\wb@pageopen>\z@\global\wb@pend\@ne\fi}
 
 \AtEndDocument{%
   \clearpage
@@ -1214,8 +1231,9 @@
   \loop\ifnum\wb@pend>\z@
     \ifnum\wb@j<4
       \advance\wb@j\@ne
-      \PackageWarningNoLine{wideband}{A band was still pending at the end of
-        the document; an extra page is forced so that nothing is lost}%
+      \PackageWarningNoLine{wideband}{A band or its trailing stratum was still
+        pending at the end of the document; an extra page is forced so that
+        nothing is lost}%
       \null\clearpage
       \wb@setpend
     \else
