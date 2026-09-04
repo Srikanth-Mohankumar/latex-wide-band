@@ -585,6 +585,13 @@
 %% on the main vertical list, instead.
 \def\wb@eager{%
   \wb@ensurepage
+  \ifnum\wb@dn>\z@
+    %% A band is already committed to this page but not yet composed (its
+    %% right piece is still being filled): this request stacks directly under
+    %% it (report 2.4).  It arrives at the top of a fresh column, where the
+    %% marker would be discarded, so decide it here rather than re-cutting.
+    \wb@eagerstack
+  \else
   \if@firstcolumn
     \wb@d@S\wb@S \wb@d@h\z@ \wb@d@P\z@
     \wb@computeR \wb@d@R\wb@R
@@ -616,7 +623,25 @@
   \else
     \global\setbox\wb@coltwo\box\voidb@x
     \wb@ctworequest\z@
+  \fi
   \fi}
+
+%% A second (or later) request that stacks under a band already committed to
+%% this page (report 2.4): enqueue it in the due list with a zero-height
+%% stratum above it (h=0, y=0 within that stratum).  \wb@placedue places it
+%% directly below the previous band.  No re-cut, no marker: the text that
+%% follows keeps filling the right piece above the earlier band.
+\def\wb@eagerstack{%
+  \global\wb@active\@ne
+  \wb@d@col\@ne
+  \wb@d@S\wb@S
+  \wb@computeR \wb@d@R\wb@R
+  \wb@d@h\z@ \wb@d@P\z@ \wb@d@min\z@
+  \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
+  \def\wb@d@note{stacked}%
+  \wb@d@y\z@ \wb@d@hasy\@ne
+  \global\advance\wb@dn\@ne
+  \wb@storerec{due}{\wb@dn}}
 
 %% ==================================================================
 %% 10. reserved space at the column bottoms
@@ -1113,9 +1138,13 @@
         \wb@dodefer{D1}{no-room}%
       \else
         \ifnum\wb@j>\@ne
+          %% stacked band: a zero-height stratum sits above it, so its
+          %% placement height within that stratum is 0 (report 2.4).
           \directlua{wideband.pagerow("stratum",0)}%
+          \wb@d@y\z@
+        \else
+          \wb@d@y\wb@tdim
         \fi
-        \wb@d@y\wb@tdim
         \wb@placedkeep
         \wb@bandrow\wb@recslot
         \global\advance\wb@S-\wb@d@B
