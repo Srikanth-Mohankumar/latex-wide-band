@@ -851,6 +851,13 @@ end
 -- \end{document} never reached the hook, and it refreshes the sidecar when a
 -- page was shipped after the summary was written.
 function M.wrapup()
+  -- After a fatal error (an oversized-band \PackageError, m18) the document
+  -- never reached \end{document}, so M.finish did not run from the enddocument
+  -- hook and no page was shipped.  LuaTeX 1.22 has closed the transcript in an
+  -- invalid state by wrapup_run time, so texio.write_nl("log", ...) here aborts
+  -- the process (glibc "invalid stdio handle").  There is nothing to audit on a
+  -- run that shipped no pages, so skip the summary rather than crash.
+  if S.page == 0 and not S.finished then return end
   if (not S.finished) or S.latepage then M.finish() end
 end
 

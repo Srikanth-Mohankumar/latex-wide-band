@@ -225,7 +225,12 @@ check_doc() {
   fi
 
   # ---- audit ---------------------------------------------------------------
-  if [ "$audit_available" -eq 1 ] && [ -f "$build/$stem.log" ]; then
+  # A document expected to fail compilation (D2 oversized error) aborts before
+  # \end{document} and ships no page, so it writes no audit summary; the audit
+  # ledger has nothing to prove there.  Skip it, as tokens and bounds are.
+  if [ "$compile_expect" = fail ]; then
+    r_audit=skip
+  elif [ "$audit_available" -eq 1 ] && [ -f "$build/$stem.log" ]; then
     local aud_out
     if aud_out=$("$root/scripts/check-audit.py" "$build/$stem.log" 2>&1); then
       r_audit=ok
