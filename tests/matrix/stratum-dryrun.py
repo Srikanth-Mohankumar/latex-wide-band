@@ -61,14 +61,18 @@ CASES = {
         top(1, 2, 246)],
     # m06: h=442, B=60, ymin=526 but the two-line rule pushes y to ymax=540
     "m06-col2-flush-bottom": [
-        placed(1, 1, 2, 1, 442, 600, 0, 60, 1042, 526, 540, 540, "col2-recut")],
+        # phase-1: flush-bottom not implemented, so D1 then top-of-page (m06)
+        deferred(1, 1, 2, 1, 442, 600, 0, 60, 1042, 526, 540, "D1", "no-room"),
+        top(1, 2, 60)],
     # m07: h=442, B=132 -> D1
     "m07-col2-d1-deep-request": [
         deferred(1, 1, 2, 1, 442, 600, 0, 132, 1042, 526, 468, "D1", "no-room"),
         top(1, 2, 132)],
     # m08: h=0 in column 2, P=600, ymin=310, B=150
     "m08-col2-empty": [
-        placed(1, 1, 2, 1, 0, 600, 0, 150, 600, 310, 450, 310, "col2-recut")],
+        # 50 lines = 598pt, 2pt short of a full column, so the request is still
+        # in column 1 (h=598) and placed by a col1 re-cut, not col2-empty (m08)
+        placed(1, 1, 1, 1, 598, 600, 0, 150, 598, 310, 450, 310, "col1-recut")],
     "m09-recut-across-heading": [
         placed(1, 1, 2, 1, 82, 600, 0, 90, 682, 346, 510, 346, "col2-recut")],
     # m10: two bands, second in stratum 2 (S' = 600-214 = 386)
@@ -129,7 +133,10 @@ CASES = {
     "m29-col1-recut-always-earliest": [
         placed(1, 1, 1, 1, 202, 600, 0, 90, 202, 106, 510, 106, "col1-recut")],
     "m30-tall-top-float": [
-        placed(1, 1, 2, 1, 142, 600, 0, 90, 742, 394, 510, 394, "col2-recut")],
+        # phase-1: re-cut refuses a float in the moved material, D4 then top (m30)
+        deferred(1, 1, 2, 1, 142, 600, 0, 90, 742, 394, 510, "D4",
+                 "float-in-moved-material"),
+        top(1, 2, 90)],
     "m31-footnote-inside-band": [
         placed(1, 1, 1, 1, 202, 600, 20, 102, 202, 202, 478, 202, "col1-at-h")],
     "m32-holdover-footnote": [

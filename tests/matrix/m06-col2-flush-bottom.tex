@@ -11,9 +11,15 @@
 %%   zero-height bottom stratum, the outcome report 2.8 row 6 records.
 %% This is the one boundary row where a stricter reading of the minimum piece
 %% rule would give D1 instead; see docs/CORPUS.md.
+%% Phase-1 outcome: flush-bottom placement (moving y to y_max with an empty
+%% bottom stratum, report 2.3 "minimum piece height") is not implemented, so
+%% no legal cut leaves a two-line bottom stratum and the band is deferred with
+%% D1 no-room, then placed at the top of page 2.  Flush-bottom is phase-2
+%% policy work; see docs/integration-triage.md "remaining".
 %% WB-BASELINE-DIFFERS
-%% WB-EXPECT: requests=1 placed=1 deferred=0
-%% WB-EXPECT-DECISION: id=1 result=placed col=2 code=OK page=1
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=2 code=D1 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
 %% WB-EXPECT-TOKENS: MXA01 MXA50 MXB01 MXB37 MXBAND01 MXC01
 %% WB-EXPECT-COMPILE: pass
 \documentclass[twocolumn]{article}

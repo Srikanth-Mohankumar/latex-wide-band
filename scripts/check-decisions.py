@@ -53,6 +53,9 @@ NOTES = {
     "no-room", "unbreakable-range", "footnotes-in-moved-material",
     "marginpar-in-moved-material", "holdover-footnote", "enlargethispage",
     "nested", "recut-disabled", "oversized", "kernel-mismatch",
+    # phase-1 extensions to the contract 4.2 vocabulary, documented in
+    # README.md (decision-log): re-cut refusals and the output-cycle guard
+    "float-in-moved-material", "no-raw-column", "cycle-limit",
 }
 NOTE_PREFIXES = ("pkg-conflict-",)
 
