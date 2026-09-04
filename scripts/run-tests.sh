@@ -8,6 +8,10 @@ mkdir -p "$build"
 cp "$root/wideband.sty" "$root/wideband.lua" "$root/tests"/*.tex "$build/"
 cd "$build"
 
+# TeX wraps log lines at 80 columns, which splits the WIDEBAND DECISION line and
+# hides the checks below; the environment variable is the only way to widen it.
+export max_print_line=2000
+
 pass_tests=(
   test-wideband.tex
   test-edgecases.tex
@@ -17,9 +21,11 @@ pass_tests=(
   test-no-band.tex
   test-no-band-ref.tex
   test-right-column-deferral.tex
+  # Several pending bands are allowed by the stratum model, so a document with
+  # two bands close together now places them (stacked) instead of erroring.
+  test-pending-error.tex
 )
 expected_fail_tests=(
-  test-pending-error.tex
   test-oversized-error.tex
 )
 
@@ -43,9 +49,10 @@ for f in "${expected_fail_tests[@]}"; do
 done
 
 
-# Option A policy: a marker discovered in column 2 must defer intact.
-if ! grep -q "Wideband request encountered in column 2" test-right-column-deferral.log; then
-  echo "ERROR: right-column test did not exercise the deferral branch" >&2
+# Stratum model: a column-2 request is placed on the same page by re-cutting
+# column 1 (it no longer defers to the next page).
+if ! grep -q "note=col2-recut" test-right-column-deferral.log; then
+  echo "ERROR: right-column test did not exercise the column-2 re-cut branch" >&2
   exit 1
 fi
 "$root/scripts/verify-token-counts.py" test-right-column-deferral.pdf \
