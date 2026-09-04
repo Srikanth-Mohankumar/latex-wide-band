@@ -131,3 +131,28 @@ The matrix went from 11/35 to 34/35 and `make test` passes. Fixes landed:
 - **Corpus**: a band deferred to a page that also carries a `figure*[t]` double
   float under `\flushbottom` overflows by the float height (the top-band
   reservation does not yet account for the double float). No content is lost.
+
+## Integrator independent verification (2026-09-04, after the 16-commit fix pass)
+
+Re-ran all three suites from a clean tree on `integration/stratum-v0.5`:
+
+- `make test`: PASS (inertness pixel test and token accounting included).
+- Matrix: 34/35 pass. Only `m28` fails.
+- Corpus (`--seed 1 --count 30`, 30 documents): 29 clean, 1 fails (`corpus-0001-0008`).
+
+Every content-integrity check passes across the entire suite: `ledger-unique` clean
+(no lost, no duplicated), `ledger-order` clean, and token accounting exact on all
+make-test, matrix and corpus documents. The two residual failures are geometry-only,
+both with `lost=0`:
+
+- **m28** — NOT a wideband defect. The band correctly defers `D4 enlargethispage` and
+  is placed at the top of page 2; `ledger-unique ok created=68 shipped=68`. The audit's
+  `geometry-textarea` check uses a fixed text-area rectangle and flags the deliberately
+  enlarged page-1 content (14.34pt); a plain `\enlargethispage` document with no band
+  trips it too. AUDIT phase-2 limitation. Recommended: mark m28 xfail with this reason.
+- **corpus-0001-0008** — a real but narrow geometry defect. Two tall bands (B=330.7pt and
+  B=103.1pt) are both deferred and both placed at the top of page 2; each top-of-page
+  reservation is computed against the full column height independently, so the combined
+  bands plus columns overflow the text area by ~80pt. No content lost
+  (`ledger-unique ok created=156 shipped=156`). Fix: the top-of-page reservation must sum
+  ALL bands queued to the same page (build columns at textheight − Σ top-band B).
