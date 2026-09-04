@@ -93,3 +93,41 @@ owned by CORE. H is split: audit exclusion in `wideband-audit.lua` (AUDIT), matr
 `run-matrix.sh` (CORPUS). The feature-gap xfays are `tests/matrix/*` (CORPUS). This pass is driven as
 one core fix agent on the integration branch, with the small audit/corpus adjustments folded in by
 the integrator afterwards.
+
+## Iteration 1 outcome and remaining work
+
+The matrix went from 11/35 to 34/35 and `make test` passes. Fixes landed:
+
+- **A** deferred-page column reservation (survives `\@doclearpage`); also fixed
+  m13 (empty bottom stratum) and the trailing-stratum height via the same
+  `\wb@capture` re-assertion used by **C**.
+- **B** column-1 re-cut keeps its top piece (force second-column mode on re-fire).
+- **C** short/empty trailing strata ship; end-of-document flush of an open page.
+- **D** stacked bands via `\wb@eagerstack`, one placement line each, `y=0`.
+- **E** column bottom floats migrate to the last piece; exact top-float height.
+- **F** `S/R/ymin/ymax = -` for pre-geometry deferrals (D2/D5/D4-nested).
+- **G** decision-log note vocabulary in `README.md` (+ the phase-1 extensions in
+  `check-decisions.py`).
+- **H** m22: the audit already excludes kind-4; the real blocker was the gate,
+  now recorded as a `D5 kernel-mismatch` deferral (fancyhdr's `\@makecol` wrap).
+- A shared column-2 deferral content-loss bug (`\wb@dodefer` fed back the wrong
+  box) fixed m05, m07, m14, m15, m16, m17, m32.
+- m31 band-footnote extraction; m18 oversized error no longer crashes LuaTeX.
+
+### Remaining
+
+- **m28** (`\enlargethispage`): the band correctly defers `D4 enlargethispage`,
+  but `geometry-textarea` uses a fixed text area and flags the enlarged page 1.
+  This is a general audit limitation (a plain `\enlargethispage` document trips
+  it too); making the audit model `\enlargethispage` is phase-2 AUDIT work.
+- **m06** flush-bottom placement (report 2.3) — phase-2 policy; currently `D1`.
+- **m08** the col2-empty (`h=0`) case is not reproducible on the 12 pt baseline
+  grid (a full column is never an exact line multiple); exercises col1-recut.
+- **m22** wideband is functionally compatible with fancyhdr, but the
+  `\meaning`-based gate cannot distinguish a benign `\@makecol` wrap from a
+  harmful one and conservatively refuses (`D5`). Distinguishing them is phase-2.
+- **m30** re-cut across a float in the moved material (report 4.8, raw float
+  copies) — phase-2; currently `D4 float-in-moved-material`.
+- **Corpus**: a band deferred to a page that also carries a `figure*[t]` double
+  float under `\flushbottom` overflows by the float height (the top-band
+  reservation does not yet account for the double float). No content is lost.
