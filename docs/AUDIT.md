@@ -199,6 +199,15 @@ Beyond the per-check blind spots above:
   fancyhdr head and foot sit in the top and bottom margins, and the check must
   not flag them as outside the text area (`record_ink` returns early for
   `KIND_HEADFOOT` and `KIND_MARGIN`).
+- **`geometry-textarea` uses a fixed text-area rectangle and does not model
+  `\enlargethispage`.** The rectangle is computed once from the page geometry
+  (`\textheight`, margins), so a page enlarged by `\enlargethispage` legitimately
+  has ink below that rectangle and the check reports `FAIL edge=bottom`. This is
+  not wideband-specific — a plain two-column document with `\enlargethispage` and
+  no band trips it too. Scenario `m28-enlargethispage-d4` therefore carries a
+  `%% WB-KNOWN-XFAIL` marker (the band itself correctly defers `D4
+  enlargethispage` and ships with a clean ledger); modelling the per-page
+  enlargement is phase-2 AUDIT work.
 - A document that never reaches `\end{document}` writes no summary, and
   `check-audit.py` then exits 1 by design.
 - The checks are per page and per document, never per column: a two-column

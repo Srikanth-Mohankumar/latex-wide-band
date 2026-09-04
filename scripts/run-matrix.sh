@@ -170,6 +170,12 @@ check_doc() {
   differs=$(sed -n 's/^baseline_differs=//p' <<<"$meta")
   tokens=$(sed -n 's/^tokens=//p' <<<"$meta")
   has_dec=$(sed -n 's/^has_decision_expectations=//p' <<<"$meta")
+  # A documented, out-of-scope limitation whose expectation is honest but whose
+  # output still fails a check for a reason recorded here (e.g. the audit cannot
+  # model \enlargethispage).  Recorded as XFAIL in stratum mode; --strict still
+  # treats it as a hard failure so the limitation is not forgotten.
+  local known_xfail
+  known_xfail=$(sed -n 's/^%% *WB-KNOWN-XFAIL: *//p' "$build/$base" | head -1)
 
   local r_compile=- r_dec=- r_audit=- r_tok=- r_bnd=- r_ovf=-
   local bad=0 detail=()
@@ -297,6 +303,8 @@ check_doc() {
     else
       status=PASS; n_pass=$((n_pass + 1))
     fi
+  elif [ -n "$known_xfail" ] && [ "$strict" -eq 0 ]; then
+    status=XFAIL; n_xfail=$((n_xfail + 1)); xfail_docs+=("$stem: $known_xfail")
   elif [ "$differs" = 1 ] && [ "$mode" = baseline ] && [ "$strict" -eq 0 ]; then
     status=XFAIL; n_xfail=$((n_xfail + 1)); xfail_docs+=("$stem")
   else
@@ -308,7 +316,13 @@ check_doc() {
 
   if [ ${#detail[@]} -gt 0 ]; then
     local label="FAIL"
-    [ "$status" = XFAIL ] && label="XFAIL (WB-BASELINE-DIFFERS, baseline package)"
+    if [ "$status" = XFAIL ]; then
+      if [ -n "$known_xfail" ]; then
+        label="XFAIL (known: $known_xfail)"
+      else
+        label="XFAIL (WB-BASELINE-DIFFERS, baseline package)"
+      fi
+    fi
     echo "  $stem: $label"
     local d
     for d in "${detail[@]}"; do echo "      $d" | head -6; done

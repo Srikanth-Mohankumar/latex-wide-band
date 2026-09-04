@@ -4,6 +4,12 @@
 %% h = 10 + 16*12 = 202pt and B = 66 + 24 = 90pt would fit, so only the D4
 %% rule can explain the deferral.
 %% Baseline: the band is silently dropped (MXBAND01 missing from the PDF).
+%% The band defers D4 correctly and ships with a clean ledger, but the audit's
+%% geometry-textarea check uses a fixed text-area rectangle and cannot see the
+%% page enlarged by \enlargethispage, so it flags the enlarged page 1.  This is
+%% a general audit limitation (a plain \enlargethispage document with no band
+%% trips it too), phase-2 AUDIT work; see docs/AUDIT.md.
+%% WB-KNOWN-XFAIL: audit geometry-textarea cannot model \enlargethispage
 %% WB-BASELINE-DIFFERS
 %% WB-EXPECT: requests=1 placed=1 deferred=1
 %% WB-EXPECT-DECISION: id=1 result=deferred col=1 code=D4 page=1

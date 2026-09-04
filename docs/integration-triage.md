@@ -116,10 +116,12 @@ The matrix went from 11/35 to 34/35 and `make test` passes. Fixes landed:
 
 ### Remaining
 
-- **m28** (`\enlargethispage`): the band correctly defers `D4 enlargethispage`,
-  but `geometry-textarea` uses a fixed text area and flags the enlarged page 1.
-  This is a general audit limitation (a plain `\enlargethispage` document trips
-  it too); making the audit model `\enlargethispage` is phase-2 AUDIT work.
+- **m28** (`\enlargethispage`): the band correctly defers `D4 enlargethispage`
+  (clean ledger), but `geometry-textarea` uses a fixed text area and flags the
+  enlarged page 1 — a general audit limitation (a plain `\enlargethispage`
+  document trips it too). Recorded as a matrix **XFAIL** via a `%% WB-KNOWN-XFAIL`
+  marker (see `run-matrix.sh`; `--strict` still treats it as a hard failure).
+  Modelling `\enlargethispage` in the audit is phase-2 AUDIT work.
 - **m06** flush-bottom placement (report 2.3) — phase-2 policy; currently `D1`.
 - **m08** the col2-empty (`h=0`) case is not reproducible on the 12 pt baseline
   grid (a full column is never an exact line multiple); exercises col1-recut.

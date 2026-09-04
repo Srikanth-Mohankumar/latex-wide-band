@@ -144,6 +144,10 @@ def parse_expectations(path: Path) -> tuple[Expectations, list[str]]:
             exp.allow_overfull = True
         elif tag in ("WB-BASELINE-DIFFERS", "WB-BASELINE-DIFFERS:"):
             exp.baseline_differs = True
+        elif tag == "WB-KNOWN-XFAIL":
+            # A note read by run-matrix.sh to record a documented out-of-scope
+            # limitation as XFAIL; carries a free-text reason, nothing to check.
+            pass
         else:
             errors.append(f"line {lineno}: unknown expectation tag {tag!r}")
 
