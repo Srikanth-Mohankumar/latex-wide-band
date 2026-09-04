@@ -158,3 +158,24 @@ both with `lost=0`:
   bands plus columns overflow the text area by ~80pt. No content lost
   (`ledger-unique ok created=156 shipped=156`). Fix: the top-of-page reservation must sum
   ALL bands queued to the same page (build columns at textheight − Σ top-band B).
+
+## Known content-integrity bugs remaining after iteration 2 (found 2026-09-04)
+
+Independent verification with `run-corpus.sh --seed 1 --count 30 --keep-going` is 28/30 (an
+earlier report of "29/30 content-clean" was wrong: it was run WITHOUT `--keep-going`, so it
+stopped at the first failure and never reached these). Both remaining failures are in the
+3-band-deferral path and are genuine violations of the core guarantee, NOT geometry:
+
+- **corpus-0001-0023: a band is dropped (content loss).** Three bands are requested; ids 1 and 3
+  defer and are placed top-of-page, but **band id=2 gets no `WIDEBAND DECISION` line and never
+  ships** (`band-order FAIL band=2 never-shipped`). Its equation and `\label` are lost, which will
+  also produce `(??)` references. The line ledger is clean (`lost=0`); it is the band box that is
+  dropped.
+- **corpus-0001-0024: a band is misordered.** All three bands ship, but band id=2 lands out of
+  reading order (`band-order FAIL band=2 seq=83`), i.e. content it should follow appears after it.
+
+`--seed 2 --count 60` is 48/60, a similar cluster of pre-existing multi-band/footnote defects.
+These are the top items for iteration 3: the multi-band-deferral queue drops or misorders the
+middle band when three or more bands defer across pages. `make test` (green) and the 34/35 matrix
+do not exercise three deferred bands, which is why the scenario matrix did not catch this; add a
+matrix scenario for it.

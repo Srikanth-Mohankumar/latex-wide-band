@@ -42,3 +42,9 @@ Fixes in this iteration:
 - Added PDF-text token accounting for pre-band, band, post-band, and reference content.
 - Kept strict rejection of a second pending band and an oversized band.
 - Retained asymmetric rule controls and page-boundary checks from v0.3.
+
+## Known issues (v0.5, 2026-09-04)
+
+- Three or more bands deferring across pages: the middle band can be dropped (corpus-0001-0023) or
+  misordered (corpus-0001-0024). Fewer than three deferred bands are unaffected. Tracked in
+  docs/integration-triage.md for iteration 3.
