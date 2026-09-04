@@ -876,10 +876,17 @@
   \wb@computeR \wb@d@R\wb@R
   \wb@d@h\dimexpr\wb@h+\wb@topsp\relax
   \wb@d@P\wb@d@h
+  \wb@d@min\wb@d@h
   \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
   %% effective upper bound: the stratum below the band must be usable
   \wb@tdim\dimexpr\wb@S-\wb@d@B-\wb@minp\relax
   \ifdim\wb@tdim>\wb@d@max \wb@tdim\wb@d@max \fi
+  \ifvbox\@kludgeins
+    %% \enlargethispage changes the page height, which is inconsistent with the
+    %% stratum heights; a phase-1 D4 refusal for any same-page column-1
+    %% placement, not only the re-cut path (report section 5, item m28).
+    \wb@dodefer{D4}{enlargethispage}%
+  \else
   \ifwb@recutalways
     \wb@d@min\dimexpr(\wb@d@P+1sp)/2\relax
     \wb@conerecut
@@ -897,6 +904,7 @@
       \wb@d@y\wb@d@h
       \wb@doplace{col1-at-h}%
     \fi
+  \fi
   \fi}
 
 \def\wb@conerecut{%
