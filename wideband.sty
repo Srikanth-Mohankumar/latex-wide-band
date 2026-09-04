@@ -445,7 +445,19 @@
     %% too tall.  The assignment is idempotent: pagefull-topresv equals the
     %% value \wb@after@page already left when nothing clobbered it.
     \ifnum\wb@tn>\z@
-      \global\@colht\dimexpr\wb@pagefull-\wb@topresv\relax
+      %% Apply the top-band reservation, but only if it is not already in
+      %% \@colht.  \wb@after@page reduced \@colht by \wb@topresv; if that
+      %% reduction survived (\@colht <= pagefull-topresv), keep it -- \@colht
+      %% may since have been reduced further by \@startdblcolumn assigning a
+      %% double-column top float (figure*) above the deferred bands, and that
+      %% reduction must be preserved or the columns build too tall and
+      %% \@combinedblfloats overflows the page by the float height.  Only when
+      %% \@colht was clobbered back to (near) the full height -- \@doclearpage
+      %% resets it to \textheight when flushing at end of document -- subtract
+      %% the reservation now, which still keeps any float reduction below it.
+      \ifdim\@colht>\dimexpr\wb@pagefull-\wb@topresv\relax
+        \global\advance\@colht-\wb@topresv
+      \fi
     \fi
     \global\wb@S\@colht
     \global\wb@y\@colht
