@@ -30,6 +30,7 @@ local HLIST   = N.id("hlist")
 local VLIST   = N.id("vlist")
 local RULE    = N.id("rule")
 local MATHN   = N.id("math")
+local INS     = N.id("ins")
 local UD      = (N.subtype and N.subtype("user_defined")) or 8
 
 -- "WBND": the band request marker
@@ -174,6 +175,33 @@ function wideband.striptop(boxnum)
   end
   if head then head.prev = nil end
   b.list = head
+end
+
+-- Footnotes typed inside a band are \insert nodes trapped in the band box and
+-- do not migrate out of a \vbox.  Extract every insert of class `insnum` from
+-- box `src` and re-contribute it to the list TeX is currently building (the
+-- main vertical list, when called at the request point), so the page builder
+-- charges it to the bottom of the current column (report 4.7).  The count is
+-- reported in \wb@found.
+function wideband.extractinserts(src, insnum)
+  insnum = tonumber(insnum)
+  local b = tex.box[src]
+  local found = 0
+  if b and b.list then
+    local n = b.list
+    while n do
+      local nxt = n.next
+      if n.id == INS and n.subtype == insnum then
+        b.list = N.remove(b.list, n)
+        n.next, n.prev = nil, nil
+        N.write(n)
+        found = found + 1
+      end
+      n = nxt
+    end
+    if b.list then b.list.prev = nil end
+  end
+  setcount("found", found)
 end
 
 ----------------------------------------------------------------------

@@ -342,6 +342,11 @@
 }
 
 \def\wb@decorate{%
+  %% A footnote typed inside the band is an \insert trapped in the band box; it
+  %% never migrates out of a \vbox, so extract it and re-insert it on the main
+  %% list here, at the request point, where the page builder charges it to the
+  %% bottom of the current column (report 4.7).
+  \directlua{wideband.extractinserts(\number\wb@band,\number\footins)}%
   \global\setbox\wb@body=\box\wb@band
   \global\setbox\wb@band=\vbox{%
     \wb@attr@band\wb@id
