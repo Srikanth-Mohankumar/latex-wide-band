@@ -187,6 +187,7 @@
 
 %% decision record
 \newcount\wb@d@id \newcount\wb@d@col \newcount\wb@d@strat \newcount\wb@d@hasy
+\newcount\wb@d@geom      % 1 when S/R/ymin/ymax were computed; 0 -> log them as -
 \newdimen\wb@d@h \newdimen\wb@d@S \newdimen\wb@d@R \newdimen\wb@d@B
 \newdimen\wb@d@P \newdimen\wb@d@min \newdimen\wb@d@max \newdimen\wb@d@y
 \def\wb@d@result{deferred}
@@ -263,21 +264,33 @@
 %% ==================================================================
 %% 4. decision log
 %% ==================================================================
+%% -2147483647 is the "not applicable" sentinel; wideband.decision prints it
+%% as "-" (contract 4.2), which the CORPUS checker skips.  When no feasible
+%% interval was computed -- D2 oversized, D5 gate-disabled, D4 nested, i.e.
+%% any deferral before the stratum geometry exists -- S, R, ymin and ymax are
+%% inapplicable and logged as - (B is kept); y is - whenever the band was not
+%% placed.
+\def\wb@dna{-2147483647}
 \def\wb@emit{%
   \directlua{wideband.decision(%
     \the\wb@d@id,\the\c@page,\the\wb@d@col,\the\wb@d@strat,%
-    \number\wb@d@h,\number\wb@d@S,\number\wb@d@R,\number\wb@d@B,%
-    \number\wb@d@P,\number\wb@d@min,\number\wb@d@max,%
-    \ifnum\wb@d@hasy>\z@\number\wb@d@y\else-2147483647\fi,%
+    \number\wb@d@h,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@S\else\wb@dna\fi,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@R\else\wb@dna\fi,%
+    \number\wb@d@B,%
+    \number\wb@d@P,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@min\else\wb@dna\fi,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@max\else\wb@dna\fi,%
+    \ifnum\wb@d@hasy>\z@\number\wb@d@y\else\wb@dna\fi,%
     "\wb@d@result","\wb@d@code","\wb@d@note")}}
 
 \def\wb@placed#1{%
   \def\wb@d@result{placed}\def\wb@d@code{OK}\def\wb@d@note{#1}%
-  \wb@d@hasy\@ne \wb@emit}
+  \wb@d@geom\@ne \wb@d@hasy\@ne \wb@emit}
 %% same, but keeping the note already stored in \wb@d@note
 \def\wb@placedkeep{%
   \def\wb@d@result{placed}\def\wb@d@code{OK}%
-  \wb@d@hasy\@ne \wb@emit}
+  \wb@d@geom\@ne \wb@d@hasy\@ne \wb@emit}
 \def\wb@deferred#1#2{%
   \def\wb@d@result{deferred}\def\wb@d@code{#1}\def\wb@d@note{#2}%
   \wb@d@hasy\z@ \wb@emit}
@@ -570,6 +583,7 @@
   \wb@d@strat\wb@stratum
   \wb@d@h\z@ \wb@d@S\z@ \wb@d@R\z@ \wb@d@P\z@
   \wb@d@min\z@ \wb@d@max\z@ \wb@d@y\z@ \wb@d@hasy\z@
+  \wb@d@geom\@ne
   \if@firstcolumn \wb@d@col\@ne \else \wb@d@col\tw@ \fi}
 
 \def\wb@tonext{%
@@ -579,7 +593,7 @@
 \def\wb@place{%
   \wb@setupdecision
   \ifdim\wb@B>\dimexpr\textheight-\wb@minp\relax
-    \wb@d@S\textheight
+    \wb@d@geom\z@
     \wb@deferred{D2}{oversized}%
     \global\setbox\wb@band\box\voidb@x
     \PackageError{wideband}{Wideband is too tall to fit on a page}%
@@ -590,9 +604,11 @@
     \wb@newslot
     \global\wb@eagerpathtrue
     \ifnum\wb@gate=\z@
+      \wb@d@geom\z@
       \wb@dodefer{D5}{\wb@gate@note}%
     \else
       \ifinner
+        \wb@d@geom\z@
         \wb@dodefer{D4}{nested}%
       \else
         \ifdim\pagegoal=\maxdimen
