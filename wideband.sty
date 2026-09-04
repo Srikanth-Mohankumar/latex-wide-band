@@ -1107,6 +1107,15 @@
   \wb@deferred{#1}{#2}%
   \ifwb@eagerpath\else
     \directlua{wideband.strip(\number\@cclv)}%
+    %% A column-2 request moved the finished column-2 material into \wb@coltwo
+    %% before the geometry was known (box 255 is now void).  On a deferral it
+    %% must be fed back so it stays on this page, or the whole of column 2 above
+    %% the request is lost.  For a column-1 request \wb@coltwo is void and
+    %% box 255 still holds the material.
+    \ifvoid\wb@coltwo\else
+      \unvbox\wb@coltwo
+      \global\setbox\wb@coltwo\box\voidb@x
+    \fi
     \unvbox\@cclv
     \pagediscards
     \@reinserts
