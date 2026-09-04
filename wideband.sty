@@ -165,6 +165,7 @@
 \newdimen\wb@skipA       % \skip\footins as the document set it
 \newdimen\wb@pagefull    % full column height of a page carrying top bands
 \newdimen\wb@topresv     % total footprint reserved for this page's top bands
+\newdimen\wb@botresv     % height reserved for stashed column-1 bottom floats
 \newdimen\wb@h           % <- Lua (marker position)
 \edef\wb@h@num{\the\allocationnumber}
 \newdimen\wb@nat         % <- Lua
@@ -456,6 +457,12 @@
   %% build/column/before runs before \@makecol packs \vbox to\@colht, so this
   %% keeps the packing correct.  Idempotent when nothing clobbered \@colht.
   \ifnum\wb@active>\z@ \global\@colht\wb@y \fi
+  %% The final column-1 piece below a band gets back the bottom floats stashed
+  %% away from the pieces above the band (see \wb@stashbot); R was reserved for
+  %% them here.
+  \ifnum\wb@active>\z@
+    \if@firstcolumn \ifnum\wb@pcfinal>\z@ \wb@restorebot \fi\fi
+  \fi
   \if@firstcolumn
     \global\setbox\wb@Lraw\copy\@cclv
     \global\setbox\wb@Lfn\copy\footins
@@ -484,6 +491,26 @@
 %% ==================================================================
 %% 8. float and insert bookkeeping on band pages
 %% ==================================================================
+%% Bottom floats already committed to column 1 (\@botlist) before a band was
+%% requested belong at the bottom of the column, i.e. in the last piece below
+%% the band, not in the piece above it.  \wb@computeR already reserves their
+%% height R below the band (ymax = S-R-B).  \@makecol, however, would attach
+%% them to whichever piece it builds next -- the piece above the band -- which
+%% then overflows by R.  So stash \@botlist while a non-final column-1 piece is
+%% built and restore it for the final column-1 piece, where R was reserved.
+\global\let\wb@savebot\@empty
+\def\wb@stashbot{%
+  \ifx\@botlist\@empty\else
+    \global\let\wb@savebot\@botlist
+    \global\let\@botlist\@empty
+    \global\wb@botresv\wb@bot
+  \fi}
+\def\wb@restorebot{%
+  \ifx\wb@savebot\@empty\else
+    \global\let\@botlist\wb@savebot
+    \global\let\wb@savebot\@empty
+  \fi}
+
 \def\wb@setbusy{%
   \global\wb@busy\z@
   \ifnum\wb@active>\z@\global\wb@busy\@ne\fi
@@ -659,6 +686,25 @@
     \endgroup
   \fi}
 
+%% Height that column-1 top floats (\@toplist) add above the body, computed
+%% exactly the way \@cflt attaches them (sum of the boxes with \floatsep
+%% between and \textfloatsep above the body).  Used for \wb@topsp so that h,
+%% the height of column 1 above the band, includes the real top-float height
+%% rather than the kernel's \@colht-\@colroom estimate, which can be short by
+%% a couple of \floatsep and overflow the piece above the band (item E).
+\def\wb@topelt#1{\advance\dimen@\ht#1\advance\dimen@\dp#1\advance\dimen@\floatsep}
+\def\wb@sumtop{%
+  \wb@topsp\z@
+  \ifx\@toplist\@empty\else
+    \begingroup
+      \dimen@\z@
+      \let\@elt\wb@topelt
+      \@toplist
+      \let\@elt\relax
+      \global\wb@topsp\dimexpr\dimen@-\floatsep+\textfloatsep\relax
+    \endgroup
+  \fi}
+
 \def\wb@computeR{%
   \wb@R\z@
   \dimen@\z@
@@ -678,12 +724,9 @@
   \wb@sumbot
   \advance\wb@R\wb@bot
   \global\wb@R\wb@R
-  %% space already committed above the text of the piece being closed:
-  %% \@colht is the piece height, \@colroom what is left for text after the
-  %% kernel has reserved room for this column's floats.
-  \wb@tdim\dimexpr\@colht-\@colroom-\wb@bot\relax
-  \ifdim\wb@tdim<\z@ \wb@tdim\z@ \fi
-  \global\wb@topsp\wb@tdim}
+  %% space committed above the text of the piece by column-1 top floats
+  \wb@sumtop
+  \ifdim\wb@topsp<\z@ \global\wb@topsp\z@ \fi}
 
 %% ==================================================================
 %% 11. the output routine wrapper
@@ -1000,6 +1043,7 @@
   \global\@colht\wb@y
   \global\wb@setvsize\@ne
   \directlua{wideband.strip(\number\@cclv)}%
+  \if@firstcolumn \wb@stashbot \fi
   \wb@runcolumn}
 
 %% re-fire after a re-cut: the record is already queued.  The material that
@@ -1076,6 +1120,13 @@
       \global\advance\wb@stratum\@ne
       \global\wb@y\wb@S
       \global\@colht\wb@y
+      %% If a bottom float is waiting to be restored to the last column-1
+      %% piece, shorten this stratum's text fill by its reserved height so the
+      %% float lands in the reserved space instead of overflowing (item E).
+      \ifx\wb@savebot\@empty\else
+        \global\wb@slack-\wb@botresv
+        \global\wb@setvsize\@ne
+      \fi
     \else
       \wb@shippage
     \fi
@@ -1156,6 +1207,13 @@
   \ifdim\wb@S<\wb@minp\else \global\wb@more\@ne \fi}
 
 \def\wb@shippage{%
+  %% Any bottom floats stashed but never restored (a band flush at the bottom
+  %% leaves no final column-1 piece) must not be lost: defer them to a later
+  %% page rather than drop them.
+  \ifx\wb@savebot\@empty\else
+    \xdef\@deferlist{\wb@savebot\@deferlist}%
+    \global\let\wb@savebot\@empty
+  \fi
   \ifvoid\wb@holdA\else
     \PackageWarning{wideband}{Held column-1 footnotes could not be placed on
       page \the\c@page; they move to the next page}%
