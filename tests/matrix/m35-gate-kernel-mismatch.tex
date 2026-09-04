@@ -1,0 +1,36 @@
+%% Scenario: the kernel routine changed after wideband was loaded.  Report
+%% 4.11 and contract 4.3: the gate compares \meaning of \@outputdblcol,
+%% \@makecol, \@opcol, \@specialoutput and \the\output at \begin{document}
+%% against the definitions captured at package load, and must refuse when they
+%% differ.  This document re-wraps \@makecol after loading wideband, which is
+%% what a later-loading package would do.
+%% status=disabled reason=kernel-mismatch, and the band is deferred with D5 to
+%% the top of page 2 even though h = 202pt and B = 90pt would fit at y = h.
+%% Baseline: has no gate; it places the band on page 1.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=1 code=D5 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND GATE: status=disabled reason=kernel-mismatch
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\makeatletter
+\let\mxsavedmakecol\@makecol
+\renewcommand\@makecol{\mxsavedmakecol}
+\makeatother
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{20}{MXB}
+\end{document}

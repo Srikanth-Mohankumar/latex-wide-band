@@ -1,0 +1,33 @@
+%% Scenario: a band still pending at the end of the document.  Report 4.12 and
+%% contract 4.3: "End of document: a pending band forces one more page;
+%% nothing is ever dropped."
+%% The 50 MXA lines fill column 1 and 46 MXB lines precede the request in
+%% column 2: h = 10 + 45*12 = 550pt, P = 1150pt, y_min = 575pt.
+%% B = 222 + 24 = 246pt, so 575 + 246 = 821 > 600  -> D1, deferred.
+%% Nothing follows the request, so the deferred band must force page 2 and
+%% ship there at y = 0.
+%% Baseline: the deferral is scheduled while page 1 is assembled, but no
+%% material remains to trigger another output cycle, so the band is dropped.
+%% The MXBAND01 token expectation is what registers that loss.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=2 code=D1 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-TOKENS: MXA01 MXA50 MXB01 MXB46 MXBAND01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{50}{MXA}
+\WBMlines{46}{MXB}
+\begin{wideband}
+\WBMbandbox{222pt}{MXBAND01}{$\displaystyle A_{ij} = \int_{\Omega} \nabla \varphi_i \cdot \nabla \varphi_j \, dx, \qquad b_i = \int_{\Omega} f \varphi_i \, dx$}
+\end{wideband}
+\end{document}

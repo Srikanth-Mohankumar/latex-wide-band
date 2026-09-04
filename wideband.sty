@@ -1,54 +1,310 @@
-%% wideband.sty -- proof of concept
+%% wideband.sty -- full-width bands inside a two-column page (stratum model)
 %%
-%% Full-width band (e.g. a wide equation) inside a twocolumn page,
-%% WITHOUT balancing or flushing the columns first.  Text in both
-%% columns continues below the band.
+%% A page is a stack of horizontal strata.  Each stratum is a small
+%% two-column page (left piece, then right piece, in reading order) and
+%% consecutive strata are separated by full-width bands.  Column material is
+%% held in raw form until the page is decided; the page is then assembled
+%% stratum by stratum, so PDF content order equals reading order.
 %%
-%% Requires LuaLaTeX. One pending band is supported. Requests found in
-%% column 1 may be placed on the current page; requests found in column 2
-%% are deterministically deferred to the top of the next page. This avoids
-%% destructive reconstruction of an already-finalized left column.
+%% Requests in column 1 are placed at y = h (or, when that does not fit and
+%% the recut policy allows it, at an earlier legal cut).  Requests in column 2
+%% are placed on the same page by cutting the held column-1 piece at a legal
+%% breakpoint and letting its tail flow into column 2 above the band.  Several
+%% bands per page are supported; every request produces exactly one placement
+%% record with a deferral code D1..D5.
+%%
+%% Requires LuaLaTeX (verified on TeX Live 2025 / LaTeX2e 2025-06-01).
 %%
 %% Usage:
-%%   \usepackage{wideband}
-%%   ...
+%%   \usepackage[recut=when-needed,minpiece=2]{wideband}
 %%   \begin{wideband}
 %%     \begin{equation} ...wide equation... \end{equation}
 %%   \end{wideband}
 %%
-\NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{wideband}[2026/07/10 v0.4 production-safe policy A (deterministic right-column deferral)]
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesPackage{wideband}[2026/09/03 v0.5 stratum model]
 
 \RequirePackage{iftex}
 \RequireLuaTeX
 
-%% ------------------------------------------------------------------
-%% registers and parameters
-%% ------------------------------------------------------------------
-\newbox\wb@band     % the decorated band, \textwidth wide
-\newbox\wb@body     % captured environment body before decoration
-\newbox\wb@discard  % rejected nested/pending request body
-\newbox\wb@Ltop     % left column above the band
-\newbox\wb@Lbot     % left column below the band
-\newbox\wb@Rtop     % right column above the band
+%% ==================================================================
+%% 1. package options
+%% ==================================================================
+\DeclareKeys[wideband]{
+  recut     .store     = \wb@opt@recut,
+  recut     .initial:n = {when-needed},
+  policy    .store     = \wb@opt@policy,
+  policy    .initial:n = {earliest},
+  minpiece  .store     = \wb@opt@minpiece,
+  minpiece  .initial:n = {2},
+  audit     .if        = wb@opt@audit,
+  verbose   .if        = wb@opt@verbose,
+}
+\ProcessKeyOptions[wideband]
 
-\newcount\wb@found  \edef\wb@found@num{\the\allocationnumber}
-\newdimen\wb@h      \edef\wb@h@num{\the\allocationnumber}
-\newdimen\wb@reserve
-\newdimen\wb@botgoal
-\newdimen\wb@botnat \edef\wb@botnat@num{\the\allocationnumber}
-\newcount\wb@state  % 0 idle / 1 split pending / 2 deferred to next page top
-\newcount\wb@defer@request
-\newif\ifwb@busy    % a captured band exists until it is actually shipped
-\newif\ifwb@reject  % reject a request that would overwrite a pending band
+\def\wb@str@never{never}
+\def\wb@str@needed{when-needed}
+\def\wb@str@earliest{always-earliest}
+\def\wb@str@bottom{bottom}
+\def\wb@str@earl{earliest}
 
+\newif\ifwb@recutallowed  \wb@recutallowedtrue
+\newif\ifwb@recutalways
+
+\begingroup
+  \edef\wb@tempa{\wb@opt@recut}%
+  \gdef\wb@next{}%
+  \ifx\wb@tempa\wb@str@never
+    \gdef\wb@next{\wb@recutallowedfalse}%
+  \else\ifx\wb@tempa\wb@str@earliest
+    \gdef\wb@next{\wb@recutalwaystrue}%
+  \else\ifx\wb@tempa\wb@str@needed
+  \else
+    \gdef\wb@next{\PackageWarningNoLine{wideband}%
+      {Unknown recut value; using when-needed}}%
+  \fi\fi\fi
+\endgroup
+\wb@next
+
+\begingroup
+  \edef\wb@tempa{\wb@opt@policy}%
+  \gdef\wb@next{}%
+  \ifx\wb@tempa\wb@str@bottom
+    \gdef\wb@next{\PackageWarningNoLine{wideband}{policy=bottom is not
+      implemented in this release; behaving as policy=earliest}}%
+  \else\ifx\wb@tempa\wb@str@earl
+  \else
+    \gdef\wb@next{\PackageWarningNoLine{wideband}{Unknown policy value;
+      using earliest}}%
+  \fi\fi
+\endgroup
+\wb@next
+
+\ifwb@opt@audit
+  \IfFileExists{wideband-audit.sty}%
+    {\RequirePackage{wideband-audit}}%
+    {\PackageWarningNoLine{wideband}{Option 'audit' given but
+        wideband-audit.sty is not installed; continuing without it}}%
+\fi
+
+%% ==================================================================
+%% 2. registers, Lua bridge
+%% ==================================================================
+%% Band request penalty.  The kernel occupies -10001..-10004 and cuted
+%% uses -10005, so -10007 is ours.
+\def\wb@bandpen{-10007}
+
+\newbox\wb@band       % the decorated band while it is being built
+\newbox\wb@body       % environment body before decoration
+\newbox\wb@page       % composed rows of the page being assembled
+\newbox\wb@Lpiece     % composed left piece of the current stratum
+\newbox\wb@Lraw       % raw body of the current stratum's left piece
+\newbox\wb@Lfn        % raw copy of \footins at that piece's break
+\newbox\wb@Ldisc      % \pagediscards of that piece's break
+\newbox\wb@coltwo       % old column-2 material during a re-cut
+\newbox\wb@cuttop     % top part produced by an exact cut
+\newbox\wb@cutbot     % tail produced by an exact cut
+\newbox\wb@holdA      % footnotes held for column 1
+\newbox\wb@holdB      % footnotes held for column 2
+
+%% band box pool: bands live here between request and placement
+\chardef\wb@nslots=8
+\begingroup
+  \count@\z@
+  \loop\ifnum\count@<8
+    \expandafter\newbox\csname wb@bx@\the\count@\endcsname
+    \expandafter\xdef\csname wb@sid@\the\count@\endcsname{-1}%
+    \expandafter\xdef\csname wb@sB@\the\count@\endcsname{0.0pt}%
+    \advance\count@\@ne
+  \repeat
+\endgroup
+\def\wb@slotbox#1{\csname wb@bx@\number#1\endcsname}
+\def\wb@slotid#1{\csname wb@sid@\number#1\endcsname}
+
+\newcount\wb@nextslot
+\newcount\wb@recslot
+\newcount\wb@j
+\newcount\wb@id          % band ids, 1..n
+\newcount\wb@active      % 1 while the current page carries bands
+\newcount\wb@newpage     % 1 before the first output cycle of a page
+\newcount\wb@stratum     % index of the current stratum, 1-based
+\newcount\wb@pretop      % 1 while page-top bands still have to be emitted
+\newcount\wb@refire      % 1 when the next band cycle is a re-cut re-fire
+\newcount\wb@setvsize    % 1 when \vsize must be set explicitly this cycle
+\newcount\wb@pcfinal     % 1 when the piece being filled is a column's last
+\newcount\wb@more        % 1 when another stratum follows on this page
+\newcount\wb@marpar      % marginal notes seen on the current page
+\newcount\wb@gate        % 1 when same-page placement is allowed
+\newcount\wb@Lflt        % 1 when floats are attached to the held left piece
+\newcount\wb@busy        % 1 while any band is pending or placed
+\newcount\wb@pend        % 1 while any band is still unplaced
+\newcount\wb@pageopen    % 1 while \wb@page holds composed, unshipped rows
+\newcount\wb@dfour
+\newcount\wb@guard       % output-cycle guard on a band page
+\newcount\wb@found       % <- Lua
+\edef\wb@found@num{\the\allocationnumber}
+\newcount\wb@bid         % <- Lua
+\edef\wb@bid@num{\the\allocationnumber}
+\newcount\wb@flags       % <- Lua
+\edef\wb@flags@num{\the\allocationnumber}
+\newcount\wb@fnA         % \count\footins as the document set it
+\newcount\wb@dn \newcount\wb@tn \newcount\wb@xn
+
+\newdimen\wb@B           % footprint of the band being requested
+\newdimen\wb@S           % height of the current stratum
+\newdimen\wb@y           % piece height inside the current stratum
+\newdimen\wb@pageht      % total column height of the current page
+\newdimen\wb@rowsum      % height of the rows composed so far
+\newdimen\wb@minp        % minimum non-zero piece height
+\newdimen\wb@slack       % extra \vsize for one cycle
+\newdimen\wb@R
+\newdimen\wb@bot
+\newdimen\wb@topsp
+\newdimen\wb@tdim
+\newdimen\wb@recB
+\newdimen\wb@skipA       % \skip\footins as the document set it
+\newdimen\wb@pagefull    % full column height of a page carrying top bands
+\newdimen\wb@topresv     % total footprint reserved for this page's top bands
+\newdimen\wb@botresv     % height reserved for stashed column-1 bottom floats
+\newdimen\wb@h           % <- Lua (marker position)
+\edef\wb@h@num{\the\allocationnumber}
+\newdimen\wb@nat         % <- Lua
+\edef\wb@nat@num{\the\allocationnumber}
+\newdimen\wb@natdp       % <- Lua
+\edef\wb@natdp@num{\the\allocationnumber}
+\newdimen\wb@cuty        % <- Lua
+\edef\wb@cuty@num{\the\allocationnumber}
+\newdimen\wb@topnat      % <- Lua
+\edef\wb@topnat@num{\the\allocationnumber}
+\newdimen\wb@topdp       % <- Lua
+\edef\wb@topdp@num{\the\allocationnumber}
+\newdimen\wb@botnat      % <- Lua
+\edef\wb@botnat@num{\the\allocationnumber}
+\newdimen\wb@botdp       % <- Lua
+\edef\wb@botdp@num{\the\allocationnumber}
+
+\newif\ifwb@eagerpath
+
+%% decision record
+\newcount\wb@d@id \newcount\wb@d@col \newcount\wb@d@strat \newcount\wb@d@hasy
+\newcount\wb@d@geom      % 1 when S/R/ymin/ymax were computed; 0 -> log them as -
+\newdimen\wb@d@h \newdimen\wb@d@S \newdimen\wb@d@R \newdimen\wb@d@B
+\newdimen\wb@d@P \newdimen\wb@d@min \newdimen\wb@d@max \newdimen\wb@d@y
+\def\wb@d@result{deferred}
+\def\wb@d@code{D1}
+\def\wb@d@note{no-room}
+
+\newattribute\wb@attr@band
+\edef\wb@attr@band@num{\the\allocationnumber}
+\newattribute\wb@attr@fnmark
+\edef\wb@attr@fnmark@num{\the\allocationnumber}
+
+\savingvdiscards\@ne
+
+\def\wb@offskip{\baselineskip-\@m\p@ \lineskip\z@ \lineskiplimit\maxdimen}
+
+\directlua{
+  wideband = require("wideband")
+  wideband.setup{
+    found  = \wb@found@num,  bid    = \wb@bid@num,
+    flags  = \wb@flags@num,
+    h      = \wb@h@num,      nat    = \wb@nat@num,
+    natdp  = \wb@natdp@num,  cuty   = \wb@cuty@num,
+    topnat = \wb@topnat@num, topdp  = \wb@topdp@num,
+    botnat = \wb@botnat@num, botdp  = \wb@botdp@num,
+    fnattr = \wb@attr@fnmark@num,
+  }
+}
+
+%% ==================================================================
+%% 3. band record arrays
+%% ==================================================================
+%% Three ordered lists of band records:
+%%   due   committed to this page, to be emitted below the current stratum
+%%   top   to be emitted at the top of this page
+%%   next  deferred to the top of the next page
+\def\wb@fieldlist{id,slot,B,col,strat,h,S,R,P,min,max,note}
+\def\wb@set#1#2#3#4{\expandafter\xdef\csname wb@f@#1@#3@\number#2\endcsname{#4}}
+\def\wb@get#1#2#3{\csname wb@f@#1@#3@\number#2\endcsname}
+\def\wb@copyrec#1#2#3#4{%
+  \begingroup
+    \@for\wb@fld:=\wb@fieldlist\do{%
+      \expandafter\xdef\csname wb@f@#3@\wb@fld @\number#4\endcsname
+        {\wb@get{#1}{#2}{\wb@fld}}}%
+  \endgroup}
+
+\def\wb@storerec#1#2{%
+  \wb@set{#1}{#2}{id}{\the\wb@d@id}%
+  \wb@set{#1}{#2}{slot}{\number\wb@recslot}%
+  \wb@set{#1}{#2}{B}{\the\wb@d@B}%
+  \wb@set{#1}{#2}{col}{\the\wb@d@col}%
+  \wb@set{#1}{#2}{strat}{\the\wb@d@strat}%
+  \wb@set{#1}{#2}{h}{\the\wb@d@h}%
+  \wb@set{#1}{#2}{S}{\the\wb@d@S}%
+  \wb@set{#1}{#2}{R}{\the\wb@d@R}%
+  \wb@set{#1}{#2}{P}{\the\wb@d@P}%
+  \wb@set{#1}{#2}{min}{\the\wb@d@min}%
+  \wb@set{#1}{#2}{max}{\the\wb@d@max}%
+  \wb@set{#1}{#2}{note}{\wb@d@note}}
+
+\def\wb@loadrec#1#2{%
+  \wb@d@id\wb@get{#1}{#2}{id}\relax
+  \wb@recslot\wb@get{#1}{#2}{slot}\relax
+  \wb@d@B\wb@get{#1}{#2}{B}\relax
+  \wb@d@col\wb@get{#1}{#2}{col}\relax
+  \wb@d@strat\wb@get{#1}{#2}{strat}\relax
+  \wb@d@h\wb@get{#1}{#2}{h}\relax
+  \wb@d@S\wb@get{#1}{#2}{S}\relax
+  \wb@d@R\wb@get{#1}{#2}{R}\relax
+  \wb@d@P\wb@get{#1}{#2}{P}\relax
+  \wb@d@min\wb@get{#1}{#2}{min}\relax
+  \wb@d@max\wb@get{#1}{#2}{max}\relax
+  \edef\wb@d@note{\wb@get{#1}{#2}{note}}}
+
+%% ==================================================================
+%% 4. decision log
+%% ==================================================================
+%% -2147483647 is the "not applicable" sentinel; wideband.decision prints it
+%% as "-" (contract 4.2), which the CORPUS checker skips.  When no feasible
+%% interval was computed -- D2 oversized, D5 gate-disabled, D4 nested, i.e.
+%% any deferral before the stratum geometry exists -- S, R, ymin and ymax are
+%% inapplicable and logged as - (B is kept); y is - whenever the band was not
+%% placed.
+\def\wb@dna{-2147483647}
+\def\wb@emit{%
+  \directlua{wideband.decision(%
+    \the\wb@d@id,\the\c@page,\the\wb@d@col,\the\wb@d@strat,%
+    \number\wb@d@h,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@S\else\wb@dna\fi,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@R\else\wb@dna\fi,%
+    \number\wb@d@B,%
+    \number\wb@d@P,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@min\else\wb@dna\fi,%
+    \ifnum\wb@d@geom>\z@\number\wb@d@max\else\wb@dna\fi,%
+    \ifnum\wb@d@hasy>\z@\number\wb@d@y\else\wb@dna\fi,%
+    "\wb@d@result","\wb@d@code","\wb@d@note")}}
+
+\def\wb@placed#1{%
+  \def\wb@d@result{placed}\def\wb@d@code{OK}\def\wb@d@note{#1}%
+  \wb@d@geom\@ne \wb@d@hasy\@ne \wb@emit}
+%% same, but keeping the note already stored in \wb@d@note
+\def\wb@placedkeep{%
+  \def\wb@d@result{placed}\def\wb@d@code{OK}%
+  \wb@d@geom\@ne \wb@d@hasy\@ne \wb@emit}
+\def\wb@deferred#1#2{%
+  \def\wb@d@result{deferred}\def\wb@d@code{#1}\def\wb@d@note{#2}%
+  \wb@d@hasy\z@ \wb@emit}
+
+\def\wb@info#1{\ifwb@opt@verbose
+  \directlua{texio.write_nl("log","WIDEBAND INFO: #1")}\fi}
+
+%% ==================================================================
+%% 5. user-level parameters and the environment
+%% ==================================================================
 \newskip\wideband@sep
 \wideband@sep=14\p@ \@plus 4\p@ \@minus 2\p@
 \newcommand\setwidebandsep[1]{\setlength\wideband@sep{#1}}
 
-%% Optional asymmetric rules decorating the captured band.
-%% The top rule starts at the left edge; the bottom rule ends at the
-%% right edge. The fraction is interpreted as a fraction of \textwidth.
 \newdimen\wideband@rulethickness
 \wideband@rulethickness=.4\p@
 \newskip\wideband@rulesep
@@ -64,43 +320,16 @@
 \newcommand\widebandruleson{\wideband@rulestrue}
 \newcommand\widebandrulesoff{\wideband@rulesfalse}
 
-\directlua{
-  wideband = require("wideband")
-  wideband.setup{ found = \wb@found@num, h = \wb@h@num, botnat = \wb@botnat@num }
-}
-
-
-%% Conservative compatibility checks. These are warnings because the POC can
-%% still be useful for visual research, but users must not infer compatibility.
-\AtBeginDocument{%
-  \@ifpackageloaded{stfloats}{\PackageWarningNoLine{wideband}{stfloats also patches two-column output; compatibility is not guaranteed}}{}%
-  \@ifpackageloaded{dblfloatfix}{\PackageWarningNoLine{wideband}{dblfloatfix also patches two-column output; compatibility is not guaranteed}}{}%
-  \@ifpackageloaded{cuted}{\PackageWarningNoLine{wideband}{cuted also patches the output routine; do not use strip and wideband on the same page}}{}%
-  \@ifpackageloaded{balance}{\PackageWarningNoLine{wideband}{balance may conflict with wideband page surgery}}{}%
-  \@ifpackageloaded{flushend}{\PackageWarningNoLine{wideband}{flushend may conflict with wideband page surgery}}{}%
-  \@ifpackageloaded{tagpdf}{\PackageWarningNoLine{wideband}{Tagged PDF is unsupported; structure order can be incorrect on band pages}}{}%
-}
-
-%% ------------------------------------------------------------------
-%% the environment
-%% ------------------------------------------------------------------
 \newenvironment{wideband}{%
   \if@twocolumn\else
     \PackageError{wideband}{wideband used outside twocolumn mode}%
       {The environment only makes sense in twocolumn documents.}%
   \fi
   \par
-  \ifwb@busy
-    \global\wb@rejecttrue
-    \PackageError{wideband}{A previous wideband is still pending}%
-      {This hardened POC supports one pending band at a time.\MessageBreak
-       The new band is discarded instead of overwriting the earlier band.\MessageBreak
-       Move it later, force a page break, or wait for queue support.}%
-    \global\setbox\wb@discard\vbox\bgroup
-  \else
-    \global\wb@rejectfalse
-    \global\setbox\wb@band\vbox\bgroup
-  \fi
+  \global\advance\wb@id\@ne
+  \directlua{if wbaudit then wbaudit.request(\the\wb@id) end}%
+  \global\setbox\wb@band\vbox\bgroup
+    \wb@attr@band\wb@id
     \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
     \@parboxrestore
     \abovedisplayskip\z@skip \belowdisplayskip\z@skip
@@ -108,227 +337,1049 @@
     \noindent\ignorespaces
 }{%
   \egroup
-  \ifwb@reject
-    \global\wb@rejectfalse
-  \else
-    \global\setbox\wb@body=\box\wb@band
-    \global\setbox\wb@band=\vbox{%
-      \hsize\textwidth \linewidth\textwidth
-      \ifwideband@rules
-        \hbox to\textwidth{%
-          \rule{\wideband@rulefraction\textwidth}{\wideband@rulethickness}\hfil}%
-        \vskip\wideband@rulesep
-      \fi
-      \unvbox\wb@body
-      \ifwideband@rules
-        \vskip\wideband@rulesep
-        \hbox to\textwidth{\hfil
-          \rule{\wideband@rulefraction\textwidth}{\wideband@rulethickness}}%
-      \fi
-    }%
-    \global\wb@busytrue
-    \wb@place
-  \fi
+  \wb@decorate
+  \wb@place
 }
+
+\def\wb@decorate{%
+  %% A footnote typed inside the band is an \insert trapped in the band box; it
+  %% never migrates out of a \vbox, so extract it and re-insert it on the main
+  %% list here, at the request point, where the page builder charges it to the
+  %% bottom of the current column (report 4.7).
+  \directlua{wideband.extractinserts(\number\wb@band,\number\footins)}%
+  \global\setbox\wb@body=\box\wb@band
+  \global\setbox\wb@band=\vbox{%
+    \wb@attr@band\wb@id
+    \hsize\textwidth \linewidth\textwidth
+    \ifwideband@rules
+      \hbox to\textwidth{%
+        \rule{\wideband@rulefraction\textwidth}{\wideband@rulethickness}\hfil}%
+      \vskip\wideband@rulesep
+    \fi
+    \unvbox\wb@body
+    \ifwideband@rules
+      \vskip\wideband@rulesep
+      \hbox to\textwidth{\hfil
+        \rule{\wideband@rulefraction\textwidth}{\wideband@rulethickness}}%
+    \fi
+  }%
+  \global\wb@B\ht\wb@band
+  \global\advance\wb@B\dp\wb@band
+  \global\advance\wb@B\wideband@sep
+  \global\advance\wb@B\wideband@sep
+  \wb@minp\baselineskip
+  \multiply\wb@minp\wb@opt@minpiece\relax
+  \ifdim\wb@minp<\z@ \wb@minp\z@ \fi
+  \global\wb@minp\wb@minp
+}
+
+%% ==================================================================
+%% 6. per-page state
+%% ==================================================================
+\def\wb@resetstate{%
+  \global\wb@active\z@
+  \global\wb@stratum\@ne
+  \global\wb@rowsum\z@
+  \global\wb@refire\z@
+  \global\wb@slack\z@
+  \global\wb@guard\z@
+  \global\wb@marpar\z@
+  \global\wb@Lflt\z@
+  \global\wb@newpage\@ne
+  \global\wb@pageopen\z@
+  \global\setbox\wb@page\box\voidb@x
+  \global\setbox\wb@Lpiece\box\voidb@x
+  \global\setbox\wb@Lraw\box\voidb@x
+  \global\setbox\wb@Lfn\box\voidb@x
+  \global\setbox\wb@Ldisc\box\voidb@x
+  \ifnum\wb@fnA>\z@
+    \global\count\footins\wb@fnA
+    \global\skip\footins\wb@skipA
+  \fi}
+
+%% Runs once per shipped page, from build/page/after: \@outputpage has reset
+%% \@colht and stepped the page counter, and the kernel has not yet assigned
+%% double-column floats to the new page.  Bands deferred from the finished
+%% page become this page's top bands and their space is reserved now, because
+%% \@colht is the only knob for the height of the next column.
+\def\wb@after@page{%
+  \wb@resetstate
+  \ifnum\wb@xn>\z@
+    \wb@j\z@
+    \loop\ifnum\wb@j<\wb@xn
+      \advance\wb@j\@ne
+      \global\advance\wb@tn\@ne
+      \wb@copyrec{next}{\wb@j}{top}{\wb@tn}%
+    \repeat
+    \global\wb@xn\z@
+  \fi
+  \ifnum\wb@tn>\z@
+    \global\wb@active\@ne
+    \global\wb@pretop\@ne
+    %% \@colht was just reset to \textheight by \@outputpage; record that full
+    %% height and the reservation so \wb@ensurepage can re-apply it even after
+    %% a later \@doclearpage or \@outputpage resets \@colht again (kernel fact
+    %% 3: the only place the columns are actually built is the next page's
+    %% first cycle, so the reservation must survive to there).
+    \global\wb@pagefull\@colht
+    \global\wb@topresv\z@
+    \wb@j\z@
+    \loop\ifnum\wb@j<\wb@tn
+      \advance\wb@j\@ne
+      \wb@tdim\wb@get{top}{\wb@j}{B}\relax
+      \global\advance\wb@topresv\wb@tdim
+      \global\advance\@colht-\wb@tdim
+    \repeat
+  \else
+    \global\wb@pretop\z@
+    \global\wb@topresv\z@
+  \fi}
+
+\def\wb@ensurepage{%
+  \ifnum\wb@newpage>\z@
+    \global\wb@newpage\z@
+    %% Re-apply the top-band reservation to \@colht here, at the first column
+    %% build of the page.  \@colht may have been reset to \textheight since
+    %% \wb@after@page ran (e.g. by \@doclearpage when the page is flushed at
+    %% end of document), which would otherwise build the columns \wb@topresv
+    %% too tall.  The assignment is idempotent: pagefull-topresv equals the
+    %% value \wb@after@page already left when nothing clobbered it.
+    \ifnum\wb@tn>\z@
+      %% Apply the top-band reservation, but only if it is not already in
+      %% \@colht.  \wb@after@page reduced \@colht by \wb@topresv; if that
+      %% reduction survived (\@colht <= pagefull-topresv), keep it -- \@colht
+      %% may since have been reduced further by \@startdblcolumn assigning a
+      %% double-column top float (figure*) above the deferred bands, and that
+      %% reduction must be preserved or the columns build too tall and
+      %% \@combinedblfloats overflows the page by the float height.  Only when
+      %% \@colht was clobbered back to (near) the full height -- \@doclearpage
+      %% resets it to \textheight when flushing at end of document -- subtract
+      %% the reservation now, which still keeps any float reduction below it.
+      \ifdim\@colht>\dimexpr\wb@pagefull-\wb@topresv\relax
+        \global\advance\@colht-\wb@topresv
+      \fi
+    \fi
+    \global\wb@S\@colht
+    \global\wb@y\@colht
+    \global\wb@pageht\@colht
+    \ifnum\wb@tn>\z@
+      \wb@j\z@
+      \loop\ifnum\wb@j<\wb@tn
+        \advance\wb@j\@ne
+        \wb@tdim\wb@get{top}{\wb@j}{B}\relax
+        \global\advance\wb@pageht\wb@tdim
+      \repeat
+    \fi
+    \global\wb@rowsum\z@
+    \global\wb@stratum\@ne
+  \fi}
+
+%% ==================================================================
+%% 7. raw capture (kernel hook build/column/before)
+%% ==================================================================
+\def\wb@capture{%
+  \wb@ensurepage
+  %% Re-assert the intended height of the piece about to be packed.  On a band
+  %% page the kernel may have reset \@colht to \textheight since the piece
+  %% height was chosen -- \@doclearpage does so (latex.ltx line 20397) when a
+  %% trailing stratum below a band is flushed at end of document (m13, m33).
+  %% \wb@y always carries the height this piece is meant to be, and
+  %% build/column/before runs before \@makecol packs \vbox to\@colht, so this
+  %% keeps the packing correct.  Idempotent when nothing clobbered \@colht.
+  \ifnum\wb@active>\z@ \global\@colht\wb@y \fi
+  %% The final column-1 piece below a band gets back the bottom floats stashed
+  %% away from the pieces above the band (see \wb@stashbot); R was reserved for
+  %% them here.
+  \ifnum\wb@active>\z@
+    \if@firstcolumn \ifnum\wb@pcfinal>\z@ \wb@restorebot \fi\fi
+  \fi
+  \if@firstcolumn
+    \global\setbox\wb@Lraw\copy\@cclv
+    \global\setbox\wb@Lfn\copy\footins
+    \global\setbox\wb@Ldisc\vbox{\pagediscards}%
+    \global\wb@Lflt\z@
+    \ifx\@toplist\@empty\else\global\wb@Lflt\@ne\fi
+    \ifx\@botlist\@empty\else\global\wb@Lflt\@ne\fi
+  \fi
+  \ifnum\wb@active>\z@
+    \ifnum\wb@pcfinal=\z@ \wb@stashfootins \fi
+  \fi}
+
+\def\wb@stashfootins{%
+  \ifvoid\footins\else
+    \if@firstcolumn
+      \global\setbox\wb@holdA\vbox{\wb@offskip
+        \ifvoid\wb@holdA\else\unvbox\wb@holdA\fi \unvbox\footins}%
+    \else
+      \global\setbox\wb@holdB\vbox{\wb@offskip
+        \ifvoid\wb@holdB\else\unvbox\wb@holdB\fi \unvbox\footins}%
+    \fi
+  \fi}
+
+\AddToHook{build/column/before}{\wb@capture}
+
+%% ==================================================================
+%% 8. float and insert bookkeeping on band pages
+%% ==================================================================
+%% Bottom floats already committed to column 1 (\@botlist) before a band was
+%% requested belong at the bottom of the column, i.e. in the last piece below
+%% the band, not in the piece above it.  \wb@computeR already reserves their
+%% height R below the band (ymax = S-R-B).  \@makecol, however, would attach
+%% them to whichever piece it builds next -- the piece above the band -- which
+%% then overflows by R.  So stash \@botlist while a non-final column-1 piece is
+%% built and restore it for the final column-1 piece, where R was reserved.
+\global\let\wb@savebot\@empty
+\def\wb@stashbot{%
+  \ifx\@botlist\@empty\else
+    \global\let\wb@savebot\@botlist
+    \global\let\@botlist\@empty
+    \global\wb@botresv\wb@bot
+  \fi}
+\def\wb@restorebot{%
+  \ifx\wb@savebot\@empty\else
+    \global\let\@botlist\wb@savebot
+    \global\let\wb@savebot\@empty
+  \fi}
+
+\def\wb@setbusy{%
+  \global\wb@busy\z@
+  \ifnum\wb@active>\z@\global\wb@busy\@ne\fi
+  \ifnum\wb@dn>\z@\global\wb@busy\@ne\fi
+  \ifnum\wb@tn>\z@\global\wb@busy\@ne\fi
+  \ifnum\wb@xn>\z@\global\wb@busy\@ne\fi}
+
+\let\wb@kernel@floatplacement\@floatplacement
+\def\@floatplacement{\wb@kernel@floatplacement \wb@fixfloats}
+\def\wb@fixfloats{%
+  \wb@setbusy
+  \ifnum\wb@busy>\z@ \@fpmin\maxdimen \fi
+  \ifnum\wb@active>\z@
+    \global\@botnum\z@
+    \ifnum\wb@pretop>\z@
+      \global\@topnum\z@
+    \else
+      \ifdim\wb@rowsum>\z@ \global\@topnum\z@ \fi
+    \fi
+  \fi}
+
+\let\wb@kernel@dblfloatplacement\@dblfloatplacement
+\def\@dblfloatplacement{\wb@kernel@dblfloatplacement
+  \wb@setbusy
+  \ifnum\wb@busy>\z@ \@fpmin\maxdimen \fi}
+
+%% marginal notes are counted so that a re-cut can refuse to move them
+\let\wb@kernel@marginpar\marginpar
+\def\marginpar{\global\advance\wb@marpar\@ne \wb@kernel@marginpar}
+
+%% footnote marks carry an attribute, so a re-cut can tell whether a callout
+%% would move to the other column
+\let\wb@kernel@footnotemark\@footnotemark
+\def\@footnotemark{%
+  \wb@attr@fnmark\@ne
+  \wb@kernel@footnotemark
+  \wb@attr@fnmark=-"7FFFFFFF\relax}
+
+%% ==================================================================
+%% 9. the request
+%% ==================================================================
+\def\wb@newslot{%
+  \wb@recslot\wb@nextslot
+  \global\advance\wb@nextslot\@ne
+  \ifnum\wb@nextslot=\wb@nslots \global\wb@nextslot\z@ \fi
+  \ifvoid\wb@slotbox\wb@recslot\else
+    \PackageError{wideband}{Too many pending bands}%
+      {More than 8 bands are pending at the same time; the oldest is lost.}%
+  \fi
+  \global\setbox\wb@slotbox\wb@recslot\box\wb@band
+  \expandafter\xdef\csname wb@sid@\number\wb@recslot\endcsname{\the\wb@id}%
+  \expandafter\xdef\csname wb@sB@\number\wb@recslot\endcsname{\the\wb@B}}
+
+\def\wb@setupdecision{%
+  \wb@d@id\wb@id
+  \wb@d@B\wb@B
+  \wb@d@strat\wb@stratum
+  \wb@d@h\z@ \wb@d@S\z@ \wb@d@R\z@ \wb@d@P\z@
+  \wb@d@min\z@ \wb@d@max\z@ \wb@d@y\z@ \wb@d@hasy\z@
+  \wb@d@geom\@ne
+  \if@firstcolumn \wb@d@col\@ne \else \wb@d@col\tw@ \fi}
+
+\def\wb@tonext{%
+  \global\advance\wb@xn\@ne
+  \wb@storerec{next}{\wb@xn}}
 
 \def\wb@place{%
-  \ifx\@deferlist\@empty\else
-    \PackageWarning{wideband}{Single-column floats are pending; placement on this band page is not guaranteed}%
-  \fi
-  \ifx\@dbldeferlist\@empty\else
-    \PackageWarning{wideband}{Double-column floats are pending; placement on this band page is not guaranteed}%
-  \fi
-  \global\wb@reserve\dimexpr\ht\wb@band+\dp\wb@band+2\wideband@sep\relax
-  \ifdim\wb@reserve>\dimexpr\textheight-2\baselineskip\relax
+  \wb@setupdecision
+  \ifdim\wb@B>\dimexpr\textheight-\wb@minp\relax
+    \wb@d@geom\z@
+    \wb@deferred{D2}{oversized}%
+    \global\setbox\wb@band\box\voidb@x
     \PackageError{wideband}{Wideband is too tall to fit on a page}%
-      {The captured band plus its vertical separation is \the\wb@reserve,\MessageBreak
-       but this POC requires at least two text baselines on the page.\MessageBreak
+      {The captured band plus its separation is \the\wb@B, but a full page
+       column is only \the\textheight.\MessageBreak
        The oversized band is discarded.}%
-    \global\wb@busyfalse
   \else
-    % if the band cannot fit in what remains of the current column,
-    % force a column break so the marker lands at the top of the next one
-    \begingroup
-      \dimen@\pagegoal
-      \ifdim\dimen@=\maxdimen \dimen@\vsize \fi
-      \advance\dimen@-\pagetotal
-      \ifdim\dimen@<\dimexpr\wb@reserve+\baselineskip\relax
-        \vfil\penalty-\@M
-      \fi
-    \endgroup
-    \directlua{wideband.mark(\number\wb@reserve)}%
-    \penalty\z@
-  \fi
-}
-
-%% ------------------------------------------------------------------
-%% output routine surgery
-%% (based on \@outputdblcol from latex.ltx, 2023 kernel)
-%% ------------------------------------------------------------------
-\def\@outputdblcol{%
-  \if@firstcolumn
-    \wb@scan@first
-    \global\@firstcolumnfalse
-    \global\setbox\@leftcolumn\copy\@outputbox
-    \splitmaxdepth\maxdimen
-    \vbadness\maxdimen
-    \setbox\@outputbox\vbox{\unvbox\@outputbox\unskip}%
-    \setbox\@outputbox\vsplit\@outputbox to\maxdimen
-    \toks@\expandafter{\topmark}%
-    \xdef\@firstcoltopmark{\the\toks@}%
-    \toks@\expandafter{\splitfirstmark}%
-    \xdef\@firstcolfirstmark{\the\toks@}%
-    \ifx\@firstcolfirstmark\@empty
-      \global\let\@setmarks\relax
+    \wb@newslot
+    \global\wb@eagerpathtrue
+    \ifnum\wb@gate=\z@
+      \wb@d@geom\z@
+      \wb@dodefer{D5}{\wb@gate@note}%
     \else
-      \gdef\@setmarks{%
-        \let\firstmark\@firstcolfirstmark
-        \let\topmark\@firstcoltopmark}%
+      \ifinner
+        \wb@d@geom\z@
+        \wb@dodefer{D4}{nested}%
+      \else
+        \ifdim\pagegoal=\maxdimen
+          \wb@eager
+        \else
+          \global\wb@eagerpathfalse
+          \directlua{wideband.mark(\the\wb@d@id)}%
+          \penalty\wb@bandpen\relax
+        \fi
+      \fi
     \fi
+    \global\wb@eagerpathfalse
+  \fi}
+
+%% A request at the very top of a column: TeX's page builder discards a
+%% penalty on an empty page, so the marker would never fire.  Decide here,
+%% on the main vertical list, instead.
+\def\wb@eager{%
+  \wb@ensurepage
+  \ifnum\wb@dn>\z@
+    %% A band is already committed to this page but not yet composed (its
+    %% right piece is still being filled): this request stacks directly under
+    %% it (report 2.4).  It arrives at the top of a fresh column, where the
+    %% marker would be discarded, so decide it here rather than re-cutting.
+    \wb@eagerstack
+  \else
+  \if@firstcolumn
+    \wb@d@S\wb@S \wb@d@h\z@ \wb@d@P\z@
+    \wb@computeR \wb@d@R\wb@R
+    \wb@d@min\z@
+    \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
+    \ifdim\dimexpr\wb@S-\wb@d@B\relax<\wb@minp
+      \wb@dodefer{D1}{no-room}%
+    \else
+      \ifdim\wb@d@max<\z@
+        \wb@dodefer{D1}{no-room}%
+      \else
+        \global\wb@active\@ne
+        \wb@d@y\z@
+        \ifdim\wb@rowsum>\z@
+          \wb@placed{stacked}%
+        \else
+          \wb@placed{top-of-page}%
+        \fi
+        \wb@bandrow\wb@recslot
+        \global\advance\wb@S-\wb@d@B
+        \global\wb@y\wb@S
+        \global\@colht\wb@y \global\@colroom\wb@y \global\vsize\wb@y
+        \global\wb@pcfinal\@ne
+        \ifnum\wb@fnA>\z@
+          \global\count\footins\wb@fnA \global\skip\footins\wb@skipA
+        \fi
+      \fi
+    \fi
+  \else
+    \global\setbox\wb@coltwo\box\voidb@x
+    \wb@ctworequest\z@
+  \fi
+  \fi}
+
+%% A second (or later) request that stacks under a band already committed to
+%% this page (report 2.4): enqueue it in the due list with a zero-height
+%% stratum above it (h=0, y=0 within that stratum).  \wb@placedue places it
+%% directly below the previous band.  No re-cut, no marker: the text that
+%% follows keeps filling the right piece above the earlier band.
+\def\wb@eagerstack{%
+  \global\wb@active\@ne
+  \wb@d@col\@ne
+  \wb@d@S\wb@S
+  \wb@computeR \wb@d@R\wb@R
+  \wb@d@h\z@ \wb@d@P\z@ \wb@d@min\z@
+  \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
+  \def\wb@d@note{stacked}%
+  \wb@d@y\z@ \wb@d@hasy\@ne
+  \global\advance\wb@dn\@ne
+  \wb@storerec{due}{\wb@dn}}
+
+%% ==================================================================
+%% 10. reserved space at the column bottoms
+%% ==================================================================
+\def\wb@botelt#1{\advance\dimen@\ht#1\advance\dimen@\dp#1\advance\dimen@\floatsep}
+\def\wb@sumbot{%
+  \global\wb@bot\z@
+  \ifx\@botlist\@empty\else
+    \begingroup
+      \dimen@\z@
+      \let\@elt\wb@botelt
+      \@botlist
+      \let\@elt\relax
+      \global\wb@bot\dimexpr\dimen@+\textfloatsep\relax
+    \endgroup
+  \fi}
+
+%% Height that column-1 top floats (\@toplist) add above the body, computed
+%% exactly the way \@cflt attaches them (sum of the boxes with \floatsep
+%% between and \textfloatsep above the body).  Used for \wb@topsp so that h,
+%% the height of column 1 above the band, includes the real top-float height
+%% rather than the kernel's \@colht-\@colroom estimate, which can be short by
+%% a couple of \floatsep and overflow the piece above the band (item E).
+\def\wb@topelt#1{\advance\dimen@\ht#1\advance\dimen@\dp#1\advance\dimen@\floatsep}
+\def\wb@sumtop{%
+  \wb@topsp\z@
+  \ifx\@toplist\@empty\else
+    \begingroup
+      \dimen@\z@
+      \let\@elt\wb@topelt
+      \@toplist
+      \let\@elt\relax
+      \global\wb@topsp\dimexpr\dimen@-\floatsep+\textfloatsep\relax
+    \endgroup
+  \fi}
+
+\def\wb@computeR{%
+  \wb@R\z@
+  \dimen@\z@
+  \ifvoid\wb@holdA\else\advance\dimen@\dimexpr\ht\wb@holdA+\dp\wb@holdA\relax\fi
+  \if@firstcolumn
+    \ifvoid\footins\else\advance\dimen@\dimexpr\ht\footins+\dp\footins\relax\fi
+  \fi
+  \ifdim\dimen@>\z@ \advance\dimen@\skip\footins \fi
+  \ifdim\dimen@>\wb@R \wb@R\dimen@ \fi
+  \dimen@\z@
+  \ifvoid\wb@holdB\else\advance\dimen@\dimexpr\ht\wb@holdB+\dp\wb@holdB\relax\fi
+  \if@firstcolumn\else
+    \ifvoid\footins\else\advance\dimen@\dimexpr\ht\footins+\dp\footins\relax\fi
+  \fi
+  \ifdim\dimen@>\z@ \advance\dimen@\skip\footins \fi
+  \ifdim\dimen@>\wb@R \wb@R\dimen@ \fi
+  \wb@sumbot
+  \advance\wb@R\wb@bot
+  \global\wb@R\wb@R
+  %% space committed above the text of the piece by column-1 top floats
+  \wb@sumtop
+  \ifdim\wb@topsp<\z@ \global\wb@topsp\z@ \fi}
+
+%% ==================================================================
+%% 11. the output routine wrapper
+%% ==================================================================
+%% \the\output yields the token list wrapped in an extra pair of braces, so
+%% strip them: \wb@kernel@output must run the kernel tokens without opening a
+%% group of its own.
+\edef\wb@kernel@output{\the\output}
+\long\def\wb@stripgroup#1{\gdef\wb@kernel@output{#1}}
+\expandafter\wb@stripgroup\wb@kernel@output
+\edef\wb@sig@makecol{\meaning\@makecol}
+\edef\wb@sig@opcol{\meaning\@opcol}
+\edef\wb@sig@specialoutput{\meaning\@specialoutput}
+\edef\wb@sig@outputdblcol{\meaning\@outputdblcol}
+
+\output{\wb@output}
+\edef\wb@sig@outputtl{\the\output}
+
+\def\wb@output{%
+  \ifnum\outputpenalty=\wb@bandpen\relax
+    \wb@bandcycle
+  \else
+    \wb@kernel@output
+  \fi
+  \wb@epilogue}
+
+\def\wb@epilogue{%
+  \ifnum\wb@setvsize>\z@
+    \global\wb@setvsize\z@
+    \global\@colroom\@colht
+    \global\vsize\dimexpr\@colht+\wb@slack\relax
+  \else
+    \ifdim\wb@slack>\z@
+      \global\vsize\dimexpr\@colht+\wb@slack\relax
+    \fi
+  \fi
+  \global\wb@slack\z@
+  \ifnum\wb@active>\z@ \wb@openpiece \fi}
+
+%% Decide finality of the piece about to be filled and set the footnote
+%% reservation accordingly (report 4.7).  A piece is non-final exactly when a
+%% band is going to be emitted below the stratum it belongs to.
+\def\wb@openpiece{%
+  \ifnum\wb@dn>\z@ \global\wb@pcfinal\z@ \else \global\wb@pcfinal\@ne \fi
+  \ifnum\wb@pcfinal>\z@
+    \ifnum\wb@fnA>\z@
+      \global\count\footins\wb@fnA
+      \global\skip\footins\wb@skipA
+    \fi
+    \if@firstcolumn
+      \ifvoid\wb@holdA\else\insert\footins{\unvbox\wb@holdA}\fi
+    \else
+      \ifvoid\wb@holdB\else\insert\footins{\unvbox\wb@holdB}\fi
+    \fi
+  \else
+    \global\count\footins\z@
+    \global\skip\footins\z@skip
+  \fi}
+
+%% ==================================================================
+%% 12. the band cycle
+%% ==================================================================
+\def\wb@bandcycle{%
+  \wb@ensurepage
+  \global\advance\wb@guard\@ne
+  \directlua{wideband.markinfo(\number\@cclv)}%
+  \wb@setupdecision
+  \ifnum\wb@found>\z@
+    \wb@findslot
+    \wb@d@id\wb@bid
+    \wb@d@B\wb@recB
+    \wb@d@h\wb@h
+    \ifnum\wb@guard>40
+      \PackageWarning{wideband}{Too many output cycles on page \the\c@page;
+        the band is deferred}%
+      \wb@dodefer{D4}{cycle-limit}%
+    \else
+      \ifnum\wb@refire>\z@
+        \global\wb@refire\z@
+        \wb@replace
+      \else
+        \ifnum\wb@dn>\z@
+          \wb@doenqueue
+        \else
+          \if@firstcolumn
+            \wb@conerequest
+          \else
+            \directlua{wideband.strip(\number\@cclv)}%
+            \directlua{wideband.striptop(\number\@cclv)}%
+            \global\setbox\wb@coltwo\box\@cclv
+            \wb@ctworequest\wb@h
+          \fi
+        \fi
+      \fi
+    \fi
+  \else
+    \PackageWarning{wideband}{Band marker not found in the finished column;
+      the page is completed without a band}%
+    \unvbox\@cclv
+    \pagediscards
+    \@reinserts
+  \fi}
+
+%% locate the pool slot and footprint of the band whose marker just fired
+\def\wb@findslot{%
+  \wb@recslot\m@ne
+  \wb@j\z@
+  \loop\ifnum\wb@j<\wb@nslots
+    \ifnum\wb@recslot<\z@
+      \ifnum\wb@slotid{\wb@j}=\wb@bid\relax \wb@recslot\wb@j \fi
+    \fi
+    \advance\wb@j\@ne
+  \repeat
+  \ifnum\wb@recslot<\z@
+    \PackageError{wideband}{Lost band \the\wb@bid}%
+      {The band box for this request is no longer available.}%
+    \wb@recslot\z@
+  \fi
+  \wb@recB\csname wb@sB@\number\wb@recslot\endcsname\relax}
+
+%% ==================================================================
+%% 13. column-1 and column-2 requests
+%% ==================================================================
+\def\wb@conerequest{%
+  \wb@d@S\wb@S
+  \wb@computeR \wb@d@R\wb@R
+  \wb@d@h\dimexpr\wb@h+\wb@topsp\relax
+  \wb@d@P\wb@d@h
+  \wb@d@min\wb@d@h
+  \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
+  %% effective upper bound: the stratum below the band must be usable
+  \wb@tdim\dimexpr\wb@S-\wb@d@B-\wb@minp\relax
+  \ifdim\wb@tdim>\wb@d@max \wb@tdim\wb@d@max \fi
+  \ifvbox\@kludgeins
+    %% \enlargethispage changes the page height, which is inconsistent with the
+    %% stratum heights; a phase-1 D4 refusal for any same-page column-1
+    %% placement, not only the re-cut path (report section 5, item m28).
+    \wb@dodefer{D4}{enlargethispage}%
+  \else
+  \ifwb@recutalways
+    \wb@d@min\dimexpr(\wb@d@P+1sp)/2\relax
+    \wb@conerecut
+  \else
+    \wb@d@min\wb@d@h
+    \ifdim\wb@d@h>\wb@tdim
+      \ifwb@recutallowed
+        \wb@d@min\dimexpr(\wb@d@P+1sp)/2\relax
+        \wb@conerecut
+      \else
+        \wb@dodefer{D1}{no-room}%
+      \fi
+    \else
+      \global\wb@y\wb@d@h
+      \wb@d@y\wb@d@h
+      \wb@doplace{col1-at-h}%
+    \fi
+  \fi
+  \fi}
+
+\def\wb@conerecut{%
+  \ifdim\wb@d@min>\wb@tdim
+    \wb@dodefer{D1}{no-room}%
+  \else
+    \wb@dfourchecks
+    \ifnum\wb@dfour>\z@
+      \wb@dodefer{D4}{\wb@dfournote}%
+    \else
+      \directlua{wideband.strip(\number\@cclv)}%
+      \global\setbox\wb@Lraw\box\@cclv
+      \global\setbox\wb@Ldisc\box\voidb@x
+      \global\setbox\wb@coltwo\box\voidb@x
+      \global\setbox\wb@Lfn\box\voidb@x
+      \ifvoid\footins\else
+        \global\setbox\wb@Lfn\vbox{\unvbox\footins}%
+      \fi
+      \wb@trycut{col1-recut}%
+    \fi
+  \fi}
+
+%% #1 = h  (zero for a request at the very top of column 2)
+\def\wb@ctworequest#1{%
+  \wb@d@S\wb@S
+  \wb@computeR \wb@d@R\wb@R
+  \wb@d@h\dimexpr#1+\wb@topsp\relax
+  \wb@d@P\dimexpr\wb@y+\wb@d@h\relax
+  \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
+  \wb@tdim\dimexpr\wb@S-\wb@d@B-\wb@minp\relax
+  \ifdim\wb@tdim>\wb@d@max \wb@tdim\wb@d@max \fi
+  \wb@d@min\dimexpr(\wb@d@P+1sp)/2\relax
+  \ifwb@recutallowed
+    \ifdim\wb@d@min>\wb@tdim
+      \wb@dodefer{D1}{no-room}%
+    \else
+      \wb@dfourchecks
+      \ifnum\wb@dfour>\z@
+        \wb@dodefer{D4}{\wb@dfournote}%
+      \else
+        \ifvoid\wb@Lraw
+          \wb@dodefer{D4}{no-raw-column}%
+        \else
+          \wb@trycut{col2-recut}%
+        \fi
+      \fi
+    \fi
+  \else
+    \wb@dodefer{D4}{recut-disabled}%
+  \fi}
+
+\def\wb@dfournote{unsafe-page}
+\def\wb@dfourchecks{%
+  \wb@dfour\z@
+  \ifvbox\@kludgeins \wb@dfour\@ne \def\wb@dfournote{enlargethispage}\fi
+  \ifnum\wb@dfour=\z@
+    \ifnum\wb@marpar>\z@
+      \wb@dfour\@ne \def\wb@dfournote{marginpar-in-moved-material}%
+    \fi
+  \fi
+  \ifnum\wb@dfour=\z@
+    \ifnum\wb@Lflt>\z@
+      \wb@dfour\@ne \def\wb@dfournote{float-in-moved-material}%
+    \fi
+  \fi
+  \ifnum\wb@dfour=\z@
+    \ifx\@currlist\@empty\else
+      \wb@dfour\@ne \def\wb@dfournote{float-in-moved-material}%
+    \fi
+  \fi
+  \ifnum\wb@dfour=\z@
+    \ifx\@toplist\@empty\else
+      \wb@dfour\@ne \def\wb@dfournote{float-in-moved-material}%
+    \fi
+  \fi
+  \ifnum\wb@dfour=\z@
+    \ifx\@botlist\@empty\else
+      \wb@dfour\@ne \def\wb@dfournote{float-in-moved-material}%
+    \fi
+  \fi}
+
+%% ==================================================================
+%% 14. the exact cut
+%% ==================================================================
+\def\wb@trycut#1{%
+  \directlua{wideband.probe(\number\wb@Lraw,\number\wb@d@min,\number\wb@tdim)}%
+  \ifnum\wb@found>\z@
+    \wb@fncheck
+    \ifnum\wb@dfour>\z@
+      \wb@dodefer{D4}{\wb@dfournote}%
+    \else
+      \wb@docut{#1}%
+    \fi
+  \else
+    \wb@dodefer{D3}{unbreakable-range}%
+  \fi}
+
+%% Footnotes of the held column-1 piece may not travel to the other column.
+%% \wb@flags: 0 = no callout in the piece at all (cannot prove it is safe),
+%% 1 = callouts, all above the cut, 2 = a callout sits below the cut.
+\def\wb@fncheck{%
+  \wb@dfour\z@
+  \ifvoid\wb@Lfn\else
+    \ifnum\wb@flags=\@ne\else
+      \wb@dfour\@ne \def\wb@dfournote{footnotes-in-moved-material}%
+    \fi
+  \fi}
+
+\def\wb@docut#1{%
+  \wb@d@min\wb@cuty
+  \directlua{wideband.docut(\number\wb@Lraw,\number\wb@cuty,%
+    \number\wb@cuttop,\number\wb@cutbot)}%
+  \ifnum\wb@found>\z@
+    \global\wb@active\@ne
+    \global\setbox\wb@Lpiece\vbox to\wb@cuty{%
+      \@texttop
+      \dimen@\dp\wb@cuttop
+      \unvbox\wb@cuttop
+      \vskip-\dimen@
+      \@textbottom}%
+    \global\wb@y\wb@cuty
+    \global\@colht\wb@cuty
+    \global\@colroom\wb@cuty
+    \global\wb@slack\dimexpr\topskip+\baselineskip\relax
+    \ifvoid\wb@Lfn\else
+      \global\setbox\wb@holdA\vbox{\wb@offskip
+        \ifvoid\wb@holdA\else\unvbox\wb@holdA\fi \unvbox\wb@Lfn}%
+    \fi
+    \wb@d@y\wb@cuty
+    \wb@d@hasy\@ne
+    \def\wb@d@note{#1}%
+    \global\advance\wb@dn\@ne
+    \wb@storerec{due}{\wb@dn}%
+    \global\wb@pcfinal\z@
+    \global\count\footins\z@
+    \global\skip\footins\z@skip
+    %% re-feed: tail, the discards of the original break, old column 2, marker
+    \unvbox\wb@cutbot
+    \ifvoid\wb@Ldisc\else\unvbox\wb@Ldisc\fi
+    \ifvoid\wb@coltwo\else\unvbox\wb@coltwo\fi
+    \directlua{wideband.mark(\the\wb@d@id)}%
+    \penalty\wb@bandpen\relax
+    \global\wb@refire\@ne
+    \ifwb@eagerpath
+      \global\vsize\dimexpr\@colht+\wb@slack\relax
+      \global\wb@slack\z@
+    \else
+      \global\wb@setvsize\@ne
+    \fi
+  \else
+    \wb@dodefer{D3}{unbreakable-range}%
+  \fi}
+
+%% ==================================================================
+%% 15. band-cycle actions
+%% ==================================================================
+%% place: the requesting piece ends here; run the kernel's column path
+\def\wb@doplace#1{%
+  \global\wb@active\@ne
+  \def\wb@d@note{#1}%
+  \wb@d@hasy\@ne
+  \global\advance\wb@dn\@ne
+  \wb@storerec{due}{\wb@dn}%
+  \global\wb@pcfinal\z@
+  \global\@colht\wb@y
+  \global\wb@setvsize\@ne
+  \directlua{wideband.strip(\number\@cclv)}%
+  \if@firstcolumn \wb@stashbot \fi
+  \wb@runcolumn}
+
+%% re-fire after a re-cut: the record is already queued.  The material that
+%% re-fires is the RIGHT piece of the re-cut stratum (tail of the old column 1
+%% plus any old column-2 material); \wb@Lpiece already holds the LEFT piece
+%% (\wb@cuttop) built in \wb@docut.  Force second-column mode so \@outputdblcol
+%% composes the stratum with that left piece instead of overwriting it with the
+%% re-fired box.  A column-2 re-cut is already in second-column mode, so this
+%% is a no-op there; a column-1 re-cut fires while \if@firstcolumn is still
+%% true, and without this its left piece (\wb@cuttop) is lost -- the content
+%% above the band that this fixes.
+\def\wb@replace{%
+  \global\@firstcolumnfalse
+  \global\wb@pcfinal\z@
+  \global\@colht\wb@y
+  \global\wb@setvsize\@ne
+  \directlua{wideband.strip(\number\@cclv)}%
+  \wb@runcolumn}
+
+\def\wb@runcolumn{%
+  \@makecol
+  \@opcol
+  \@startcolumn
+  \@whilesw\if@fcolmade \fi{\@opcol\@startcolumn}}
+
+%% enqueue: another request inside a piece that already has bands below it.
+%% Like \wb@eagerstack this is a stacked band placed in a zero-height stratum,
+%% so \wb@placedue emits it at y=0; store the matching geometry (col 1, h=0,
+%% P=0, ymin=0) so the decision line obeys the invariants (col=1 -> P=h;
+%% ymin >= P/2).
+\def\wb@doenqueue{%
+  \def\wb@d@note{stacked}%
+  \wb@d@col\@ne
+  \wb@d@S\wb@S
+  \wb@computeR \wb@d@R\wb@R
+  \wb@d@h\z@ \wb@d@P\z@ \wb@d@min\z@
+  \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
+  \global\advance\wb@dn\@ne
+  \wb@storerec{due}{\wb@dn}%
+  \directlua{wideband.strip(\number\@cclv)}%
+  \unvbox\@cclv
+  \pagediscards
+  \@reinserts}
+
+%% defer: put the material back; the band moves to the next page top
+\def\wb@dodefer#1#2{%
+  \wb@tonext
+  \wb@deferred{#1}{#2}%
+  \ifwb@eagerpath\else
+    \directlua{wideband.strip(\number\@cclv)}%
+    %% A column-2 request moved the finished column-2 material into \wb@coltwo
+    %% before the geometry was known (box 255 is now void).  On a deferral it
+    %% must be fed back so it stays on this page, or the whole of column 2 above
+    %% the request is lost.  For a column-1 request \wb@coltwo is void and
+    %% box 255 still holds the material.
+    \ifvoid\wb@coltwo\else
+      \unvbox\wb@coltwo
+      \global\setbox\wb@coltwo\box\voidb@x
+    \fi
+    \unvbox\@cclv
+    \pagediscards
+    \@reinserts
+  \fi}
+
+%% ==================================================================
+%% 16. \@outputdblcol: hold pieces, place bands, assemble by strata
+%% ==================================================================
+\let\wb@kernel@outputdblcol\@outputdblcol
+\def\@outputdblcol{%
+  \ifnum\wb@active>\z@
+    \wb@outputdblcol
+  \else
+    \wb@kernel@outputdblcol
+  \fi}
+
+\def\wb@outputdblcol{%
+  \if@firstcolumn
+    \global\@firstcolumnfalse
+    \global\setbox\wb@Lpiece\box\@outputbox
+    \global\wb@y\@colht
   \else
     \global\@firstcolumntrue
-    \wb@scan@second
-    \ifcase\wb@state
-      % --- state 0: stock kernel assembly --------------------------
-      \setbox\@outputbox\vbox{%
-        \hb@xt@\textwidth{%
-          \hb@xt@\columnwidth{\box\@leftcolumn \hss}%
-          \hfil
-          {\normalcolor\vrule \@width\columnseprule}%
-          \hfil
-          \hb@xt@\columnwidth{\box\@outputbox \hss}}}%
-    \or
-      \wb@assemble@split
-    \or
-      \wb@assemble@deferred
-    \fi
-    \@combinedblfloats
-    \@setmarks
-    \@outputpage
-    \wb@after@page
-    \begingroup
-      \@dblfloatplacement
-      \@startdblcolumn
-      \@whilesw\if@fcolmade \fi{\@outputpage
-      \@startdblcolumn}%
-    \endgroup
-  \fi}%
-
-%% scan column 1 for the marker; if present, remember its position and
-%% shorten the room available to column 2 by the reserved amount.
-%% (\@startcolumn copies \@colht into \@colroom and \vsize after every
-%% output cycle, so \@colht is the knob that actually controls the
-%% height of the next column.)
-\def\wb@scan@first{%
-  \ifnum\wb@state=\z@
-    \directlua{wideband.find(\number\@outputbox)}%
-    \ifnum\wb@found>\@ne
-      \PackageWarning{wideband}{More than one band on this page;
-        only the first is honoured (POC limitation)}%
-    \fi
-    \ifnum\wb@found>\z@
-      \global\wb@state\@ne
-      \global\advance\@colht-\wb@reserve
-      \PackageInfo{wideband}{band anchored in column 1 at \the\wb@h}%
+    \wb@composestratum
+    \wb@placedue
+    \ifnum\wb@more>\z@
+      \global\advance\wb@stratum\@ne
+      \global\wb@y\wb@S
+      \global\@colht\wb@y
+      %% If a bottom float is waiting to be restored to the last column-1
+      %% piece, shorten this stratum's text fill by its reserved height so the
+      %% float lands in the reserved space instead of overflowing (item E).
+      \ifx\wb@savebot\@empty\else
+        \global\wb@slack-\wb@botresv
+        \global\wb@setvsize\@ne
+      \fi
+    \else
+      \wb@shippage
     \fi
   \fi}
 
-%% if the marker only shows up while assembling column 2, the band
-%% cannot be anchored on this page any more (column 1 has already been
-%% built at full height).  Fallback: strip the reservation and move the
-%% band to the top of the next page.
-\def\wb@scan@second{%
-  \ifnum\wb@state=\z@
-    \directlua{wideband.find(\number\@outputbox)}%
-    \ifnum\wb@found>\z@
-      \directlua{wideband.strip(\number\@outputbox)}%
-      \global\wb@defer@request\@ne
-      \PackageWarning{wideband}{Wideband request encountered in column 2; the saved left column is already finalized. The band is being deferred intact to the top of the next page. The current page may end with unused vertical space; no post-band text is moved ahead of the band}%
-    \fi
-  \fi}
-
-%% state 1: cut both columns at \wb@h and slot the band in between
-\def\wb@assemble@split{%
-  \global\wb@state\z@
-  \global\advance\@colht\wb@reserve    % restore full page height
-  \global\wb@botgoal\dimexpr\@colht-\wb@h-\wb@reserve\relax
-  % Left column: cut at the marker. Lua returns the lower part at its
-  % natural height so we can reject an overfull page instead of hiding
-  % excess material below the PDF page boundary.
-  \directlua{wideband.split(\number\@leftcolumn,
-     \number\wb@Ltop, \number\wb@Lbot,
-     \number\wb@h)}%
-  \ifdim\wb@botnat>\dimexpr\wb@botgoal+1sp\relax
-    \PackageWarning{wideband}{Post-band material does not fit safely;
-      deferring the band to the next page}%
-    \global\wb@defer@request\@ne
-    % Reconstruct a conservative ordinary page. Column 2 was built at
-    % reduced height, so it may finish early, but no material is clipped.
-    \global\setbox\@leftcolumn\vbox to\@colht{%
-      \unvbox\wb@Ltop\unvbox\wb@Lbot\vss}%
-    \global\setbox\@outputbox\vbox to\@colht{%
-      \unvbox\@outputbox\vss}%
-    \setbox\@outputbox\vbox{%
-      \hb@xt@\textwidth{%
-        \hb@xt@\columnwidth{\box\@leftcolumn\hss}%
-        \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
-        \hb@xt@\columnwidth{\box\@outputbox\hss}}}%
-  \else
-    \global\wb@busyfalse
-    \begingroup
-      \vbadness\maxdimen \vfuzz\maxdimen
-      \global\setbox\wb@Lbot\vbox to\wb@botgoal{%
-        \unvbox\wb@Lbot\vss}%
-      \splittopskip\topskip \splitmaxdepth\@maxdepth
-      \global\setbox\wb@Rtop\vsplit\@outputbox to\wb@h
-      \global\setbox\@outputbox\vbox to\wb@botgoal{%
-        \unvbox\@outputbox\vss}%
-    \endgroup
-    \global\setbox\@outputbox\vbox to\@colht{%
-      \hb@xt@\textwidth{%
-        \hb@xt@\columnwidth{\box\wb@Ltop\hss}\hfil
-        \hb@xt@\columnwidth{\box\wb@Rtop\hss}}%
-      \vskip\wideband@sep
-      \hb@xt@\textwidth{\box\wb@band\hss}%
-      \vskip\wideband@sep
-      \hb@xt@\textwidth{%
-        \hb@xt@\columnwidth{\wb@vtop{\wb@Lbot}\hss}\hfil
-        \hb@xt@\columnwidth{\wb@vtop{\@outputbox}\hss}}%
-      \kern\z@\vss}%
-  \fi}
-
-%% state 2: band across the top of this page, columns below
-\def\wb@assemble@deferred{%
-  \global\wb@state\z@
-  \global\wb@busyfalse
-  \dimen@\@colht % available column height below the deferred band
-  \begingroup
-    \vbadness\maxdimen \vfuzz\maxdimen
-    \global\setbox\@leftcolumn\vbox to\dimen@{%
-      \unvbox\@leftcolumn\vss}%
-    \global\setbox\@outputbox\vbox to\dimen@{%
-      \unvbox\@outputbox\vss}%
-  \endgroup
-  \global\advance\@colht\wb@reserve
-  \global\setbox\@outputbox\vbox to\@colht{%
-    \hb@xt@\textwidth{\box\wb@band\hss}%
-    \vskip\wideband@sep
+\def\wb@composestratum{%
+  \ifnum\wb@pretop>\z@
+    \global\wb@pretop\z@
+    \wb@j\z@
+    \loop\ifnum\wb@j<\wb@tn
+      \advance\wb@j\@ne
+      \wb@loadrec{top}{\wb@j}%
+      \wb@d@col\z@ \wb@d@strat\@ne
+      \wb@d@h\z@ \wb@d@P\z@ \wb@d@R\z@ \wb@d@min\z@
+      \wb@d@S\wb@pageht
+      \wb@d@max\dimexpr\wb@pageht-\wb@d@B\relax
+      \wb@d@y\z@
+      \wb@placed{top-of-page}%
+      \wb@bandrow\wb@recslot
+    \repeat
+    \global\wb@tn\z@
+  \fi
+  \global\setbox\wb@page\vbox{%
+    \wb@offskip
+    \ifvoid\wb@page\else\unvbox\wb@page\fi
     \hb@xt@\textwidth{%
-      \hb@xt@\columnwidth{\box\@leftcolumn\hss}\hfil
-      \hb@xt@\columnwidth{\box\@outputbox\hss}}%
-    \kern\z@\vss}}
+      \hb@xt@\columnwidth{\box\wb@Lpiece\hss}%
+      \hfil
+      {\normalcolor\vrule \@width\columnseprule}%
+      \hfil
+      \hb@xt@\columnwidth{\box\@outputbox\hss}}}%
+  \global\wb@pageopen\@ne
+  \global\advance\wb@rowsum\wb@y
+  \directlua{wideband.pagerow("stratum",\number\wb@y)}%
+  \global\advance\wb@S-\wb@y}
 
-%% top-aligned rebox: height comes from a leading kern, so tops of the
-%% two half-columns line up on the row's baseline
-\def\wb@vtop#1{\vtop{\kern\z@\unvbox#1}}
+%% append one band row; #1 = pool slot
+\def\wb@bandrow#1{%
+  \global\setbox\wb@page\vbox{%
+    \wb@offskip
+    \ifvoid\wb@page\else\unvbox\wb@page\fi
+    \vskip\wideband@sep
+    \hb@xt@\textwidth{\box\wb@slotbox#1\hss}%
+    \vskip\wideband@sep}%
+  \global\wb@pageopen\@ne
+  \global\advance\wb@rowsum\wb@d@B
+  \directlua{wideband.pagerow("band",\number\wb@d@B,\the\wb@d@id,%
+    \number\wb@d@y)}%
+  \expandafter\xdef\csname wb@sid@\number#1\endcsname{-1}}
 
-%% a deferral scheduled during this page shortens the next page's
-%% columns (\@outputpage has just reset \@colht to \textheight)
-\def\wb@after@page{%
-  \ifnum\wb@defer@request>\z@
-    \global\wb@defer@request\z@
-    \global\wb@state\tw@
-    \global\advance\@colht-\wb@reserve
-  \fi}
+\def\wb@placedue{%
+  \global\wb@more\z@
+  \ifnum\wb@dn>\z@
+    \wb@j\z@
+    \wb@tdim\wb@y
+    \loop\ifnum\wb@j<\wb@dn
+      \advance\wb@j\@ne
+      \wb@loadrec{due}{\wb@j}%
+      \ifdim\dimexpr\wb@S-\wb@d@B\relax<\wb@minp
+        \wb@dodefer{D1}{no-room}%
+      \else
+        \ifnum\wb@j>\@ne
+          %% stacked band: a zero-height stratum sits above it, so its
+          %% placement height within that stratum is 0 (report 2.4).
+          \directlua{wideband.pagerow("stratum",0)}%
+          \wb@d@y\z@
+        \else
+          \wb@d@y\wb@tdim
+        \fi
+        \wb@placedkeep
+        \wb@bandrow\wb@recslot
+        \global\advance\wb@S-\wb@d@B
+        \advance\wb@tdim\wb@d@B
+      \fi
+    \repeat
+    \global\wb@dn\z@
+  \fi
+  \ifdim\wb@S<\wb@minp\else \global\wb@more\@ne \fi}
+
+\def\wb@shippage{%
+  %% Any bottom floats stashed but never restored (a band flush at the bottom
+  %% leaves no final column-1 piece) must not be lost: defer them to a later
+  %% page rather than drop them.
+  \ifx\wb@savebot\@empty\else
+    \xdef\@deferlist{\wb@savebot\@deferlist}%
+    \global\let\wb@savebot\@empty
+  \fi
+  \ifvoid\wb@holdA\else
+    \PackageWarning{wideband}{Held column-1 footnotes could not be placed on
+      page \the\c@page; they move to the next page}%
+    \insert\footins{\unvbox\wb@holdA}%
+  \fi
+  \ifvoid\wb@holdB\else
+    \PackageWarning{wideband}{Held column-2 footnotes could not be placed on
+      page \the\c@page; they move to the next page}%
+    \insert\footins{\unvbox\wb@holdB}%
+  \fi
+  \ifdim\wb@S>\z@
+    \global\setbox\wb@page\vbox{\wb@offskip
+      \ifvoid\wb@page\else\unvbox\wb@page\fi \kern\wb@S}%
+    \global\advance\wb@rowsum\wb@S
+    \global\wb@S\z@
+  \fi
+  \global\setbox\@outputbox\vbox{\wb@offskip
+    \ifvoid\wb@page\else\unvbox\wb@page\fi}%
+  \global\setbox\wb@page\box\voidb@x
+  \global\wb@pageopen\z@
+  \ifdim\ht\@outputbox=\wb@pageht\else
+    \PackageWarning{wideband}{Assembled page \the\c@page\space is
+      \the\ht\@outputbox\space instead of \the\wb@pageht}%
+  \fi
+  \directlua{wideband.pageend(\the\c@page)}%
+  \@combinedblfloats
+  \@outputpage
+  \begingroup
+    \@dblfloatplacement
+    \@startdblcolumn
+    \@whilesw\if@fcolmade \fi{\@outputpage \@startdblcolumn}%
+  \endgroup}
+
+\AddToHook{build/page/after}{\wb@after@page}
+
+%% ==================================================================
+%% 17. compatibility gate
+%% ==================================================================
+\def\wb@gate@note{ok}
+\def\wb@conflicts{cuted,midfloat,stfloats,dblfloatfix,nidanfloat,flushend,%
+  balance,ftnright,fnpos,ltxgrid,lineno,multicol}
+
+\AtBeginDocument{%
+  \global\wb@gate\@ne
+  \gdef\wb@gate@note{ok}%
+  \@for\wb@pkg:=\wb@conflicts\do{%
+    \ifnum\wb@gate>\z@
+      \@ifpackageloaded{\wb@pkg}%
+        {\global\wb@gate\z@
+         \xdef\wb@gate@note{pkg-conflict-\wb@pkg}}%
+        {}%
+    \fi}%
+  \ifnum\wb@gate>\z@ \wb@checkkernel \fi
+  \ifnum\wb@gate>\z@
+    \directlua{texio.write_nl("log",
+      "WIDEBAND GATE: status=active reason=ok")
+      wideband.gate("active","ok")}%
+  \else
+    \PackageWarningNoLine{wideband}{Same-page band placement is disabled
+      (\wb@gate@note); every band is placed at the top of the following page}%
+    \directlua{texio.write_nl("log",
+      "WIDEBAND GATE: status=disabled reason=\wb@gate@note")
+      wideband.gate("disabled","\wb@gate@note")}%
+  \fi
+  \global\wb@fnA\count\footins
+  \global\wb@skipA\skip\footins
+  \global\wb@newpage\@ne
+  \global\wb@S\@colht \global\wb@y\@colht \global\wb@pageht\@colht}
+
+\def\wb@checkkernel{%
+  \begingroup
+    \edef\wb@tempa{\meaning\@makecol}%
+    \ifx\wb@tempa\wb@sig@makecol\else\wb@mismatch\fi
+    \edef\wb@tempa{\meaning\@opcol}%
+    \ifx\wb@tempa\wb@sig@opcol\else\wb@mismatch\fi
+    \edef\wb@tempa{\meaning\@specialoutput}%
+    \ifx\wb@tempa\wb@sig@specialoutput\else\wb@mismatch\fi
+    \edef\wb@tempa{\meaning\wb@kernel@outputdblcol}%
+    \ifx\wb@tempa\wb@sig@outputdblcol\else\wb@mismatch\fi
+    \edef\wb@tempa{\the\output}%
+    \ifx\wb@tempa\wb@sig@outputtl\else\wb@mismatch\fi
+  \endgroup}
+\def\wb@mismatch{\global\wb@gate\z@ \gdef\wb@gate@note{kernel-mismatch}}
+
+%% ==================================================================
+%% 18. end of document: never drop a band
+%% ==================================================================
+\def\wb@setpend{%
+  \global\wb@pend\z@
+  \ifnum\wb@dn>\z@\global\wb@pend\@ne\fi
+  \ifnum\wb@tn>\z@\global\wb@pend\@ne\fi
+  \ifnum\wb@xn>\z@\global\wb@pend\@ne\fi
+  %% A page whose last stratum below a band never received content (e.g. a
+  %% short bottom stratum with no following text, m33) is fully composed in
+  %% \wb@page but has not shipped: force a final page so it is not lost.
+  \ifnum\wb@pageopen>\z@\global\wb@pend\@ne\fi}
+
+\AtEndDocument{%
+  \clearpage
+  \wb@setpend
+  \wb@j\z@
+  \loop\ifnum\wb@pend>\z@
+    \ifnum\wb@j<4
+      \advance\wb@j\@ne
+      \PackageWarningNoLine{wideband}{A band or its trailing stratum was still
+        pending at the end of the document; an extra page is forced so that
+        nothing is lost}%
+      \null\clearpage
+      \wb@setpend
+    \else
+      \global\wb@pend\z@
+      \PackageWarningNoLine{wideband}{A band could not be placed at all}%
+    \fi
+  \repeat}
 
 \endinput

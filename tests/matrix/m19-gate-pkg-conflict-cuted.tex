@@ -1,0 +1,32 @@
+%% Scenario: a conflicting package disables same-page placement for the whole
+%% document.  Report 4.11 and contract 4.3: cuted patches the same two-column
+%% output routine, so the gate must refuse at \begin{document} with
+%% status=disabled reason=pkg-conflict-cuted and defer every band with D5 to
+%% the top of the next page.
+%% h = 10 + 16*12 = 202pt in column 1 and B = 66 + 24 = 90pt, so the band
+%% would fit at y = h: only the gate can explain the deferral.
+%% Baseline: warns about cuted but still places the band on page 1.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=1 code=D5 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND GATE: status=disabled reason=pkg-conflict-cuted
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{cuted}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{20}{MXB}
+\end{document}

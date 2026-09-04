@@ -1,0 +1,32 @@
+%% Scenario: a colour that starts before the request and ends after it.
+%% Report section 6: assembling by strata keeps reading order equal to content
+%% order, so the colour must not leak into a bottom piece.
+%% Column-1 request: h = 10 + 16*12 = 202pt, B = 66 + 24 = 90pt,
+%% y = h = 202pt, 292 <= 600  -> placed at y = h.
+%% The baseline places this too, so the document also exercises the tooling
+%% against the baseline package.
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXB07 MXBAND01 MXC01 MXD10
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{10}{MXA}
+\color{blue}
+\WBMlines{7}{MXB}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{10}{MXC}
+\normalcolor
+\WBMlines{10}{MXD}
+\end{document}

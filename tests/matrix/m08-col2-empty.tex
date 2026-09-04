@@ -1,0 +1,40 @@
+%% Scenario: the request is the first thing in column 2.  Report 2.8 row 8 and
+%% report 2.4 ("A band requested when column 2 is still empty").
+%% The 50 MXA lines fill column 1 exactly and the request follows immediately,
+%% so h = 0 and P = S = 600pt.
+%% y_min = P/2 = 300pt -> first legal cut at or after 300pt is 310pt (break
+%%   after line 26): column 1 is cut roughly in half and its lower half
+%%   becomes the right piece above the band.
+%% B = 126pt band box + 24pt separation = 150pt; 310 + 150 = 460 <= 600
+%% bottom strata = 140pt >= 2 lines                 -> placed, note col2-recut
+%% Phase-1 outcome: 50 MXA lines are only 598pt (topskip 10 + 49*12), 2pt short
+%% of the 600pt column, so the request does not reach the top of an empty
+%% column 2 -- it is still in column 1 with h=598pt.  The true "column 2 empty"
+%% case (c=2, h=0) is not reproducible on the 12pt baseline grid of these
+%% documents, because no line count fills a 600pt column exactly.  The band is
+%% therefore placed by a column-1 re-cut (y_min = ceil(598/2) rounded to the
+%% first legal cut = 310pt), which is a correct same-page placement; the
+%% content is intact (ledger clean).  See docs/integration-triage.md
+%% "remaining" for the col2-empty case.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*col=1 .*note=col1-recut
+%% WB-EXPECT-TOKENS: MXA01 MXA50 MXBAND01 MXB01 MXB50
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{50}{MXA}
+\begin{wideband}
+\WBMbandbox{126pt}{MXBAND01}{$\displaystyle A_{ij} = \int_{\Omega} \nabla \varphi_i \cdot \nabla \varphi_j \, dx, \qquad b_i = \int_{\Omega} f \varphi_i \, dx$}
+\end{wideband}
+\WBMlines{50}{MXB}
+\end{document}

@@ -1,193 +1,494 @@
--- wideband.lua -- proof of concept, LuaLaTeX only
+-- wideband.lua -- node-level support for wideband.sty (stratum model, v0.5)
 --
--- Node-level support for the wideband LaTeX package:
---   * mark(reserve)          insert marker whatsit + reservation kern + penalty
---                            into the current (vertical) list
---   * find(boxnum)           scan top level of a column box for the marker;
---                            report position (glue-set-aware) back to TeX
---   * split(src,top,bot,h,botgoal)
---                            cut the stored left column at the marker,
---                            drop marker/kern/penalty/leading glue, and
---                            repack into two box registers
---   * strip(boxnum)          remove marker material in place (fallback path)
+-- LuaLaTeX only.  Everything here is measurement, exact cutting and
+-- bookkeeping; the page logic itself lives in wideband.sty.
 --
--- Communication back to TeX goes through two registers whose numbers are
--- handed over once via setup{}.
+-- Vertical position accounting follows TeX's page builder exactly:
+--     box/rule : total += depth + height ; depth = node.depth   (clipped to \maxdepth)
+--     kern/glue: total += depth + amount ; depth = 0
+--     others   : no contribution
+-- so `total` at a node equals TeX's \pagetotal there, i.e. the set height a
+-- \vbox holding everything above that node would need.  (node.dimensions
+-- measures HORIZONTALLY and must never be used for this.)
+--
+-- Legal vertical breakpoints, again as in TeX:
+--     glue    : legal iff the preceding node is not discardable
+--     kern    : legal iff followed by glue
+--     penalty : legal iff penalty < 10000
+--
+-- Communication with TeX goes through registers whose numbers are handed
+-- over once by wideband.setup{}.
 
 local wideband = {}
 
-local WHATSIT = node.id("whatsit")
-local KERN    = node.id("kern")
-local GLUE    = node.id("glue")
-local PENALTY = node.id("penalty")
-local UD      = node.subtype and node.subtype("user_defined") or 8
+local N       = node
+local WHATSIT = N.id("whatsit")
+local KERN    = N.id("kern")
+local GLUE    = N.id("glue")
+local PENALTY = N.id("penalty")
+local HLIST   = N.id("hlist")
+local VLIST   = N.id("vlist")
+local RULE    = N.id("rule")
+local MATHN   = N.id("math")
+local INS     = N.id("ins")
+local UD      = (N.subtype and N.subtype("user_defined")) or 8
 
--- unique tag for our marker whatsit
-local USER_ID = 0x57424e44 -- "WBND"
+-- "WBND": the band request marker
+local USER_ID = 0x57424E44
 
-local reg = { found = nil, h = nil, botnat = nil }
+local INF_PENALTY = 10000
+local NA          = -2147483647   -- "not applicable" sentinel for log fields
+
+local reg = {}
 
 function wideband.setup(t)
-  reg.found = assert(tonumber(t.found), "wideband: bad count register")
-  reg.h     = assert(tonumber(t.h),     "wideband: bad dimen register")
-  reg.botnat = assert(tonumber(t.botnat), "wideband: bad bottom-natural dimen register")
+  for k, v in pairs(t) do reg[k] = tonumber(v) end
 end
 
-local function info(msg)
-  texio.write_nl("log", "Package wideband info: " .. msg)
+local function setcount(name, v) tex.setcount("global", reg[name], v) end
+local function setdimen(name, v) tex.setdimen("global", reg[name], v) end
+
+----------------------------------------------------------------------
+-- generic vertical walk
+----------------------------------------------------------------------
+
+local function discardable(id)
+  return id == GLUE or id == KERN or id == PENALTY or id == MATHN
 end
 
-----------------------------------------------------------------------
--- marker insertion (called in vertical mode, main galley)
-----------------------------------------------------------------------
-function wideband.mark(reserve)
-  reserve = tonumber(reserve) or 0
-  local w = node.new(WHATSIT, UD)
-  w.user_id = USER_ID
-  w.type    = 100          -- value is a number
-  w.value   = reserve
-  local k = node.new(KERN, 1)   -- explicit kern
-  k.kern = reserve
-  local p = node.new(PENALTY)
-  p.penalty = 10000             -- forbid a break right after the reservation
-  node.write(w)
-  node.write(k)
-  node.write(p)
-end
-
-----------------------------------------------------------------------
--- helpers
-----------------------------------------------------------------------
-local function find_marker(head)
-  local first, count = nil, 0
-  for n in node.traverse_id(WHATSIT, head) do
-    if n.subtype == UD and n.user_id == USER_ID then
-      count = count + 1
-      if not first then first = n end
-    end
-  end
-  return first, count
-end
-
-local HLIST, VLIST, RULE = node.id("hlist"), node.id("vlist"), node.id("rule")
-
--- vertical distance from the top of a packaged vbox to node `stop`,
--- honouring the box's glue setting (this is what \vpack did)
-local function vpos(box, stop)
-  local d, gs, sign, order = 0, box.glue_set, box.glue_sign, box.glue_order
-  for n in node.traverse(box.list) do
-    if n == stop then return d end
+-- visit(n, total, prev) for every node; returns natural height and depth
+local function vscan(head, maxdepth, visit)
+  local total, depth = 0, 0
+  local prev = nil
+  local n = head
+  while n do
+    if visit then visit(n, total, prev) end
     local id = n.id
     if id == HLIST or id == VLIST or id == RULE then
-      d = d + (n.height or 0) + (n.depth or 0)
-    elseif id == KERN then
-      d = d + n.kern
-    elseif id == GLUE then
-      local g = n.width
-      if sign == 1 and n.stretch_order == order then
-        g = g + gs * n.stretch
-      elseif sign == 2 and n.shrink_order == order then
-        g = g - gs * n.shrink
+      total = total + depth + (n.height or 0)
+      depth = n.depth or 0
+      if depth > maxdepth then
+        total = total + depth - maxdepth
+        depth = maxdepth
       end
-      d = d + g
+    elseif id == GLUE then
+      total = total + depth + (n.width or 0)
+      depth = 0
+    elseif id == KERN then
+      total = total + depth + (n.kern or 0)
+      depth = 0
     end
+    prev = n
+    n = n.next
   end
-  return d
+  return total, depth
+end
+
+local function legal(n, prev)
+  local id = n.id
+  if id == GLUE then
+    return prev ~= nil and not discardable(prev.id)
+  elseif id == KERN then
+    return n.next ~= nil and n.next.id == GLUE
+  elseif id == PENALTY then
+    return (n.penalty or 0) < INF_PENALTY
+  end
+  return false
+end
+
+local function maxdepth()
+  local m = tex.maxdepth
+  if m == nil or m <= 0 then m = 4 * 65536 end
+  return m
+end
+
+local function zerokern()
+  local k = N.new(KERN, 1)
+  k.kern = 0
+  return k
+end
+
+local function is_marker(n)
+  return n.id == WHATSIT and n.subtype == UD and n.user_id == USER_ID
 end
 
 ----------------------------------------------------------------------
--- find: scan a packaged column box (top level only)
--- sets \wb@found (0/1) and \wb@h (distance from top of box to marker,
--- honouring the box's glue setting)
+-- the request marker
 ----------------------------------------------------------------------
-function wideband.find(boxnum)
+
+-- called in vertical mode on the main vertical list, from \directlua
+function wideband.mark(id)
+  local w = N.new(WHATSIT, UD)
+  w.user_id = USER_ID
+  w.type    = 100                -- value is a number
+  w.value   = tonumber(id) or 0
+  N.write(w)
+end
+
+-- report the first marker of a box: \wb@found = number of markers,
+-- \wb@bid = its band id, \wb@h = its vertical position
+function wideband.markinfo(boxnum)
   local b = tex.box[boxnum]
-  local found, h = 0, 0
+  local cnt, pos, bid = 0, 0, 0
   if b and b.list then
-    local m, count = find_marker(b.list)
-    if m then
-      found = count           -- >1 signals "multiple bands on one page"
-      h = vpos(b, m)
-      info("marker found at " .. (h / 65536) .. "pt from column top")
-    end
+    vscan(b.list, maxdepth(), function(n, total)
+      if is_marker(n) then
+        cnt = cnt + 1
+        if cnt == 1 then pos = total; bid = n.value or 0 end
+      end
+    end)
   end
-  tex.setcount("global", reg.found, found)
-  tex.setdimen("global", reg.h, h)
+  setcount("found", cnt)
+  setcount("bid", bid)
+  setdimen("h", pos)
 end
 
-----------------------------------------------------------------------
--- split: cut the stored left column at the marker
---   src      box register holding the left column (consumed)
---   topreg   receives everything above the marker, packed to h exactly
---   botreg   receives everything below, packed to botgoal exactly
-----------------------------------------------------------------------
-function wideband.split(src, topreg, botreg, h)
-  h = tonumber(h) or 0
-  local b = tex.box[src]
-  if not (b and b.list) then
-    info("split: source box empty")
-    return
-  end
-  local head = b.list
-  b.list = nil            -- detach before the register is freed
-  tex.box[src] = nil
-
-  local m = find_marker(head)
-  if not m then           -- should not happen; put things back
-    tex.box[src] = node.vpack(head)
-    return
-  end
-
-  -- cut the list just before the marker
-  local top_head = head
-  if m == head then top_head = nil end
-  if m.prev then m.prev.next = nil end
-
-  -- walk past marker, reservation kern, guard penalties and the now
-  -- stale interline/parskip glue
-  local rest = m.next
-  m.prev, m.next = nil, nil
-  node.free(m)
-  if rest and rest.id == KERN then
-    local t = rest; rest = rest.next
-    t.prev, t.next = nil, nil; node.free(t)
-  end
-  while rest and (rest.id == PENALTY or rest.id == GLUE) do
-    local t = rest; rest = rest.next
-    t.prev, t.next = nil, nil; node.free(t)
-  end
-  if rest then rest.prev = nil end
-
-  local function empty() local k = node.new(KERN, 1); k.kern = 0; return k end
-  local topbox = node.vpack(top_head or empty(), h, "exactly")
-  local botbox = node.vpack(rest or empty())
-  local botnat = (botbox.height or 0) + (botbox.depth or 0)
-  tex.setdimen("global", reg.botnat, botnat)
-  tex.setbox("global", topreg, topbox)
-  tex.setbox("global", botreg, botbox)
-end
-
-----------------------------------------------------------------------
--- strip: remove marker material from a box in place (fallback when the
--- band ended up in the second column)
-----------------------------------------------------------------------
+-- remove every marker from the top level of a box
 function wideband.strip(boxnum)
   local b = tex.box[boxnum]
   if not (b and b.list) then return end
-  local m = find_marker(b.list)
-  if not m then return end
   local head = b.list
-  local function drop(n)
+  local n = head
+  while n do
     local nxt = n.next
-    head = node.remove(head, n)
-    node.free(n)
-    return nxt
+    if is_marker(n) then
+      head = N.remove(head, n)
+      n.next, n.prev = nil, nil
+      N.free(n)
+    end
+    n = nxt
   end
-  local n = m.next
-  drop(m)
-  if n and n.id == KERN then n = drop(n) end
-  if n and n.id == PENALTY then drop(n) end
   b.list = head
+end
+
+-- drop discardables from the head of a box's list (the \topskip glue and
+-- friends that the page builder put at the top of a column)
+function wideband.striptop(boxnum)
+  local b = tex.box[boxnum]
+  if not (b and b.list) then return end
+  local head = b.list
+  while head and discardable(head.id) do
+    local nxt = head.next
+    head.next, head.prev = nil, nil
+    N.free(head)
+    head = nxt
+  end
+  if head then head.prev = nil end
+  b.list = head
+end
+
+-- Footnotes typed inside a band are \insert nodes trapped in the band box and
+-- do not migrate out of a \vbox.  Extract every insert of class `insnum` from
+-- box `src` and re-contribute it to the list TeX is currently building (the
+-- main vertical list, when called at the request point), so the page builder
+-- charges it to the bottom of the current column (report 4.7).  The count is
+-- reported in \wb@found.
+function wideband.extractinserts(src, insnum)
+  insnum = tonumber(insnum)
+  local b = tex.box[src]
+  local found = 0
+  if b and b.list then
+    local n = b.list
+    while n do
+      local nxt = n.next
+      if n.id == INS and n.subtype == insnum then
+        b.list = N.remove(b.list, n)
+        n.next, n.prev = nil, nil
+        N.write(n)
+        found = found + 1
+      end
+      n = nxt
+    end
+    if b.list then b.list.prev = nil end
+  end
+  setcount("found", found)
+end
+
+----------------------------------------------------------------------
+-- measurement
+----------------------------------------------------------------------
+
+function wideband.natheight(boxnum)
+  local b = tex.box[boxnum]
+  local t, d = 0, 0
+  if b and b.list then t, d = vscan(b.list, maxdepth(), nil) end
+  setdimen("nat", t)
+  setdimen("natdp", d)
+end
+
+----------------------------------------------------------------------
+-- legal-cut search and exact cut
+----------------------------------------------------------------------
+
+local function subtree_has_attr(n, a)
+  while n do
+    if N.has_attribute(n, a) then return true end
+    local id = n.id
+    if id == HLIST or id == VLIST then
+      if n.list and subtree_has_attr(n.list, a) then return true end
+    end
+    n = n.next
+  end
+  return false
+end
+
+local function find_break(head, ymin, ymax)
+  local best, bestpos = nil, 0
+  vscan(head, maxdepth(), function(n, total, prev)
+    if best == nil and total >= ymin and (ymax == nil or total <= ymax)
+       and legal(n, prev) then
+      best, bestpos = n, total
+    end
+  end)
+  return best, bestpos
+end
+
+-- Search only.  Sets \wb@found (0/1), \wb@cuty and \wb@flags:
+--   0  no footnote callout anywhere in the list (cannot prove safety)
+--   1  callouts exist and all of them are above the cut
+--   2  a callout sits below the cut, so it would change column
+function wideband.probe(src, ymin, ymax)
+  ymin, ymax = tonumber(ymin), tonumber(ymax)
+  local b = tex.box[src]
+  local best, pos = nil, 0
+  if b and b.list then best, pos = find_break(b.list, ymin, ymax) end
+  local flags = 0
+  if best and reg.fnattr then
+    if subtree_has_attr(best, reg.fnattr) then
+      flags = 2
+    elseif subtree_has_attr(b.list, reg.fnattr) then
+      flags = 1
+    end
+  end
+  setcount("found", best and 1 or 0)
+  setcount("flags", flags)
+  setdimen("cuty", pos)
+end
+
+-- Exact cut of box `src` at the first legal breakpoint at or after y.
+-- topreg receives everything above, botreg the tail; the discardables at the
+-- break are pruned as a page break would prune them.
+function wideband.docut(src, y, topreg, botreg)
+  y = tonumber(y)
+  local b = tex.box[src]
+  if not (b and b.list) then
+    setcount("found", 0)
+    return
+  end
+  local head = b.list
+  b.list = nil
+  tex.box[src] = nil
+
+  local best = find_break(head, y, nil)
+  if not best then
+    tex.setbox("global", topreg, N.vpack(head))
+    tex.setbox("global", botreg, N.vpack(zerokern()))
+    setcount("found", 0)
+    return
+  end
+
+  local tophead = head
+  local p = best.prev
+  if p then
+    p.next = nil
+    best.prev = nil
+  else
+    tophead = nil
+  end
+
+  local rest = best
+  while rest and discardable(rest.id) do
+    local nxt = rest.next
+    rest.next, rest.prev = nil, nil
+    N.free(rest)
+    rest = nxt
+  end
+  if rest then rest.prev = nil end
+
+  local topbox = N.vpack(tophead or zerokern())
+  local botbox = N.vpack(rest or zerokern())
+  tex.setbox("global", topreg, topbox)
+  tex.setbox("global", botreg, botbox)
+  setdimen("topnat", topbox.height)
+  setdimen("topdp", topbox.depth)
+  setdimen("botnat", botbox.height)
+  setdimen("botdp", botbox.depth)
+  setcount("found", 1)
+end
+
+----------------------------------------------------------------------
+-- decision record and sidecar
+----------------------------------------------------------------------
+
+local records = {
+  version   = 1,
+  gate      = { status = "unknown", reason = "not-checked" },
+  decisions = {},
+  pages     = {},
+}
+
+local function pt(v)
+  v = tonumber(v)
+  if v == nil or v == NA then return nil end
+  return v / 65536
+end
+
+-- TeX's print_scaled, so that log fields are byte-identical to \the<dimen>
+local function print_scaled(s)
+  local sign = ""
+  if s < 0 then sign = "-"; s = -s end
+  local out = { tostring(s // 65536), "." }
+  s = 10 * (s % 65536) + 5
+  local delta = 10
+  repeat
+    if delta > 65536 then s = s + 32768 - 50000 end
+    out[#out + 1] = tostring(s // 65536)
+    s = 10 * (s % 65536)
+    delta = delta * 10
+  until s <= delta
+  return sign .. table.concat(out)
+end
+
+local function dim(v)
+  v = tonumber(v)
+  if v == nil or v == NA then return "-" end
+  return print_scaled(v) .. "pt"
+end
+
+function wideband.gate(status, reason)
+  records.gate = { status = tostring(status), reason = tostring(reason) }
+end
+
+function wideband.decision(id, page, col, stratum,
+                           h, S, R, B, P, ymin, ymax, y,
+                           result, code, note)
+  records.decisions[#records.decisions + 1] = {
+    id = tonumber(id), page = tonumber(page),
+    col = tonumber(col), stratum = tonumber(stratum),
+    h = pt(h), S = pt(S), R = pt(R), B = pt(B), P = pt(P),
+    ymin = pt(ymin), ymax = pt(ymax), y = pt(y),
+    result = tostring(result), code = tostring(code), note = tostring(note),
+  }
+  texio.write_nl("log", table.concat({
+    "WIDEBAND DECISION:",
+    "id=" .. tostring(id),
+    "page=" .. tostring(page),
+    "col=" .. tostring(col),
+    "stratum=" .. tostring(stratum),
+    "h=" .. dim(h),
+    "S=" .. dim(S),
+    "R=" .. dim(R),
+    "B=" .. dim(B),
+    "P=" .. dim(P),
+    "ymin=" .. dim(ymin),
+    "ymax=" .. dim(ymax),
+    "y=" .. dim(y),
+    "result=" .. tostring(result),
+    "code=" .. tostring(code),
+    "note=" .. tostring(note),
+  }, " "))
+end
+
+local currows = nil
+
+function wideband.pagerow(kind, height, bid, y)
+  currows = currows or {}
+  currows[#currows + 1] = {
+    kind = kind, h = tonumber(height) or 0,
+    id = tonumber(bid), y = tonumber(y),
+  }
+end
+
+function wideband.pageend(page)
+  if not currows then return end
+  local rows = currows
+  currows = nil
+  -- normalise so that the row sequence alternates stratum, band, stratum, ...
+  if rows[1] and rows[1].kind == "band" then
+    table.insert(rows, 1, { kind = "stratum", h = 0 })
+  end
+  if rows[#rows] and rows[#rows].kind == "band" then
+    rows[#rows + 1] = { kind = "stratum", h = 0 }
+  end
+  local rec = { page = tonumber(page), strata = {}, bands = {} }
+  local heights, ids = {}, {}
+  for _, r in ipairs(rows) do
+    heights[#heights + 1] = dim(r.h)
+    if r.kind == "band" then
+      rec.bands[#rec.bands + 1] = { id = r.id, y = pt(r.y), B = pt(r.h) }
+      ids[#ids + 1] = tostring(r.id)
+    else
+      rec.strata[#rec.strata + 1] = { height = pt(r.h) }
+    end
+  end
+  records.pages[#records.pages + 1] = rec
+  if #rec.bands > 0 then
+    texio.write_nl("log", string.format(
+      "WIDEBAND PAGE: page=%s strata=%d bands=%s heights=%s",
+      tostring(page), #rec.strata,
+      table.concat(ids, ","), table.concat(heights, ",")))
+  end
+end
+
+local function jstr(s)
+  return '"' .. (tostring(s):gsub('[\\"]', '\\%0')) .. '"'
+end
+
+local function jnum(v)
+  if v == nil then return "null" end
+  return string.format("%.4f", v)
+end
+
+local function write_sidecar()
+  local name = tex.jobname .. ".wideband.json"
+  local f = io.open(name, "w")
+  if not f then return end
+  f:write('{"version": ', tostring(records.version), ',\n')
+  f:write(' "gate": {"status": ', jstr(records.gate.status),
+          ', "reason": ', jstr(records.gate.reason), '},\n')
+  f:write(' "decisions": [')
+  for i, d in ipairs(records.decisions) do
+    if i > 1 then f:write(',\n               ') end
+    f:write('{"id": ', tostring(d.id),
+            ', "page": ', tostring(d.page),
+            ', "col": ', tostring(d.col),
+            ', "stratum": ', tostring(d.stratum),
+            ', "h": ', jnum(d.h),
+            ', "S": ', jnum(d.S),
+            ', "R": ', jnum(d.R),
+            ', "B": ', jnum(d.B),
+            ', "P": ', jnum(d.P),
+            ', "ymin": ', jnum(d.ymin),
+            ', "ymax": ', jnum(d.ymax),
+            ', "y": ', jnum(d.y),
+            ', "result": ', jstr(d.result),
+            ', "code": ', jstr(d.code),
+            ', "note": ', jstr(d.note), '}')
+  end
+  f:write('],\n')
+  f:write(' "pages": [')
+  for i, p in ipairs(records.pages) do
+    if i > 1 then f:write(',\n           ') end
+    f:write('{"page": ', tostring(p.page), ', "strata": [')
+    for j, s in ipairs(p.strata) do
+      if j > 1 then f:write(', ') end
+      f:write('{"height": ', jnum(s.height), '}')
+    end
+    f:write('], "bands": [')
+    for j, bb in ipairs(p.bands) do
+      if j > 1 then f:write(', ') end
+      f:write('{"id": ', tostring(bb.id),
+              ', "y": ', jnum(bb.y),
+              ', "B": ', jnum(bb.B), '}')
+    end
+    f:write(']}')
+  end
+  f:write(']}\n')
+  f:close()
+end
+
+if luatexbase and luatexbase.add_to_callback then
+  luatexbase.add_to_callback("wrapup_run", write_sidecar, "wideband.sidecar")
 end
 
 return wideband

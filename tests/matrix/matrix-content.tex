@@ -1,0 +1,211 @@
+%% matrix-content.tex -- shared prose and layout helpers for tests/matrix/*.tex
+%% Owned by the CORPUS workstream (implementation contract section 2).
+%% tests/test-content.tex is shared and read-only; this is the CORPUS copy.
+%%
+%% There is no filler here: every sentence is real technical prose about
+%% typesetting, page building or numerical methods.
+%%
+%% ---------------------------------------------------------------------------
+%% GEOMETRY CONTRACT OF THE MATRIX DOCUMENTS
+%%
+%% Every scenario document uses
+%%     \usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,
+%%                 columnsep=18pt]{geometry}
+%% which yields, measured on TeX Live 2025 (reproduce all the numbers below
+%% with tests/matrix/probes/measure.py):
+%%     \textheight   600pt   -> S = \@colht = 600pt on a float-free page
+%%     \baselineskip  12pt   -> 50 lines per column
+%%     \topskip       10pt   -> first baseline 10pt below the column top
+%%     \textwidth    460pt , \columnwidth 221pt , \maxdepth 5pt
+%% so the worked numbers of report section 2.8 (S = 600pt, R = 0, baseline
+%% 12pt) apply to these documents unchanged.  The page is 597.5pt x 845.0pt,
+%% so the type block keeps 68.75pt side margins and ends 165pt above the
+%% paper bottom, inside the envelope scripts/check-pdf-bounds.py enforces.
+%%
+%% \WBMlines{n}{tag} emits exactly n one-line paragraphs, so the height of
+%% the material above a request is
+%%     h(n) = \topskip + (n-1)\baselineskip = 12n - 2 pt   (plus 0..2.2pt of
+%% last-line depth).  Documents that need this to be exact declare
+%% \raggedbottom, which removes \flushbottom's interline stretching; the
+%% \parskip of article (0pt plus 1pt) is then absorbed by \@makecol's \vfil
+%% instead of drifting the measured positions.
+%%
+%% \WBMbandbox{H}{token}{content} builds a band whose box is exactly H tall
+%% with zero depth.  With \widebandrulesoff and \setwidebandsep{12pt} the
+%% band footprint of report section 1 is therefore
+%%     B = H + 2 * 12pt = H + 24pt
+%% exactly, with no dependency on font metrics.
+%% ---------------------------------------------------------------------------
+
+\ProvidesFile{matrix-content.tex}[2026/09/03 wideband scenario prose (CORPUS)]
+
+\makeatletter
+\newcount\wbm@i
+\newcount\wbm@n
+\newcount\wbm@j
+\newcount\wbm@k
+\chardef\wbm@nsent=48
+
+%% ------------------------------------------------------------------ sentences
+%% Short declarative sentences (at most 36 characters) so that one sentence
+%% plus its token always sets as exactly one line in a 221pt column.
+\@namedef{wbm@s@1}{TeX breaks paragraphs into lines.}
+\@namedef{wbm@s@2}{The page builder runs on its own.}
+\@namedef{wbm@s@3}{Glue carries stretch and shrink.}
+\@namedef{wbm@s@4}{A vbox reports height and depth.}
+\@namedef{wbm@s@5}{Interline glue uses the last depth.}
+\@namedef{wbm@s@6}{The output routine owns box 255.}
+\@namedef{wbm@s@7}{Penalties mark legal breakpoints.}
+\@namedef{wbm@s@8}{Discardable items go at a break.}
+\@namedef{wbm@s@9}{Inserts collect notes and floats.}
+\@namedef{wbm@s@10}{Marks travel with split material.}
+\@namedef{wbm@s@11}{A column is packed to a set height.}
+\@namedef{wbm@s@12}{Badness measures how glue is set.}
+\@namedef{wbm@s@13}{The topskip fixes the first line.}
+\@namedef{wbm@s@14}{Depth below the last line counts.}
+\@namedef{wbm@s@15}{Rules take space but carry no glue.}
+\@namedef{wbm@s@16}{Kerns are rigid and never dropped.}
+\@namedef{wbm@s@17}{Whatsits record shipout effects.}
+\@namedef{wbm@s@18}{Node lists are doubly linked.}
+\@namedef{wbm@s@19}{Attributes are inherited by nodes.}
+\@namedef{wbm@s@20}{Splitting a box preserves order.}
+\@namedef{wbm@s@21}{Newton iteration doubles digits.}
+\@namedef{wbm@s@22}{Bisection halves the bracket.}
+\@namedef{wbm@s@23}{Quadrature fixes its nodes first.}
+\@namedef{wbm@s@24}{Extrapolation cancels error terms.}
+\@namedef{wbm@s@25}{A tridiagonal solve is linear.}
+\@namedef{wbm@s@26}{Pivoting keeps elimination stable.}
+\@namedef{wbm@s@27}{Condition numbers bound the error.}
+\@namedef{wbm@s@28}{Floating point addition is inexact.}
+\@namedef{wbm@s@29}{Cancellation destroys digits.}
+\@namedef{wbm@s@30}{Horner's rule needs n steps.}
+\@namedef{wbm@s@31}{A residual is cheaper than error.}
+\@namedef{wbm@s@32}{Krylov methods build subspaces.}
+\@namedef{wbm@s@33}{Preconditioning reshapes spectra.}
+\@namedef{wbm@s@34}{Adaptive steps track local error.}
+\@namedef{wbm@s@35}{Stiff systems need implicit steps.}
+\@namedef{wbm@s@36}{Explicit stages reuse old slopes.}
+\@namedef{wbm@s@37}{A grid function samples a domain.}
+\@namedef{wbm@s@38}{Discretisation error scales with h.}
+\@namedef{wbm@s@39}{Convergence order needs refinement.}
+\@namedef{wbm@s@40}{Stability limits the time step.}
+\@namedef{wbm@s@41}{Two columns share one page list.}
+\@namedef{wbm@s@42}{Balancing redistributes lines.}
+\@namedef{wbm@s@43}{A strip spans the full text width.}
+\@namedef{wbm@s@44}{Reading order follows content order.}
+\@namedef{wbm@s@45}{Floats are deferred until they fit.}
+\@namedef{wbm@s@46}{The gutter separates two columns.}
+\@namedef{wbm@s@47}{Hyphenation adds optional breaks.}
+\@namedef{wbm@s@48}{A ledger proves nothing is lost.}
+
+%% \wbm@sent{<count register value>}: sentence ((k-1) mod 48) + 1
+\def\wbm@sent#1{%
+  \wbm@k=#1\relax
+  \advance\wbm@k\m@ne
+  \wbm@j=\wbm@k
+  \divide\wbm@j\wbm@nsent
+  \multiply\wbm@j\wbm@nsent
+  \advance\wbm@k-\wbm@j
+  \advance\wbm@k\@ne
+  \csname wbm@s@\number\wbm@k\endcsname}
+
+%% \wbm@two{<number>}: two-digit, so no token is a prefix of another
+\def\wbm@two#1{\ifnum#1<10 0\fi\number#1}
+
+%% ------------------------------------------------------------ exact-height prose
+%% \WBMlines{<n>}{<tag>}: exactly <n> one-line paragraphs.  Line i starts with
+%% the unique token <tag><ii>, so h(n) = 12n - 2 pt as documented above.
+\newcommand\WBMlines[2]{%
+  \par
+  \begingroup
+    \parindent\z@
+    \wbm@n=#1\relax
+    \wbm@i=\z@
+    \loop\ifnum\wbm@i<\wbm@n
+      \advance\wbm@i\@ne
+      \noindent\mbox{#2\wbm@two{\wbm@i}}\space\wbm@sent{\wbm@i}\par
+    \repeat
+  \endgroup}
+
+%% ------------------------------------------------------------- flowing prose
+%% \WBMpara{<n>}{<tag>}: <n> ordinary paragraphs of six sentences each, for the
+%% scenarios where realistic line breaking matters more than an exact height.
+\newcommand\WBMpara[2]{%
+  \par
+  \begingroup
+    \wbm@n=#1\relax
+    \wbm@i=\z@
+    \loop\ifnum\wbm@i<\wbm@n
+      \advance\wbm@i\@ne
+      \mbox{#2\wbm@two{\wbm@i}}\space
+      \wbm@k=\wbm@i \multiply\wbm@k6 \advance\wbm@k-5
+      \wbm@sent{\wbm@k}\space
+      \advance\wbm@k\@ne \wbm@sent{\wbm@k}\space
+      \advance\wbm@k\@ne \wbm@sent{\wbm@k}\space
+      \advance\wbm@k\@ne \wbm@sent{\wbm@k}\space
+      \advance\wbm@k\@ne \wbm@sent{\wbm@k}\space
+      \advance\wbm@k\@ne \wbm@sent{\wbm@k}%
+      \par
+    \repeat
+  \endgroup}
+
+%% ------------------------------------------------------------------ the bands
+%% \WBMbandbox{<H>}{<token>}{<visible content>}: a band body of height exactly
+%% <H> and depth 0.  The \vrule strut sets the height; \raisebox with zero
+%% declared height and depth centres the visible content without contributing
+%% to the measurement.
+\newcommand\WBMbandbox[3]{%
+  \noindent\hbox to\textwidth{%
+    \vrule width\z@ height#1 depth\z@
+    \hfil
+    \raisebox{\dimexpr#1/2-5pt\relax}[\z@][\z@]{#3\quad\mbox{#2}}%
+    \hfil}}
+
+%% ------------------------------------------------------- unbreakable material
+%% \WBMblock{<H>}{<token>}: a block of height <H> with no legal breakpoint
+%% inside it, used for the D3 "no legal cut" scenario.  A single \vbox is a
+%% single item on the vertical list, so the page builder cannot cut into it.
+\newcommand\WBMblock[2]{%
+  \par\nobreak
+  \vbox to#1{%
+    \hsize\columnwidth
+    \vss
+    \noindent\hbox to\columnwidth{\hfil\mbox{#2}\hfil}%
+    \vss}%
+  \par\nobreak}
+
+%% \WBMnote{<token>}: a footnote whose text carries a unique token.
+\newcommand\WBMnote[1]{\footnote{\mbox{#1} Inserts collect notes and floats.}}
+
+%% \WBMlongnote{<n>}{<token>}: a footnote of <n> sentences, tall enough to be
+%% split at a column boundary so that a hold-over becomes pending.
+\newcommand\WBMlongnote[2]{%
+  \footnote{\mbox{#2}\space
+    \wbm@n=#1\relax
+    \wbm@i=\z@
+    \loop\ifnum\wbm@i<\wbm@n
+      \advance\wbm@i\@ne
+      \wbm@sent{\wbm@i}\space
+    \repeat}}
+
+%% \WBMmargin{<token>}: a marginal note narrow enough for the margin geometry
+%% the marginpar scenarios declare.
+\newcommand\WBMmargin[1]{\marginpar{\tiny\raggedright\mbox{#1}}}
+
+%% \WBMfig{<placement>}{<token>}: a single-column float of known height.
+\newcommand\WBMfig[2]{%
+  \begin{figure}[#1]
+    \centering
+    \rule{.7\columnwidth}{40pt}
+    \caption{\mbox{#2} A single-column diagnostic float.}
+  \end{figure}}
+
+%% \WBMwidefig{<placement>}{<token>}: a double-column float.
+\newcommand\WBMwidefig[2]{%
+  \begin{figure*}[#1]
+    \centering
+    \rule{.6\textwidth}{40pt}
+    \caption{\mbox{#2} A double-column diagnostic float.}
+  \end{figure*}}
+\makeatother
+\endinput

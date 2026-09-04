@@ -1,0 +1,29 @@
+%% Scenario: column-1 request in mid-column.  Report 2.8, row 1.
+%% Geometry: S = 600pt, R = 0, baseline 12pt (see matrix-content.tex).
+%% h  = \topskip + 16 * \baselineskip = 10 + 192 = 202pt   (17 lines, MXA01..17)
+%% B  = 66pt band box + 2 * 12pt separation                = 90pt
+%% y  = h = 202pt (policy earliest, no re-cut needed)
+%% y + B = 292pt <= S - R = 600pt                    -> fits, placed at y = h
+%% bottom stratum = 600 - 292 = 308pt >= 2 lines     -> minimum piece rule ok
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*col=1 .*result=placed code=OK
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds
+  = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{20}{MXB}
+\end{document}

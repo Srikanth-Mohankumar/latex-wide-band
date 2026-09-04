@@ -1,0 +1,34 @@
+%% Scenario: single-column floats above and below a band.  Report section 6:
+%% "Float placed at the top of a non-first piece"; contract 4.3 requires
+%% \@topnum = 0 off the first piece and \@botnum = 0 off the last piece.
+%% A single-column [t] float sits inside column 1, so it counts towards h and
+%% not against S: 40pt of rule, \abovecaptionskip 10pt, a two-line caption of
+%% 24pt and \textfloatsep 20pt is about 94pt, and the 17 MXA lines follow it:
+%%   h = 94 + (10 + 16*12) = 296pt  (+/- one line, the caption may set shorter)
+%% The [b] float is the bottom reservation of the same column, so R is about
+%% 94pt as well, while S stays 600pt.
+%% B = 66 + 24 = 90pt
+%% y = h = 296pt, y + B = 386 <= S - R = 506pt   -> placed at y = h
+%% bottom stratum = 506 - 386 = 120pt >= 2 lines -> minimum piece rule ok
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-TOKENS: MXFIG01 MXFIG02 MXA01 MXA17 MXBAND01 MXB01 MXB40
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMfig{t}{MXFIG01}
+\WBMfig{b}{MXFIG02}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{40}{MXB}
+\end{document}

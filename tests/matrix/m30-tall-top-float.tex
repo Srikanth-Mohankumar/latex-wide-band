@@ -1,0 +1,44 @@
+%% Scenario: a top float in column 1 taller than half the column.  Report
+%% section 6: "y_min falls inside the float; the legal-cut search skips the
+%% float box".
+%% The [t] float of 340pt plus caption and \textfloatsep leaves about 216pt of
+%% text in column 1 (18 one-line paragraphs), so the request is discovered in
+%% column 2 with h about 142pt.
+%% P = 600 + 142 = 742pt, y_min = 371pt, which is inside the float box that
+%%   occupies roughly 0pt..384pt: the legal-cut search must move to the first
+%%   breakpoint after the float, about 394pt.
+%% B = 66 + 24 = 90pt, 394 + 90 = 484 <= 600  -> placed.
+%% Phase-1 outcome: the moved material contains a float, so the re-cut is
+%% refused with D4 float-in-moved-material (phase 1 does not take raw copies of
+%% the float boxes, report 4.8), and the band is placed at the top of page 2.
+%% The col2-recut that skips the float box is phase-2 work; see
+%% docs/integration-triage.md "remaining".
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=2 code=D4 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*code=D4 note=float-in-moved-material
+%% WB-EXPECT-TOKENS: MXFIG01 MXA01 MXA18 MXB01 MXB12 MXBAND01 MXC01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\begin{figure}[t]
+\centering
+\rule{.7\columnwidth}{340pt}
+\caption{\mbox{MXFIG01} A tall single-column top float.}
+\end{figure}
+\WBMlines{18}{MXA}
+\WBMlines{12}{MXB}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXC}
+\end{document}

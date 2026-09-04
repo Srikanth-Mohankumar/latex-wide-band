@@ -1,0 +1,28 @@
+%% Scenario: a short stratum below the band.  Report section 6 ("Short stratum
+%% under a band") and report 2.3: a stratum piece is either exactly zero or at
+%% least two lines (24pt) high.
+%% h = 10 + 39*12 = 478pt (40 lines), B = 66 + 24 = 90pt
+%% y = h = 478pt, y + B = 568 <= 600, bottom stratum = 32pt, above the
+%%   two-line minimum  -> placed at y = h with a short bottom stratum.
+%% The baseline places this too, because the band still fits in the remainder
+%% of column 1, so the document also exercises the tooling on the baseline.
+%% WB-EXPECT: requests=1 placed=1 deferred=0
+%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% WB-EXPECT-TOKENS: MXA01 MXA40 MXBAND01 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{40}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{20}{MXB}
+\end{document}

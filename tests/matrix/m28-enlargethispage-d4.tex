@@ -1,0 +1,36 @@
+%% Scenario: \enlargethispage is in effect on the band page.  Report section 6
+%% and contract 4.3 list this among the phase-1 D4 conditions, because the
+%% piece heights would be inconsistent with \@colht.
+%% h = 10 + 16*12 = 202pt and B = 66 + 24 = 90pt would fit, so only the D4
+%% rule can explain the deferral.
+%% Baseline: the band is silently dropped (MXBAND01 missing from the PDF).
+%% The band defers D4 correctly and ships with a clean ledger, but the audit's
+%% geometry-textarea check uses a fixed text-area rectangle and cannot see the
+%% page enlarged by \enlargethispage, so it flags the enlarged page 1.  This is
+%% a general audit limitation (a plain \enlargethispage document with no band
+%% trips it too), phase-2 AUDIT work; see docs/AUDIT.md.
+%% WB-KNOWN-XFAIL: audit geometry-textarea cannot model \enlargethispage
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=1 code=D4 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*code=D4 note=enlargethispage
+%% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXB01 MXB20
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\enlargethispage{24pt}
+\WBMlines{17}{MXA}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXB}
+\end{document}

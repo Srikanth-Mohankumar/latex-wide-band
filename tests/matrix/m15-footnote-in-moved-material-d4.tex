@@ -1,0 +1,35 @@
+%% Scenario: a footnote callout inside the material the re-cut would move.
+%% Report section 6 and contract 4.3: in phase 1 this is deferred (D4,
+%% note=footnotes-in-moved-material) because the note would stay in the old
+%% column.
+%% Column 1 carries a footnote on its line 39, below the cut at y_min = P/2
+%% (about 400pt, that is line 34), so the callout is inside the moved
+%% material.  The band itself would fit: B = 66 + 24 = 90pt and y_min + B is
+%% about 490pt, well inside S - R with R the footnote reservation of roughly
+%% 30pt, so this document isolates the D4 rule from the fit test.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=2 code=D4 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND DECISION: id=1 .*code=D4 note=footnotes-in-moved-material
+%% WB-EXPECT-TOKENS: MXA01 MXA38 MXFN01 MXNOTE01 MXB08 MXC17 MXBAND01 MXD01
+%% WB-EXPECT-COMPILE: pass
+\documentclass[twocolumn]{article}
+\usepackage[a4paper,textheight=600pt,textwidth=460pt,top=80pt,columnsep=18pt]{geometry}
+\usepackage{amsmath}
+\usepackage{wideband}
+\IfFileExists{wideband-audit.sty}{\usepackage{wideband-audit}}{}
+\input{matrix-content.tex}
+\raggedbottom
+\widebandrulesoff
+\setwidebandsep{12pt}
+\begin{document}
+\WBMlines{38}{MXA}
+\noindent\mbox{MXFN01}\WBMnote{MXNOTE01} A note sits below the cut.\par
+\WBMlines{8}{MXB}
+\WBMlines{17}{MXC}
+\begin{wideband}
+\WBMbandbox{66pt}{MXBAND01}{$\displaystyle \oint_{\partial\Omega} u \, \nabla v \cdot n \, ds = \int_{\Omega} \nabla \cdot (u \nabla v) \, dx$}
+\end{wideband}
+\WBMlines{50}{MXD}
+\end{document}
