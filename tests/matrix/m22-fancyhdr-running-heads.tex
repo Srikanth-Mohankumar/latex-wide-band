@@ -1,12 +1,25 @@
 %% Scenario: running heads on a band page.  Report section 6: the first and
 %% last mark of a band page must be taken from the pieces in reading order,
 %% and contract 4.3 requires the marks API to be fed from the pieces in that
-%% order.  fancyhdr sets its head and foot from those marks.
-%% Column-1 request: h = 202pt, B = 90pt, y = h  -> placed on page 1.
-%% The head and foot carry no unique token, because they repeat on every page
-%% and verify-token-counts.py requires exactly one occurrence per token.
-%% WB-EXPECT: requests=1 placed=1 deferred=0
-%% WB-EXPECT-DECISION: id=1 result=placed col=1 code=OK page=1
+%% order.  fancyhdr sets its head and foot from those marks, and the audit
+%% must not flag the head/foot (which sit in the margin by design) as outside
+%% the text area -- geometry-textarea excludes kind-4 material.
+%%
+%% h = 202pt, B = 90pt would fit at y = h, but fancyhdr patches \@makecol after
+%% wideband is loaded (its \headheight guard, installed at \begin{document}).
+%% The compatibility gate compares \meaning\@makecol against the value captured
+%% at package load (contract 4.3/4.11) and cannot tell fancyhdr's benign wrap
+%% from a harmful redefinition, so it refuses same-page placement for the whole
+%% document (status=disabled reason=kernel-mismatch) and defers the band to the
+%% top of page 2 -- the safe degradation report 4.11 specifies.  This is a
+%% documented phase-1 limitation: wideband is functionally compatible with
+%% fancyhdr, but the \meaning-based gate is conservative.  The band page whose
+%% running heads this scenario exercises is therefore page 2.
+%% WB-BASELINE-DIFFERS
+%% WB-EXPECT: requests=1 placed=1 deferred=1
+%% WB-EXPECT-DECISION: id=1 result=deferred col=1 code=D5 page=1
+%% WB-EXPECT-DECISION: id=1 result=placed col=0 code=OK page=2
+%% WB-EXPECT-LOG: WIDEBAND GATE: status=disabled reason=kernel-mismatch
 %% WB-EXPECT-TOKENS: MXA01 MXA17 MXBAND01 MXB01 MXB40
 %% WB-EXPECT-COMPILE: pass
 \documentclass[twocolumn]{article}

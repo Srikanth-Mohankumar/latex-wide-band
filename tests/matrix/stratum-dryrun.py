@@ -107,7 +107,10 @@ CASES = {
     "m21-xcolor-across-band": [
         placed(1, 1, 1, 1, 202, 600, 0, 90, 202, 202, 510, 202, "col1-at-h")],
     "m22-fancyhdr-running-heads": [
-        placed(1, 1, 1, 1, 202, 600, 0, 90, 202, 202, 510, 202, "col1-at-h")],
+        "WIDEBAND GATE: status=disabled reason=kernel-mismatch",
+        deferred(1, 1, 1, 1, 202, 600, 0, 90, 202, 202, 510, "D5",
+                 "kernel-mismatch"),
+        top(1, 2, 90)],
     "m23-figurestar-on-band-page": [
         placed(1, 1, 1, 1, 202, 520, 0, 90, 202, 202, 430, 202, "col1-at-h")],
     "m24-column-floats-t-and-b": [

@@ -195,7 +195,10 @@ Beyond the per-check blind spots above:
   summary anywhere in the log and uses the last one.
 - **`geometry-textarea` excludes kind 3 as well as kind 4.** The contract only
   excludes the running head and foot, but a marginal note is outside the text
-  area by definition.
+  area by definition. Scenario `m22-fancyhdr-running-heads` exercises this: a
+  fancyhdr head and foot sit in the top and bottom margins, and the check must
+  not flag them as outside the text area (`record_ink` returns early for
+  `KIND_HEADFOOT` and `KIND_MARGIN`).
 - A document that never reaches `\end{document}` writes no summary, and
   `check-audit.py` then exits 1 by design.
 - The checks are per page and per document, never per column: a two-column
