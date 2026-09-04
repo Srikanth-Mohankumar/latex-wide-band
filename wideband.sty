@@ -1098,15 +1098,18 @@
   \@startcolumn
   \@whilesw\if@fcolmade \fi{\@opcol\@startcolumn}}
 
-%% enqueue: another request inside a piece that already has bands below it
+%% enqueue: another request inside a piece that already has bands below it.
+%% Like \wb@eagerstack this is a stacked band placed in a zero-height stratum,
+%% so \wb@placedue emits it at y=0; store the matching geometry (col 1, h=0,
+%% P=0, ymin=0) so the decision line obeys the invariants (col=1 -> P=h;
+%% ymin >= P/2).
 \def\wb@doenqueue{%
   \def\wb@d@note{stacked}%
+  \wb@d@col\@ne
   \wb@d@S\wb@S
   \wb@computeR \wb@d@R\wb@R
-  \wb@d@h\dimexpr\wb@h+\wb@topsp\relax
-  \wb@d@P\dimexpr\wb@y+\wb@d@h\relax
-  \wb@d@min\wb@rowsum
-  \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax%
+  \wb@d@h\z@ \wb@d@P\z@ \wb@d@min\z@
+  \wb@d@max\dimexpr\wb@S-\wb@R-\wb@d@B\relax
   \global\advance\wb@dn\@ne
   \wb@storerec{due}{\wb@dn}%
   \directlua{wideband.strip(\number\@cclv)}%
