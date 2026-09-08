@@ -116,8 +116,10 @@ In `\@outputdblcol`, band pending:
 4. **`\unvbox` the overflow** back onto the main list so it becomes page 2, which
    the page builder finishes normally (plus any input still pending).
 
-`\vsplit` on already-line-broken material does not re-break (the vsplit probe),
-so this is exact cutting, not reflow.
+`\vsplit` on already-line-broken material does not re-break (the vsplit probe):
+the lines are cut exactly, never reflowed. That guarantee is about *line-
+breaking* only — it does **not** by itself make the seams glue-clean (see the
+rejoin-gap artifact below).
 
 **Verified** (`tests/test-rebuild.tex`, 20 paragraphs, band after [09]):
 - page 1: left `[01][02][03]` / band / `[03-cont][04..07]`; right `[07-cont][08][09][10]` / `[11][12][13]`;
@@ -125,7 +127,41 @@ so this is exact cutting, not reflow.
 - reading each column of each page gives `[01]..[20]` in source order (Continuous-Column across the page boundary);
 - **all 20 paragraphs conserved, no loss/dup at the rebuilt boundary** — the risk that mattered.
 
+### Pressure test (advisor review) — conservation holds; one cosmetic seam found
+
+Re-ran with the band budget widened to `150pt` (so the overflow spans **four**
+paragraphs, not one) and with two `\section*` headings placed near cut points, to
+stop the earlier pass from looking clean only because every cut fell on inter-
+paragraph `\medskip` glue. Instrumented the output routine to dump the overflow
+box (line count + per-line paragraph attribute) right before `\unvbox`.
+
+- **The `\unvbox` re-inject is genuinely exercised**: the overflow measured
+  `276.94pt / 22 lines / paras [11..14]` — real body text carried across the
+  boundary, not a near-empty tail. Page 2 = that overflow flowing seamlessly into
+  the still-pending `[15..20]`.
+- **Content conservation still holds** under this harder input: every `[01]..[20]`
+  appears exactly once, none duplicated or dropped — including a paragraph that
+  the *natural* page break splits across the boundary.
+- **Artifact found — a mid-paragraph spacing gap at the overflow↔pending seam.**
+  When the output routine's own page break falls mid-paragraph (the common case),
+  the galley holds only that paragraph's first lines; the overflow carries them,
+  and the paragraph's remaining lines arrive later from pending input and rejoin
+  on the next page. The rejoin shows a visibly wrong inter-line gap. Root cause:
+  the overflow box carries trailing `\vsplit` glue (a `-2.06pt` userskip seen in
+  the dump) and `\prevdepth` is stale when the pending line lands, so the page
+  builder computes the wrong baselineskip at the junction. It is **cosmetic, not
+  content loss** (text and order are correct). Fix direction: strip trailing
+  glue/penalty from the overflow list and set `\prevdepth` to its last line's
+  depth before `\unvbox`. Deferred to the hazards rung — not fixed here.
+
 Still hardcoded: Y (the target position) and the band budget — both orthogonal to
 the rebuild (Y is the separate "Y source" rung; the budget would come from the
-captured band's measured height). Still out of scope: marks/footnotes/floats,
-multiple bands, the column-1 in-flow + late-band interaction.
+captured band's measured height). Still out of scope, and now with specifics from
+the pressure test:
+- **the overflow↔pending seam gap** above (trailing-glue / `\prevdepth` cleanup);
+- **marks/footnotes/floats.** Note the `\unvbox\wbcc@galley` deliberately sits
+  *after* `\@outputpage` and *before* the `\@startdblcolumn` float loop; with a
+  double float pending, the overflow would already be on the list when the float
+  routine ships — an untested interaction (architecture §7). It sits there so the
+  overflow becomes the next page's body; do not move it without handling floats;
+- multiple bands, the column-1 in-flow + late-band interaction.
