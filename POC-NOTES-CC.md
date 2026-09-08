@@ -71,3 +71,31 @@ not a swap on top of the stratum capture.
 
 Next rungs: column-2 detach-up (needs a Y source — satellite/attribute);
 harden column-1 CC for footnotes/floats/marks/discards + grow the audit.
+
+## Column-2 detach-up (POC, hardcoded Y) — proven
+
+`wideband-cc2.sty` (+ `tests/test-detach.tex`, reusing `wideband-cc.lua`) proves
+the design's hardest claim: a band **authored in the right column** can be
+placed same-page, mid-column, **without a float and without balancing** — pulled
+*up* to a chosen Y, both columns flowing around it.
+
+Mechanism: the band is captured out of column 2's flow; both finished columns are
+`splitat` the hardcoded target Y in the output routine and reassembled
+`hbox(Ltop|Rtop)/band/hbox(Lbot|Rbot)`.
+
+Verified render (`\wbccReserve{48pt}{220pt}`): left column `[01][02][03]` / band /
+`[04][05][06][07]`; right column `[08][09][10]` / `[11][12][13][14]`. Reading each
+column fully gives `[01]..[14]` in source order (Continuous-Column); the band —
+authored after `[09]` — renders at Y≈220pt (between `[03]` and `[04]`), i.e. pulled
+earlier than authored (the detach-up displacement). All 16 paragraphs conserved.
+
+**Simplifications (deliberate — this isolates the *assembly*, not the discovery):**
+- **Y is hardcoded** (`220pt`) — the "where does Y come from" (operator draw /
+  satellite / attribute) is deferred, and ties to reviewer Q1.
+- **Foreknowledge + hardcoded budget**: because a column-2 band is discovered only
+  after column 1 is built, the POC reserves the band height on the page from the
+  start (`\AtBeginDocument`, `\@colht -= budget`). The real path must discover the
+  band late and reserve dynamically via an **in-run rebuild** (design §3) — not done
+  here.
+- Single band, one page, `\raggedbottom`, no floats/footnotes; ~1-line alignment
+  slack as in the column-1 case.

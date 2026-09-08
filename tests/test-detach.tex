@@ -1,0 +1,22 @@
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc2}
+\wbccReserve{48pt}{220pt}   % band budget, hardcoded target Y
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\usepackage{xcolor}
+\newcommand\Pnum[1]{\par\noindent{\bfseries\color{blue!60!black}[#1]}\space}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit,
+sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim.}
+\newcommand\Par[1]{\Pnum{#1}\Body\ \Body\par\medskip}
+\begin{document}
+% [01]-[09] fill column 1 and spill into column 2, so the band below is
+% genuinely authored IN column 2 (its natural position is the right column).
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}
+\begin{wideband}
+\begin{equation}
+\nabla\times\mathbf{E} = -\frac{\partial \mathbf{B}}{\partial t}\qquad(\star)
+\end{equation}
+\end{wideband}
+\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\end{document}
