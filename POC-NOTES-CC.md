@@ -45,5 +45,29 @@ between independently-broken columns (same class as the stratum model's
 - One band per page; `\raggedbottom`; no footnotes, no floats.
 - Band-free pages take the stock kernel assembly (`\else` branch) → inert.
 - Tagged-PDF content-stream order not addressed (visual order is correct).
-- Next: split the actual `\wb@capture` box in the real package; then column-2
-  detach-up (needs a Y source — satellite/attribute).
+
+## Rung 1 result — `\wb@capture` is NOT reusable for CC (probed)
+
+Probed the real stratum package's raw capture non-destructively (attribute-
+tagged paragraphs, a `build/column/before` hook forced to run after
+`\wb@capture`). Result: `\@cclv` / `\wb@Lraw` at that hook is the
+**already-balanced per-stratum piece**, not a full column. For a column-1 band
+at `h=310pt`:
+
+    col 1 capture = paragraphs [1..4] only   (marker already gone)
+    col 2 capture = paragraphs [5..8]         (the tail, pushed across — balancing)
+
+The stratum reservation forces the column to break at the band and re-cut
+*before* this hook, so the marker never appears in the capture (`markers=0`)
+and column 1 never holds `[5..]` below the band.
+
+**Conclusion:** CC cannot be built on `\wb@Lraw`. It needs its **own**
+reservation — an in-column gap (`\nobreak\kern`, no forced break, no balancing)
+so column 1 keeps its tail below the band — plus its own capture. That is what
+this POC already does. Reuse from the real package is only the low-level surgery
+(marker whatsit, node cut/split, vpos accounting), **not** `\wb@capture`.
+Integrating CC is therefore a *parallel assembly path with its own reservation*,
+not a swap on top of the stratum capture.
+
+Next rungs: column-2 detach-up (needs a Y source — satellite/attribute);
+harden column-1 CC for footnotes/floats/marks/discards + grow the audit.
