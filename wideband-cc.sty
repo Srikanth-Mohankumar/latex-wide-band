@@ -1,0 +1,94 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{wideband-cc}[2026/09/08 Continuous-Column POC (throwaway)]
+\RequirePackage{iftex}\RequireLuaTeX
+
+%% --- registers shared with Lua ---------------------------------------
+\newcount\wbcc@found  \edef\wbcc@found@n{\the\allocationnumber}
+\newcount\wbcc@bid    \edef\wbcc@bid@n{\the\allocationnumber}
+\newdimen\wbcc@h      \edef\wbcc@h@n{\the\allocationnumber}
+\newdimen\wbcc@topnat \edef\wbcc@topnat@n{\the\allocationnumber}
+\newdimen\wbcc@botnat \edef\wbcc@botnat@n{\the\allocationnumber}
+
+\directlua{wbcc = dofile("wideband-cc.lua")}
+\directlua{wbcc.setup{found=\wbcc@found@n, bid=\wbcc@bid@n, h=\wbcc@h@n,
+                      topnat=\wbcc@topnat@n, botnat=\wbcc@botnat@n}}
+
+%% --- state -----------------------------------------------------------
+\newbox\wbcc@band
+\newbox\wbcc@Ltop \newbox\wbcc@Lbot \newbox\wbcc@Rtop \newbox\wbcc@Rbot
+\newdimen\wbcc@reserve
+\newcount\wbcc@state \global\wbcc@state\z@   % 0 = no band, 1 = band on this page
+\newdimen\wbcc@sep   \wbcc@sep=6\p@
+
+%% --- band environment ------------------------------------------------
+%% Capture the body full-width, decorate with rules, then splice a marker and
+%% a reservation kern into column 1's galley.  The reservation keeps the band's
+%% height budgeted in column 1 so its tail flows on *below* the band (natural
+%% fill — no balancing).
+\newenvironment{wideband}{%
+  \par
+  \setbox\wbcc@band\vbox\bgroup
+    \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
+}{%
+  \egroup
+  \global\setbox\wbcc@band\vbox{\hrule\@height\p@ \kern3\p@
+     \box\wbcc@band \kern3\p@ \hrule\@height\p@}%
+  \global\wbcc@reserve=\dimexpr\ht\wbcc@band+\dp\wbcc@band+2\wbcc@sep\relax
+  \par\penalty\z@
+  \directlua{wbcc.mark(1)}%
+  \nobreak\kern\wbcc@reserve
+  \penalty\z@
+}
+
+%% --- vtop wrapper: top-align a captured column fragment on the row baseline
+\def\wbcc@vtop#1{\vtop{\kern\z@\unvbox#1}}
+
+%% --- output-routine patch (kernel mirror + CC insertions) ------------
+\def\@outputdblcol{%
+  \if@firstcolumn
+    \global\@firstcolumnfalse
+    \global\setbox\@leftcolumn\box\@outputbox
+    \directlua{wbcc.markinfo(\number\@leftcolumn)}%
+    \ifnum\wbcc@found>\z@
+      \global\wbcc@state\@ne
+      \global\@colht\dimexpr\@colht-\wbcc@reserve\relax % column 2 packs shorter
+    \fi
+  \else
+    \global\@firstcolumntrue
+    \ifnum\wbcc@state>\z@
+      \global\@colht\dimexpr\@colht+\wbcc@reserve\relax % restore full height
+      \directlua{wbcc.cutmarker(\number\@leftcolumn, \number\wbcc@Ltop, \number\wbcc@Lbot)}%
+      \directlua{wbcc.splitat(\number\@outputbox, \number\wbcc@h,
+                              \number\wbcc@Rtop, \number\wbcc@Rbot)}%
+      \setbox\@outputbox\vbox to\@colht{%
+        \hb@xt@\textwidth{%
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Ltop\hss}%
+          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Rtop\hss}}%
+        \vskip\wbcc@sep
+        \hb@xt@\textwidth{\box\wbcc@band\hss}%
+        \vskip\wbcc@sep
+        \hb@xt@\textwidth{%
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Lbot\hss}%
+          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Rbot\hss}}%
+        \vfil}%
+      \global\wbcc@state\z@
+    \else
+      \setbox\@outputbox\vbox{%
+        \hb@xt@\textwidth{%
+          \hb@xt@\columnwidth{\box\@leftcolumn\hss}%
+          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+          \hb@xt@\columnwidth{\box\@outputbox\hss}}}%
+    \fi
+    \@combinedblfloats
+    \@outputpage
+    \global\@colht\textheight
+    \begingroup
+      \@dblfloatplacement
+      \@startdblcolumn
+      \@whilesw\if@fcolmade\fi{\@outputpage\@startdblcolumn}%
+    \endgroup
+  \fi}
+
+\endinput
