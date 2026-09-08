@@ -63,15 +63,20 @@
       \@combinedblfloats
       \@outputpage
       \global\@colht\textheight
-      %% Re-inject the overflow so it becomes the next page. The overflow is a
-      %% \vsplit remainder, so it carries trailing residue glue; drop it, then
-      %% \pagediscards restores the exact glue the page break discarded, so a
-      %% paragraph split by the break rejoins with correct spacing (baselineskip
-      %% mid-paragraph, \medskip at a paragraph boundary) — the kernel's own
-      %% \unvbox\@cclv\pagediscards re-injection idiom.
-      \unvbox\wbcc@galley           % return the overflow so it becomes page 2
-      \unskip\unpenalty\unskip      % drop the \vsplit residue (trailing glue)
-      \pagediscards                 % restore the glue discarded at the break
+      %% Re-inject the overflow so it becomes the next page. \@outputbox (column
+      %% 2) was built by \@makecol, so its tail is the column-bottom glue: a
+      %% \vskip of -\dp (depth compensation) followed by \@textbottom, an
+      %% infinite-stretch fill (\raggedbottom). \unvbox\@outputbox carried that
+      %% tail into the galley, and it rides the overflow's bottom. Left in place
+      %% it lands mid-column on the next page and shares that column's slack, so
+      %% a paragraph split by the break rejoins with a stretched (loose) gap.
+      %% Dropping it (pure TeX, on the list \unvbox just laid down) heals the
+      %% seam; the held material keeps its own break glue on the contribution
+      %% list. NB: no \pagediscards — it is empty here (\savingvdiscards is 0),
+      %% and once integration sets \savingvdiscards=1 it would hold column 2's
+      %% *top* discards, i.e. the wrong glue at this seam.
+      \unvbox\wbcc@galley           % overflow becomes the next page
+      \unskip\unpenalty\unskip      % drop \@makecol's column-bottom glue
     \else
       \setbox\@outputbox\vbox{%
         \hb@xt@\textwidth{%

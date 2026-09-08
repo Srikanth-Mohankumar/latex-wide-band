@@ -152,40 +152,63 @@ box (line count + per-line paragraph attribute) right before `\unvbox`.
   builder computes the wrong baselineskip at the junction. It is **cosmetic, not
   content loss** (text and order are correct). **Fixed — see below.**
 
-### Seam gap FIXED — the kernel re-injection idiom
-
-The overflow re-inject now mirrors the kernel's own held-material idiom
-(`\unvbox\@cclv \pagediscards`, as the stratum package does at wideband.sty:861):
+### Seam gap FIXED — strip `\@makecol`'s column-bottom glue
 
     \unvbox\wbcc@galley       % overflow becomes the next page
-    \unskip\unpenalty\unskip  % drop the \vsplit residue (trailing glue)
-    \pagediscards             % restore the glue the page break discarded
+    \unskip\unpenalty\unskip  % drop \@makecol's column-bottom glue
 
-Two ideas, both needed. (1) The overflow is a `\vsplit` remainder, so it ends in
-residue glue (the `-2.06pt` userskip); `\unskip\unpenalty\unskip` drops it from the
-main list — pure TeX, no Lua, since it operates on the list `\unvbox` just laid
-down. (2) `\pagediscards` puts back *exactly* what the page break discarded at the
-seam — a baselineskip when the break fell mid-paragraph, a `\medskip` when it fell
-at a paragraph boundary — so the held material rejoins with the right spacing in
-either case. (An earlier hand-rolled "set `\prevdepth` to the last line's depth"
-also worked, but `\pagediscards` is the kernel idiom and carries any widow/club
-penalties too.)
+One line does it — and the *reason* matters, because the first commit
+(87cedf9→4a49f8e) shipped a wrong mechanism story that a second advisor pass
+caught. What the fix actually is (verified with a node dump, not assumed):
 
-**Verified (measured, not eyeballed)** with `pdftotext -bbox` paragraph/line
-geometry, on the committed files, fails-before/passes-after:
+- The residue on the overflow's tail is **not `\vsplit` residue**. It is column
+  2's `\@makecol` **column-bottom glue**: a `\vskip` of `-2.06pt` = exactly
+  `-\dp` (depth compensation) followed by `\@textbottom`, an **infinite-stretch
+  fill** (`order=2` in the node dump; it is `\vskip\z@\@plus…` under
+  `\raggedbottom`). `\unvbox\@outputbox` carried that tail into the galley and it
+  rides the overflow's bottom.
+- Left in place, that infinite-stretch glue lands **mid-column on the next page**
+  and shares the new column's bottom slack, so the split paragraph rejoins with a
+  **stretched (loose) gap** — which is why the defect was loose and variable
+  (~3pt), the opposite of what a stale-`\prevdepth` story predicts.
+  `\unskip\unpenalty\unskip` drops it off the list `\unvbox` just laid down (pure
+  TeX, no Lua). The held material keeps its own break glue on the contribution
+  list, so nothing needs restoring.
+- **No `\pagediscards`.** The first commit added it and claimed it was
+  load-bearing; it is **inert here** — `\savingvdiscards` is `0` in this POC
+  (measured `SVD=0`), so `\pagediscards` is empty, and strip-alone heals
+  identically. Worse, it is a latent hazard: the stratum package sets
+  `\savingvdiscards\@ne` (wideband.sty:202), and once integration turns it on,
+  `\pagediscards` in the column-2 output routine holds column 2's *top-of-column*
+  discards — the wrong glue at this seam. So it was removed, not kept.
+
+**Verified (measured, not eyeballed)** with `pdftotext -bbox` geometry, on the
+committed files, fails-before/passes-after:
 
 | case | break falls | before fix | after fix |
 |------|-------------|-----------|-----------|
-| mid-paragraph (`tests/test-seam.tex` + headings) | inside a paragraph | split para's internal line jumps to a wrong gap | line delta `11.96pt` = baselineskip, uniform |
 | paragraph boundary (`tests/test-seam.tex`) | between paragraphs | one paragraph gap `20.81pt` vs the normal `17.87pt` | all paragraph gaps `17.87–17.88pt` (spread `0.01`) |
+| mid-paragraph (`test-seam.tex` + a heading) | inside a paragraph | the split paragraph's internal line stretches | line delta `11.96pt` = baselineskip, uniform |
 
-All 20 paragraphs still conserved in every case; the budget-48 rung-3 test and a
-band-free document are unaffected (the re-inject lives in the band-pending branch).
-`tests/test-seam.tex` is the reproducer.
+All 20 paragraphs still conserved; the budget-48 rung-3 test and a band-free
+document are unaffected (the re-inject lives in the band-pending branch); logs are
+error-clean (`\unskip` in the OR is legal internal-vmode). `tests/test-seam.tex`
+is the reproducer.
+
+**Known sibling — not fixed (same root cause, page 1).** `\@leftcolumn` carries
+the same `\@makecol` column-bottom tail, and in `\vbox{\unvbox\@leftcolumn
+\unvbox\@outputbox}` it lands at the col1|col2 junction *inside* `Rtop`, where
+column 2's own leading `\topskip` also sits. Measured on page 1's right column:
+one line delta of **~10pt** vs the normal `11.96pt` — a ~2pt-**tight** join
+(invisible to the eye, not to the bbox script). Stripping column 1's tail in the
+concat does **not** heal it (still ~10pt) — the tightness is the `\topskip` head,
+which needs replacing with a proper baselineskip (topskip-head surgery). Recorded
+here to fix next in this rung, not silently left.
 
 Still hardcoded: Y (the target position) and the band budget — both orthogonal to
 the rebuild (Y is the separate "Y source" rung; the budget would come from the
 captured band's measured height). Still out of scope:
+- **the page-1 col1|col2 `\topskip` junction** above (same class, ~2pt tight);
 - **marks/footnotes/floats.** Note the `\unvbox\wbcc@galley` deliberately sits
   *after* `\@outputpage` and *before* the `\@startdblcolumn` float loop; with a
   double float pending, the overflow would already be on the list when the float
