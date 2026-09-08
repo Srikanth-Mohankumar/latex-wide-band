@@ -93,9 +93,39 @@ earlier than authored (the detach-up displacement). All 16 paragraphs conserved.
 - **Y is hardcoded** (`220pt`) — the "where does Y come from" (operator draw /
   satellite / attribute) is deferred, and ties to reviewer Q1.
 - **Foreknowledge + hardcoded budget**: because a column-2 band is discovered only
-  after column 1 is built, the POC reserves the band height on the page from the
+  after column 1 is built, this POC reserves the band height on the page from the
   start (`\AtBeginDocument`, `\@colht -= budget`). The real path must discover the
-  band late and reserve dynamically via an **in-run rebuild** (design §3) — not done
-  here.
+  band late and reserve dynamically via an **in-run rebuild** (design §3) — done in
+  `wideband-cc3.sty`, below.
 - Single band, one page, `\raggedbottom`, no floats/footnotes; ~1-line alignment
   slack as in the column-1 case.
+
+## In-run rebuild (POC) — foreknowledge cheat removed
+
+`wideband-cc3.sty` (+ `tests/test-rebuild.tex`) removes the pre-reservation. The
+band is discovered late (both columns already built at full `\textheight`), and
+room is made **dynamically, in one pass, on the normal output routine** — no custom
+`\output` penalty, unlike the stratum re-fire machinery.
+
+In `\@outputdblcol`, band pending:
+
+1. recombine both finished columns: `\vbox{\unvbox\@leftcolumn\unvbox\@outputbox}`;
+2. re-split that galley with `\vsplit` at the reduced budget `\textheight-B`:
+   `Ltop`(Y), `Lbot`(H-B-Y), `Rtop`(Y), `Rbot`(H-B-Y), leaving the overflow (~2B);
+3. assemble page 1 with the band between the rows, `\@outputpage` it;
+4. **`\unvbox` the overflow** back onto the main list so it becomes page 2, which
+   the page builder finishes normally (plus any input still pending).
+
+`\vsplit` on already-line-broken material does not re-break (the vsplit probe),
+so this is exact cutting, not reflow.
+
+**Verified** (`tests/test-rebuild.tex`, 20 paragraphs, band after [09]):
+- page 1: left `[01][02][03]` / band / `[03-cont][04..07]`; right `[07-cont][08][09][10]` / `[11][12][13]`;
+- page 2 continues `[14][15]…[20]`;
+- reading each column of each page gives `[01]..[20]` in source order (Continuous-Column across the page boundary);
+- **all 20 paragraphs conserved, no loss/dup at the rebuilt boundary** — the risk that mattered.
+
+Still hardcoded: Y (the target position) and the band budget — both orthogonal to
+the rebuild (Y is the separate "Y source" rung; the budget would come from the
+captured band's measured height). Still out of scope: marks/footnotes/floats,
+multiple bands, the column-1 in-flow + late-band interaction.

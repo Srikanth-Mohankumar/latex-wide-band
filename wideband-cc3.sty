@@ -1,0 +1,84 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{wideband-cc3}[2026/09/08 CC col-2 detach-up + in-run rebuild POC (throwaway)]
+\RequirePackage{iftex}\RequireLuaTeX
+
+\newbox\wbcc@band
+\newbox\wbcc@Ltop \newbox\wbcc@Lbot \newbox\wbcc@Rtop \newbox\wbcc@Rbot
+\newbox\wbcc@galley
+\newdimen\wbcc@budget   \wbcc@budget=48\p@   % band budget (hardcoded)
+\newdimen\wbcc@detachY  \wbcc@detachY=220\p@ % target Y (hardcoded)
+\newcount\wbcc@pending  \global\wbcc@pending\z@
+\newdimen\wbcc@sep      \wbcc@sep=6\p@
+
+\newcommand\wbccReserve[2]{\global\wbcc@budget=#1\relax \global\wbcc@detachY=#2\relax}
+
+%% Band authored in column 2: captured OUT of the flow, page marked pending.
+%% NOTE: no budget is reserved up front — the band is discovered late (as it
+%% really is), and the room for it is made by an in-run rebuild in the OR.
+\newenvironment{wideband}{%
+  \par
+  \setbox\wbcc@band\vbox\bgroup
+    \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
+}{%
+  \egroup
+  \global\setbox\wbcc@band\vbox{\hrule\@height\p@ \kern3\p@
+     \box\wbcc@band \kern3\p@ \hrule\@height\p@}%
+  \global\wbcc@pending\@ne
+}
+
+\def\wbcc@vtop#1{\vtop{\kern\z@\unvbox#1}}
+
+\def\@outputdblcol{%
+  \if@firstcolumn
+    \global\@firstcolumnfalse
+    \global\setbox\@leftcolumn\box\@outputbox
+  \else
+    \global\@firstcolumntrue
+    \ifnum\wbcc@pending>\z@
+      %% ---- in-run rebuild: both columns are full (H); make room for the band
+      %% by recombining and re-splitting at the reduced budget H-B; the tail
+      %% overflows to the next page. ----
+      \dimen@\dimexpr\textheight-\wbcc@budget\relax   % per-column body height H-B
+      \setbox\wbcc@galley\vbox{\unvbox\@leftcolumn\unvbox\@outputbox}%
+      \splittopskip\z@skip \splitmaxdepth\maxdimen \vbadness\maxdimen \vfuzz\maxdimen
+      \setbox\wbcc@Ltop\vsplit\wbcc@galley to\wbcc@detachY
+      \setbox\wbcc@Lbot\vsplit\wbcc@galley to\dimexpr\dimen@-\wbcc@detachY\relax
+      \setbox\wbcc@Rtop\vsplit\wbcc@galley to\wbcc@detachY
+      \setbox\wbcc@Rbot\vsplit\wbcc@galley to\dimexpr\dimen@-\wbcc@detachY\relax
+      %% \wbcc@galley now holds the overflow (~2B) for the next page
+      \setbox\@outputbox\vbox to\textheight{%
+        \hb@xt@\textwidth{%
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Ltop\hss}%
+          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Rtop\hss}}%
+        \vskip\wbcc@sep
+        \hb@xt@\textwidth{\box\wbcc@band\hss}%
+        \vskip\wbcc@sep
+        \hb@xt@\textwidth{%
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Lbot\hss}%
+          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Rbot\hss}}%
+        \vfil}%
+      \global\wbcc@pending\z@
+      \@combinedblfloats
+      \@outputpage
+      \global\@colht\textheight
+      \unvbox\wbcc@galley           % return the overflow so it becomes page 2
+    \else
+      \setbox\@outputbox\vbox{%
+        \hb@xt@\textwidth{%
+          \hb@xt@\columnwidth{\box\@leftcolumn\hss}%
+          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+          \hb@xt@\columnwidth{\box\@outputbox\hss}}}%
+      \@combinedblfloats
+      \@outputpage
+      \global\@colht\textheight
+    \fi
+    \begingroup
+      \@dblfloatplacement
+      \@startdblcolumn
+      \@whilesw\if@fcolmade\fi{\@outputpage\@startdblcolumn}%
+    \endgroup
+  \fi}
+
+\endinput
