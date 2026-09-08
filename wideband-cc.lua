@@ -158,4 +158,46 @@ function M.splitat(src, y, topreg, botreg)
   setcount("found", 1)
 end
 
+-- Concatenate the two finished columns into the galley with a correct interline
+-- glue at the join. \@makecol left column 1 with a bottom tail (\vskip-\dp then
+-- an infinite-stretch \@textbottom) and column 2 with a leading \topskip; both
+-- are wrong mid-galley. Drop them and splice the glue TeX itself would put
+-- between column 1's last line and column 2's first line: baselineskip minus the
+-- prevdepth and height, else lineskip. bs/ls/limit are widths in sp (standard
+-- baselineskip is rigid, so the width is exact).
+function M.joincols(dstnum, c1num, c2num, bs, ls, limit)
+  bs, ls, limit = tonumber(bs), tonumber(ls), tonumber(limit)
+  local c1, c2 = tex.box[c1num], tex.box[c2num]
+  local l1 = c1 and c1.list
+  local l2 = c2 and c2.list
+  -- take ownership of both lists (detach, then void the registers, as
+  -- cutmarker/splitat do) so the stolen nodes are not double-freed
+  if c1 then c1.list = nil; tex.box[c1num] = nil end
+  if c2 then c2.list = nil; tex.box[c2num] = nil end
+  local function isbox(n) return n and (n.id == HLIST or n.id == VLIST or n.id == RULE) end
+  local t = l1 and N.tail(l1)
+  while t and not isbox(t) do              -- drop column 1's \@makecol bottom tail
+    local p = t.prev
+    if p then p.next = nil else l1 = nil end
+    t.prev = nil; N.free(t); t = p
+  end
+  while l2 and not isbox(l2) do            -- drop column 2's leading \topskip
+    local nx = l2.next
+    if nx then nx.prev = nil end
+    l2.next = nil; N.free(l2); l2 = nx
+  end
+  if not (t and l2) then                   -- a column collapsed: just join what is left
+    local box = N.vpack(l1 or l2 or zerokern())  -- capture: vpack also returns badness
+    tex.setbox("global", dstnum, box)
+    return
+  end
+  local g = N.new(GLUE)
+  local w = bs - (t.depth or 0) - (l2.height or 0)
+  if w < limit then g.width = ls; g.subtype = 1   -- lineskip
+  else g.width = w; g.subtype = 2 end             -- baselineskip
+  t.next = g; g.prev = t; g.next = l2; l2.prev = g
+  local box = N.vpack(l1)                    -- capture the node only (vpack also returns badness)
+  tex.setbox("global", dstnum, box)
+end
+
 return M

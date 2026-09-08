@@ -195,20 +195,40 @@ document are unaffected (the re-inject lives in the band-pending branch); logs a
 error-clean (`\unskip` in the OR is legal internal-vmode). `tests/test-seam.tex`
 is the reproducer.
 
-**Known sibling — not fixed (same root cause, page 1).** `\@leftcolumn` carries
-the same `\@makecol` column-bottom tail, and in `\vbox{\unvbox\@leftcolumn
-\unvbox\@outputbox}` it lands at the col1|col2 junction *inside* `Rtop`, where
-column 2's own leading `\topskip` also sits. Measured on page 1's right column:
-one line delta of **~10pt** vs the normal `11.96pt` — a ~2pt-**tight** join
-(invisible to the eye, not to the bbox script). Stripping column 1's tail in the
-concat does **not** heal it (still ~10pt) — the tightness is the `\topskip` head,
-which needs replacing with a proper baselineskip (topskip-head surgery). Recorded
-here to fix next in this rung, not silently left.
+### Page-1 col1|col2 junction FIXED — `joincols`
+
+The sibling of the seam: `\@leftcolumn` carries the same `\@makecol` column-bottom
+tail, and in a plain `\vbox{\unvbox\@leftcolumn\unvbox\@outputbox}` it lands at the
+col1|col2 join *inside* `Rtop`, where column 2's own leading `\topskip` also sits —
+so the join read `0.11 − 0.11 + 0(fill) + 2.50(topskip) + 7.50 = 10.0pt` instead of
+a `12pt` baselineskip: a ~2pt-**tight** line (invisible to the eye, not to the bbox
+script). Pure TeX can't fix it — `\unskip` reaches column 1's tail but not column
+2's *leading* `\topskip`, and the correct interline glue needs the depth/height. So
+a small Lua `M.joincols` (in `wideband-cc.lua`) replaces the concat: it takes both
+finished columns, drops column 1's `\@makecol` tail and column 2's `\topskip`, and
+splices the glue TeX itself would insert (`baselineskip − prevdepth − height`, else
+lineskip). The galley the rest of the routine `\vsplit`s is now seamless.
+
+Two bugs found building it, both the kind that pass a single eyeball:
+- **ownership** — only nulling `box.list` (not also `tex.box[n]=nil`, as
+  `cutmarker`/`splitat` do) risks a double-free; mirror the existing idiom.
+- **`node.vpack` returns two values** (the vlist *and* a badness), so
+  `tex.setbox("global", n, node.vpack(l))` splices the badness as a 4th argument
+  and `tex.setbox` throws — swallowed under `nonstopmode`, so the galley silently
+  never gets set and the whole band page is lost. Capture into a local first.
+  (The bug was deterministic yet masked twice by stale-PDF reads; every check now
+  deletes the PDF first.)
+
+**Verified** (committed files, fails-before/passes-after, `tests/test-seam.tex`):
+the page-1 right-column tight line `9.9pt` → gone (only the band region's ~6.8pt
+remains); all 20 conserved; page-2 seam still `0.01`; no Lua errors; deterministic
+over five fresh double-pass runs; budget-48 `test-rebuild` and a band-free document
+unaffected. Rigid `baselineskip` is assumed (exact for standard classes; a stretchy
+one would want the full glue spec via `tex.getglue`).
 
 Still hardcoded: Y (the target position) and the band budget — both orthogonal to
 the rebuild (Y is the separate "Y source" rung; the budget would come from the
 captured band's measured height). Still out of scope:
-- **the page-1 col1|col2 `\topskip` junction** above (same class, ~2pt tight);
 - **marks/footnotes/floats.** Note the `\unvbox\wbcc@galley` deliberately sits
   *after* `\@outputpage` and *before* the `\@startdblcolumn` float loop; with a
   double float pending, the overflow would already be on the list when the float

@@ -1,6 +1,7 @@
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{wideband-cc3}[2026/09/08 CC col-2 detach-up + in-run rebuild POC (throwaway)]
 \RequirePackage{iftex}\RequireLuaTeX
+\directlua{wbcc = dofile("wideband-cc.lua")}
 
 \newbox\wbcc@band
 \newbox\wbcc@Ltop \newbox\wbcc@Lbot \newbox\wbcc@Rtop \newbox\wbcc@Rbot
@@ -39,7 +40,15 @@
       %% by recombining and re-splitting at the reduced budget H-B; the tail
       %% overflows to the next page. ----
       \dimen@\dimexpr\textheight-\wbcc@budget\relax   % per-column body height H-B
-      \setbox\wbcc@galley\vbox{\unvbox\@leftcolumn\unvbox\@outputbox}%
+      %% Recombine the two finished columns into one galley. A plain
+      %% \unvbox\@leftcolumn\unvbox\@outputbox would leave column 1's \@makecol
+      %% bottom tail (\vskip-\dp + an infinite-stretch \@textbottom) butted
+      %% against column 2's leading \topskip at the join, which reads ~2pt tight
+      %% mid-column. joincols drops both and splices the baselineskip TeX would
+      %% have put there (needs the depth/height, hence Lua).
+      \@tempdima\baselineskip \@tempdimb\lineskip
+      \directlua{wbcc.joincols(\number\wbcc@galley, \number\@leftcolumn,
+        \number\@outputbox, \number\@tempdima, \number\@tempdimb, \number\lineskiplimit)}%
       \splittopskip\z@skip \splitmaxdepth\maxdimen \vbadness\maxdimen \vfuzz\maxdimen
       \setbox\wbcc@Ltop\vsplit\wbcc@galley to\wbcc@detachY
       \setbox\wbcc@Lbot\vsplit\wbcc@galley to\dimexpr\dimen@-\wbcc@detachY\relax
