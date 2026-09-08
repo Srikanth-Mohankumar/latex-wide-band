@@ -63,7 +63,15 @@
       \@combinedblfloats
       \@outputpage
       \global\@colht\textheight
+      %% Re-inject the overflow so it becomes the next page. The overflow is a
+      %% \vsplit remainder, so it carries trailing residue glue; drop it, then
+      %% \pagediscards restores the exact glue the page break discarded, so a
+      %% paragraph split by the break rejoins with correct spacing (baselineskip
+      %% mid-paragraph, \medskip at a paragraph boundary) — the kernel's own
+      %% \unvbox\@cclv\pagediscards re-injection idiom.
       \unvbox\wbcc@galley           % return the overflow so it becomes page 2
+      \unskip\unpenalty\unskip      % drop the \vsplit residue (trailing glue)
+      \pagediscards                 % restore the glue discarded at the break
     \else
       \setbox\@outputbox\vbox{%
         \hb@xt@\textwidth{%

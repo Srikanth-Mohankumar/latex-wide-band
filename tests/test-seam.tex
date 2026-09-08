@@ -1,0 +1,30 @@
+%% Seam reproducer for the in-run rebuild (wideband-cc3).
+%%
+%% A wide band budget of 150pt makes the overflow span several paragraphs, so
+%% the output routine's natural page break falls *inside* a paragraph: that
+%% paragraph's first lines ride the overflow and its remaining lines rejoin
+%% from pending input on the next page. Before the \unskip\unpenalty\unskip +
+%% \pagediscards fix, the rejoin showed a visibly wrong inter-line gap; after
+%% it, the split paragraph reads with a normal baselineskip and every
+%% paragraph is conserved exactly once. Compile twice (equation number), then
+%% look at page 2: paragraph [13] must have no mid-paragraph gap.
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc3}
+\wbccReserve{150pt}{220pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\usepackage{xcolor}
+\newcommand\Pnum[1]{\par\noindent{\bfseries\color{blue!60!black}[#1]}\space}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit,
+sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim.}
+\newcommand\Par[1]{\Pnum{#1}\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}
+\begin{wideband}
+\begin{equation}
+\nabla\times\mathbf{E} = -\frac{\partial \mathbf{B}}{\partial t}\qquad(\star)
+\end{equation}
+\end{wideband}
+\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}

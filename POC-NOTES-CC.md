@@ -127,7 +127,7 @@ rejoin-gap artifact below).
 - reading each column of each page gives `[01]..[20]` in source order (Continuous-Column across the page boundary);
 - **all 20 paragraphs conserved, no loss/dup at the rebuilt boundary** — the risk that mattered.
 
-### Pressure test (advisor review) — conservation holds; one cosmetic seam found
+### Pressure test (advisor review) — conservation holds; one cosmetic seam found (now fixed)
 
 Re-ran with the band budget widened to `150pt` (so the overflow spans **four**
 paragraphs, not one) and with two `\section*` headings placed near cut points, to
@@ -150,15 +150,42 @@ box (line count + per-line paragraph attribute) right before `\unvbox`.
   the overflow box carries trailing `\vsplit` glue (a `-2.06pt` userskip seen in
   the dump) and `\prevdepth` is stale when the pending line lands, so the page
   builder computes the wrong baselineskip at the junction. It is **cosmetic, not
-  content loss** (text and order are correct). Fix direction: strip trailing
-  glue/penalty from the overflow list and set `\prevdepth` to its last line's
-  depth before `\unvbox`. Deferred to the hazards rung — not fixed here.
+  content loss** (text and order are correct). **Fixed — see below.**
+
+### Seam gap FIXED — the kernel re-injection idiom
+
+The overflow re-inject now mirrors the kernel's own held-material idiom
+(`\unvbox\@cclv \pagediscards`, as the stratum package does at wideband.sty:861):
+
+    \unvbox\wbcc@galley       % overflow becomes the next page
+    \unskip\unpenalty\unskip  % drop the \vsplit residue (trailing glue)
+    \pagediscards             % restore the glue the page break discarded
+
+Two ideas, both needed. (1) The overflow is a `\vsplit` remainder, so it ends in
+residue glue (the `-2.06pt` userskip); `\unskip\unpenalty\unskip` drops it from the
+main list — pure TeX, no Lua, since it operates on the list `\unvbox` just laid
+down. (2) `\pagediscards` puts back *exactly* what the page break discarded at the
+seam — a baselineskip when the break fell mid-paragraph, a `\medskip` when it fell
+at a paragraph boundary — so the held material rejoins with the right spacing in
+either case. (An earlier hand-rolled "set `\prevdepth` to the last line's depth"
+also worked, but `\pagediscards` is the kernel idiom and carries any widow/club
+penalties too.)
+
+**Verified (measured, not eyeballed)** with `pdftotext -bbox` paragraph/line
+geometry, on the committed files, fails-before/passes-after:
+
+| case | break falls | before fix | after fix |
+|------|-------------|-----------|-----------|
+| mid-paragraph (`tests/test-seam.tex` + headings) | inside a paragraph | split para's internal line jumps to a wrong gap | line delta `11.96pt` = baselineskip, uniform |
+| paragraph boundary (`tests/test-seam.tex`) | between paragraphs | one paragraph gap `20.81pt` vs the normal `17.87pt` | all paragraph gaps `17.87–17.88pt` (spread `0.01`) |
+
+All 20 paragraphs still conserved in every case; the budget-48 rung-3 test and a
+band-free document are unaffected (the re-inject lives in the band-pending branch).
+`tests/test-seam.tex` is the reproducer.
 
 Still hardcoded: Y (the target position) and the band budget — both orthogonal to
 the rebuild (Y is the separate "Y source" rung; the budget would come from the
-captured band's measured height). Still out of scope, and now with specifics from
-the pressure test:
-- **the overflow↔pending seam gap** above (trailing-glue / `\prevdepth` cleanup);
+captured band's measured height). Still out of scope:
 - **marks/footnotes/floats.** Note the `\unvbox\wbcc@galley` deliberately sits
   *after* `\@outputpage` and *before* the `\@startdblcolumn` float loop; with a
   double float pending, the overflow would already be on the list when the float
