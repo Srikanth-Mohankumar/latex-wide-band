@@ -372,30 +372,33 @@ The only genuinely open float item is the `\unvbox\wbcc@galley`-before-
 safely in every test, but the ordering is why a fresh `figure*` waits for the next
 page rather than the band page it was authored on — which is also what stock does.
 
-## Hazards rung — marks / running heads: diagnosed, not fixed
+## Hazards rung — marks / running heads: stock-consistent (mis-diagnosed earlier)
 
-Running heads on a band page are **wrong**: a mark on content the rebuild overflows
-to the next page is still counted on the band page. In `tests/test-marks.tex` (a mark
-`M##` per paragraph, head printing `\leftmark`/`\rightmark`), page 1's `\leftmark`
-came out `M15` though `[15]` is on page 2, and page 2's `\rightmark` was off too. It
-is **not** a regression in the non-band path (stock twocolumn and the band-free page
-behave identically).
+**There is no band-specific marks bug.** Running heads on a band page match what stock
+LaTeX produces. Verified directly: with a mark `M##` per paragraph and a head printing
+`\leftmark`/`\rightmark`, the committed package's band page and a **plain twocolumn doc
+with no package** give *identical* marks — page 1 `L=M15 R=M01`, page 2 `L=M20 R=M16`.
+And the band page's head is self-consistent: `R` (firstmark) is the page's first
+paragraph, `L` (botmark) is the boundary mark, never a paragraph that's deep on the
+next page.
 
-**Two attempts, both on the wrong mechanism — the real reason recorded here.** I
-first tried to capture the page's marks from `\splitfirstmark`/`\splitbotmark` during
-the `\vsplit`s and override `\leftmark`/`\rightmark` (defined classically as
-`\@firstoftwo\botmark`). Every read came back **empty** even though the galley
-provably still holds the mark nodes (counted `col1=21, col2=18, galley=39` — joincols
-preserves them all). The cause: **modern LaTeX no longer uses classic `\mark`.**
-`\meaning\leftmark` is `\mark_use_last:nn {page}{2e-left}` — the LaTeX3 (`expl3`) mark
-system, with mark *classes* `2e-left`/`2e-right` in region `page`. Classic
-`\firstmark`/`\botmark`/`\splitfirstmark` are class 0 and are simply empty here, so
-both attempts were targeting a mechanism the running heads don't use.
+**How the earlier "bug" arose (recorded so it isn't re-chased):** I compared
+`\leftmark` to a *naive* expectation — page 1 ends at `[14]`, so I expected `L=M14`.
+But stock LaTeX itself gives `L=M15`: a `\markboth` issued just before a paragraph
+that breaks to the next page is assigned to the *preceding* page by the mark
+convention. Comparing to stock instead of to that expectation shows the package is
+already correct.
 
-A correct fix must integrate with the `expl3` mark system: capture the `2e-left`/
-`2e-right` marks for the material that actually stays on the band page (the region-
-aware `\mark_use_*` / split-mark interfaces), and feed the page head from those rather
-than from whatever the pre-rebuild column left in the `page` region. That is a real
-piece of `expl3` output-routine work, version-sensitive; deferred. The classic-mark
-attempts are reverted; the known-good code stands. `tests/test-marks.tex` still
-demonstrates the visible symptom.
+**Why it's robust here, not luck:** the in-run rebuild's overflow is only ~`2·(band
+height)` (the budget is the *measured* band height), i.e. a line or two — so at most
+the single boundary mark is in play, and it lands exactly where stock puts it. The
+LaTeX3 mark system (`\mark_use_last:nn {page}{2e-left}`, region `page`, classes
+`2e-left`/`2e-right`) updates the `page` region from the columns via the kernel's
+dblcol structure update, which runs on essentially the same content the rebuilt page
+carries.
+
+Two `expl3`/classic mark experiments earlier were on the wrong track (classic
+`\splitfirstmark` is class 0 and empty; the running heads use the LaTeX3 classes) and
+were reverted — but they were unnecessary: the marks were stock-consistent all along.
+No code change. `tests/test-marks.tex` is retained as a mark-behaviour check (it
+matches stock).

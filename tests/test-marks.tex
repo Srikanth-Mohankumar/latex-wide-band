@@ -1,7 +1,8 @@
-%% Marks / running heads on a band page — DIAGNOSED KNOWN LIMITATION, not
-%% fixed. With a mark per paragraph and a head printing \leftmark/\rightmark,
-%% page 1 leftmark wrongly names a paragraph the rebuild overflowed to page 2.
-%% See POC-NOTES: marks / running heads.
+%% Marks / running heads on a band page — STOCK-CONSISTENT (no band bug). With a
+%% mark per paragraph and a head printing \leftmark/\rightmark, the band page's
+%% marks match what plain twocolumn (no package) produces; the head is
+%% self-consistent (rightmark = first para, leftmark = boundary mark, never a
+%% deep next-page mark). See POC-NOTES: marks / running heads.
 \documentclass[twocolumn]{article}
 \usepackage{amsmath}
 \usepackage{wideband-cc3}
