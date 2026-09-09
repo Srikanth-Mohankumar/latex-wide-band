@@ -42,31 +42,44 @@ Then check the file's `ASSERTION`:
 | `stress-band-explicit-Y-override` | An explicit `[Y]` optional argument overriding the default. |
 | `stress-no-bands-baseline-unchanged` | The package loaded but unused — ordinary two-column pages. |
 
-These sixteen build with no `Overfull \vbox`, conserve their paragraphs, and place
-each band on the asserted page. The seventeenth file is a bug reproducer:
+These sixteen build with no `Overfull \vbox`, conserve their paragraphs (checked at the
+**body** level, not just the `[NN]` tags), and place each band on the asserted page. The
+seventeenth file is a bug reproducer:
 
 | File | What it exercises |
 |------|-------------------|
-| `stress-KNOWN-ISSUE-boundary-overflow-10pt` | **Reproduces a pre-existing overflow bug — EXPECTED to overflow.** Fails-before for a follow-up budget fix. |
+| `stress-KNOWN-ISSUE-final-overflow-content-loss` | **Reproduces a pre-existing content-loss bug — EXPECTED to drop text.** Fails-before for a follow-up `\output`-flush fix. |
 
 ## Known limitation found while writing these tests
 
-**Boundary overflow (~10pt), pre-existing — not the page-assignment concern.** When a
-band page is packed to within ~10pt of `\textheight`, the assembled page overflows the
-text area by ~10pt instead of deferring that last sliver to the next page. This is what
-`stress-KNOWN-ISSUE-boundary-overflow-10pt.tex` captures.
+**Final-overflow content loss, pre-existing — not the page-assignment concern.** When a
+band-rebuild's overflow is the *document's last content* (nothing authored after the
+band's page), that overflow is dropped instead of shipping as a final page. This is what
+`stress-KNOWN-ISSUE-final-overflow-content-loss.tex` captures: the tail of the last
+paragraph (~2 sentences) never renders.
 
-Measured facts (not a theory — the cause is not yet pinned):
+Measured facts and the named mechanism:
 
-- The overflow is exactly `10.0pt too high`.
-- The assembled page's natural height+depth is `549pt`, i.e. *below* `\textheight`
-  (`550pt`) — the content fits, yet the frame still spills.
-- It reproduces on the pre-page-assignment code as well, so it is not a regression.
-- Setting `\boxmaxdepth\z@` on the outer assembly `\vbox` does not change it.
+- The assembled band page is a correct `\vbox to\@colht` (`550/0`); its natural
+  height+depth is `549pt` < `\textheight` (`550pt`) — it fits. So it is **not** a
+  budget/reserve problem, and not a `joincols` problem.
+- The overflow galley (~55pt) is `\unvbox`'d back for the next page. With more content
+  after the band it re-fills and ships normally (add paragraphs after the last one →
+  2 pages, every sentence present). Only when the overflow is the *last* content is it
+  lost.
+- In that case **no output routine fires for the trailing partial page** at
+  `\end{document}`: a clean probe shows exactly two OR firings, both on the band page,
+  and none for the overflow. `\clearpage` does not ship it, and forcing a page ships an
+  *empty* one — the content is gone from the list by document end.
+- It reproduces on the pre-page-assignment code as well, so it is not a regression. The
+  stray `Overfull \vbox (10.0pt)` is a side effect of the same event, not the defect.
 
-Because this scenario overflows at the page boundary, the two feature-demo versions
-(`stress-band-right-column-page1`, `stress-band-with-figurestar-top-float`) are authored
-with a little headroom so they demonstrate the scenario cleanly; the boundary-packed
-form lives in the known-issue file above. A follow-up rung should find the true cause,
-widen the reserve accordingly, and add an automatic `Ymax` clamp so a too-large manual
-`Y` defers rather than overflows.
+**Detection note:** a `[NN]`-tag count does *not* catch this — the paragraph tag survives
+even when its body is dropped. Verify conservation at the body-word level (e.g. count
+`minim`: it must equal `2 ×` the paragraph count). The runner and `test-bandpage` use the
+body-word check for this reason.
+
+A follow-up rung should add the missing final-page flush to the `\@outputdblcol` override
+(stock LaTeX ships a trailing first-column-only page; this override does not), then this
+file becomes a passing content-conservation regression. A separate rung adds an automatic
+`Ymax` clamp so a too-large manual `Y` defers rather than being placed too low.
