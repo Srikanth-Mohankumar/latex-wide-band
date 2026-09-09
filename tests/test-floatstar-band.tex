@@ -1,0 +1,16 @@
+%% Double-column figure* landing on a BAND page. The figure*[t] authored at the
+%% top defers (stock LaTeX behaviour, band or not) onto page 2, which is a band
+%% page; the band branch places it full-width at the page top and it coexists
+%% with the band mid-page. All content conserved, Continuous-Column order.
+%% Shows figure* needs no band-specific handling. See POC-NOTES: figure*.
+\documentclass[twocolumn]{article}\usepackage{amsmath}\usepackage{wideband-cc3}
+\wbccReserve{48pt}{200pt}\raggedbottom\pagestyle{empty}\setlength{\parindent}{0pt}\usepackage{xcolor}
+\newcommand\Pnum[1]{\par\noindent{\bfseries\color{blue!55!black}[#1]}\space}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim.}
+\newcommand\Par[1]{\Pnum{#1}\Body\ \Body\par\medskip}
+\begin{document}
+\begin{figure*}[t]\centering\fbox{\rule{0pt}{38pt}\rule{300pt}{0pt}\ DOUBLE-TOP}\caption{Figure* deferred onto a band page.}\end{figure*}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}
+\begin{wideband}\[ E = mc^2 \]\end{wideband}
+\Par{19}\Par{20}\Par{21}\Par{22}\Par{23}\Par{24}
+\end{document}

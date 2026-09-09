@@ -315,9 +315,8 @@ Placement:
   float rides into the top segment. `tests/test-float.tex`.
 - **single-column `[b]` bottom floats now place on the band page too** — see the
   extract-and-replace below (`tests/test-floatb.tex`).
-- **double-column `figure*` still defers** to a later page (this extraction handles
-  only single-column floats; `figure*` lives in the `\@dbltoplist`/`\@combinedblfloats`
-  machinery). Safe — the figure appears once, just on the next page.
+- **double-column `figure*` is stock-consistent and coexists with a band** — see the
+  investigation below (`tests/test-floatstar-band.tex`).
 
 ### Bottom floats FIXED — extract-and-replace (commit follows)
 
@@ -347,9 +346,31 @@ everything after it as trailing float material.
 **Known detail:** when a bottom float and a footnote share the page bottom, the
 footnote currently renders *above* the float (measured y: note 594pt, float 632pt) —
 the reverse of the ideal (footnote at the very bottom). Both are present, readable,
-and non-overlapping; the order is a refinement. `figure*` on a band page and the
-`\unvbox\wbcc@galley`-before-`\@startdblcolumn` ordering (architecture §7) remain the
-open float items.
+and non-overlapping; the order is a refinement.
+
+### Double-column `figure*` — no band-specific bug (investigated, no code change)
+
+Earlier this looked like a limitation ("figure* defers"). Investigation shows the
+deferral is **stock LaTeX**, not the band: a `figure*[t]` authored at the document
+start or mid-page defers to a later page's top even in **plain twocolumn with no
+package** (verified) — a known float-algorithm behaviour. Our package is consistent
+with stock.
+
+The real question is whether a `figure*` that *lands on* a band page is placed
+correctly, and it is. `tests/test-floatstar-band.tex`: a `figure*[t]` authored early
+defers (stock) onto page 2, which is a **band page**; the band branch's
+`\@combinedblfloats` sets it full-width at the page top, the band sits mid-page, both
+columns flow between, and all 24 paragraphs are conserved in Continuous-Column order.
+A stress case with a **`figure*` + a `[b]` bottom float + a footnote + the band all on
+one page** compiles clean, every element present once, no dups. So `figure*` on band
+pages needs no code — the `\@combinedblfloats` already in the band branch handles the
+top double-float, and the budget works out because LaTeX built the columns at the
+`figure*`-reduced `\@colht` before the rebuild recombined them.
+
+The only genuinely open float item is the `\unvbox\wbcc@galley`-before-
+`\@startdblcolumn` ordering (architecture §7): a *pending* double float deferred
+safely in every test, but the ordering is why a fresh `figure*` waits for the next
+page rather than the band page it was authored on — which is also what stock does.
 
 ## Hazards rung — marks / running heads: diagnosed, not fixed
 
