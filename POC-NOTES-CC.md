@@ -309,24 +309,47 @@ duplicated, or scattered mid-page, and content conservation holds even with a fl
 + footnote + band on the same page (distinct=20, dups=0, figure once, note once).
 The rebuild does **not** break floats.
 
-Placement, however, is limited:
+Placement:
 - **single-column `[t]` top floats place correctly** on the band page — `\@makecol`
   puts them at the column head, and `joincols` only strips the column *tail*, so the
-  float rides into the top segment. `tests/test-float.tex` shows this.
-- **single-column `[b]` bottom floats and double-column `figure*` defer** to a later
-  page when the band is present. A `[b]` float that lands on page 1 band-free is
-  pushed to the next page with the band — because `\@makecol` places a bottom float
-  at the column bottom (at full `\textheight`), and the rebuild's reduced budget
-  carries that bottom region into the overflow. Safe (the float still appears once),
-  but not optimally placed.
+  float rides into the top segment. `tests/test-float.tex`.
+- **single-column `[b]` bottom floats now place on the band page too** — see the
+  extract-and-replace below (`tests/test-floatb.tex`).
+- **double-column `figure*` still defers** to a later page (this extraction handles
+  only single-column floats; `figure*` lives in the `\@dbltoplist`/`\@combinedblfloats`
+  machinery). Safe — the figure appears once, just on the next page.
 
-Fixing bottom/double placement would need a float **extract-and-replace** in the
-output routine, mirroring the footnote handling: pull the column's float boxes out
-before the recombine, hold them, and re-place at the band-page column tops/bottoms
-(and, for `figure*`, above/below the band via `\@combinedblfloats`). A further rung;
-not done here. Note the `\unvbox\wbcc@galley` still sits before `\@startdblcolumn`
-(architecture §7) — with a pending double float this deferred safely in every test,
-but the ordering remains the reason a `figure*` waits.
+### Bottom floats FIXED — extract-and-replace (commit follows)
+
+`\@makecol` placed a `[b]` float as a VLIST at the column bottom (confirmed by node
+dump: a `VLIST h=63.5 w=\columnwidth` just above the `\@makecol` tail). The rebuild's
+reduced budget carried that region into the overflow, so the float deferred. Fix
+(`wideband-cc.lua::M.takebotfloats` + the band branch): after `takefootnotes`, find
+each finished column's last text line and pull the trailing float VLIST(s) out into a
+per-side hold (`\wbcc@bfL`/`\wbcc@bfR`); shrink the per-column budget by the taller
+side + `\textfloatsep`; and set the floats at the band page's bottom as
+`\hb@xt@\textwidth{col bfL | col bfR}` before the footnote block.
+
+**Verified** (`tests/test-floatb.tex`, fails-before/passes-after): the `[b]` float
+`9.9`→ now on page 1 at the column bottom; a left-column `[b]` float likewise; a `[b]`
+float **and** a footnote coexist on the page bottom without overlap; all paragraphs
+conserved, no dups; deterministic over three runs; every earlier test (`test-float`
+top float, `test-footnote`, `test-seam`, `test-rebuild`, `test-twoband`, `test-floatstar`
+figure*) unaffected — the handling is gated on `\ifdim\wbcc@bfh>\z@`.
+
+**Two bugs found building it:** (1) `\unvbox` of the float box inside `\hb@xt@\columnwidth`
+is illegal (that's horizontal mode) — a float VLIST must go through `\wbcc@vtop`
+(a `\vtop{\unvbox…}`) like the column segments; leaving it as `\unvbox` gives
+"Missing } inserted / Unbalanced output routine". (2) the first `takebotfloats` walked
+the tail with a fragile skip-list; rewritten to find the last text line and treat
+everything after it as trailing float material.
+
+**Known detail:** when a bottom float and a footnote share the page bottom, the
+footnote currently renders *above* the float (measured y: note 594pt, float 632pt) —
+the reverse of the ideal (footnote at the very bottom). Both are present, readable,
+and non-overlapping; the order is a refinement. `figure*` on a band page and the
+`\unvbox\wbcc@galley`-before-`\@startdblcolumn` ordering (architecture §7) remain the
+open float items.
 
 ## Hazards rung — marks / running heads: diagnosed, not fixed
 

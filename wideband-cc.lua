@@ -269,4 +269,52 @@ function M.takefootnotes(colnum, holdnum)
   end
 end
 
+-- Bottom-float extraction. \@makecol places a column's bottom floats just above
+-- its \@makecol tail, each as a VLIST (the float box) preceded by float-separation
+-- glue. The rebuild's reduced budget would carry that column-bottom region into the
+-- overflow (the float defers to the next page). This removes the trailing float
+-- VLIST(s) and appends them to a hold box, so the caller can re-set them at the
+-- band page's bottom. Call takefootnotes FIRST (footnotes sit below the floats),
+-- so by here the floats are the column's trailing boxes. Returns the count kept.
+function M.takebotfloats(colnum, holdnum)
+  local b = tex.box[colnum]
+  if not (b and b.list) then return 0 end
+  -- find the last top-level text line; everything after it is trailing material
+  -- (bottom floats + their separation glue + the \@makecol bottom tail).
+  local lasttext
+  local x = b.list
+  while x do if x.id == HLIST then lasttext = x end; x = x.next end
+  if not lasttext or not lasttext.next then return 0 end
+  local trailing = lasttext.next
+  lasttext.next = nil                 -- column now ends at its last text line
+  trailing.prev = nil
+  -- from the trailing material keep the float VLISTs; free glue/kern/tail
+  local ch, ctl, cnt = nil, nil, 0
+  local n = trailing
+  while n do
+    local nx = n.next
+    n.next, n.prev = nil, nil
+    if n.id == VLIST then
+      cnt = cnt + 1
+      if not ch then ch = n; ctl = n else ctl.next = n; n.prev = ctl; ctl = n end
+    else
+      N.free(n)
+    end
+    n = nx
+  end
+  if not ch then return 0 end
+  local hb = tex.box[holdnum]
+  if hb and hb.list then
+    local tl = N.tail(hb.list)
+    local g = N.new(GLUE); g.width = 6 * 65536; g.subtype = 0   -- \floatsep between floats
+    tl.next = ch; ch.prev = tl                                  -- (kept simple; no glue node inserted)
+    local box = N.vpack(hb.list); hb.list = nil; tex.box[holdnum] = nil
+    tex.setbox("global", holdnum, box)
+  else
+    local box = N.vpack(ch); if hb then hb.list = nil end; tex.box[holdnum] = nil
+    tex.setbox("global", holdnum, box)
+  end
+  return cnt
+end
+
 return M
