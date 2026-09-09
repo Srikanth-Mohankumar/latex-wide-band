@@ -402,3 +402,38 @@ Two `expl3`/classic mark experiments earlier were on the wrong track (classic
 were reverted — but they were unnecessary: the marks were stock-consistent all along.
 No code change. `tests/test-marks.tex` is retained as a mark-behaviour check (it
 matches stock).
+
+## Consolidation — one shared package `wideband-cc` (commit follows)
+
+The three per-rung POC packages are wired into a single package. `wideband-cc.sty`
+is now the in-run rebuild (formerly `wideband-cc3.sty`, verified across the hazards
+rung); `wideband-cc2.sty` (column-2 detach-up, hardcoded Y) and `wideband-cc3.sty`
+are removed — both are superseded by the one rebuild, which handles a band on
+*either* column (a band on column 1 or column 2 reaches the same recombine-and-
+re-split once both `\@makecol` columns are finished). The earlier rungs are
+preserved in git history and in the sections above; nothing here is scrubbed.
+
+- **Package:** `wideband-cc.sty` — cleaned in-run rebuild, `\ProvidesPackage{wideband-cc}`.
+- **Lua:** `wideband-cc.lua` pruned to the three functions the rebuild actually
+  calls (`joincols`, `takefootnotes`, `takebotfloats`) + `zerokern`/`apparatus_start`.
+  The rung-1/2 marker machinery (`setup`, `mark`, `markinfo`, `cutmarker`, `splitat`,
+  and their `vscan`/`legal`/`discardable`/`find_break`/`prune_trailing_discardables`
+  helpers, plus the `whatsit`/`penalty`/`math` node-id locals) is removed. The three
+  kept functions are **byte-identical** to their proven versions — the only change
+  inside them is one comment in `joincols` that referenced the now-deleted
+  `cutmarker`/`splitat` (verify: `git diff` shows no non-comment hunk inside them).
+- **Tests:** the nine cc3-lineage tests repointed to `\usepackage{wideband-cc}`;
+  `tests/test-detach.tex` (cc2, col-2 scenario already covered by `test-rightband`)
+  removed; `tests/test-cc.tex` kept as the only default-Y / no-`\wbccReserve` case;
+  `tests/test-leftband.tex` added — a genuine **column-1** band (Gauss's law after
+  `[02]`, `\wbccReserve{48pt}{130pt}`), full-width mid-page, both columns reading
+  continuously across it. All cc tests compile clean (rc=0) with content conserved
+  (distinct tokens = total, no dups), and `make test` (the stratum suite) stays green.
+
+**Two honest follow-ups (not done here — each a separate concern):**
+- `\wbccReserve`'s first argument (`\wbcc@budget`) is **unused** by the rebuild — the
+  per-page text budget is computed from `\textheight` and the band heights. It is kept
+  only so tests need not change; a follow-up should reduce it to `\wbccReserve{<Y>}`.
+- `takebotfloats` allocated a glue node it never linked or freed (a small per-band-page
+  node leak). Left byte-identical in the consolidation commit so the equivalence above
+  is diff-verifiable; removed in the immediately following one-line commit.

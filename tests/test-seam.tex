@@ -1,4 +1,4 @@
-%% Seam reproducer for the in-run rebuild (wideband-cc3).
+%% Seam reproducer for the in-run rebuild (wideband-cc).
 %%
 %% A wide band budget of 150pt makes the overflow span several paragraphs, so
 %% the output routine's natural page break falls *inside* a paragraph: that
@@ -9,7 +9,7 @@
 %% paragraph is conserved exactly once. Compile twice (equation number), then
 %% look at page 2: paragraph [13] must have no mid-paragraph gap.
 \documentclass[twocolumn]{article}
-\usepackage{wideband-cc3}
+\usepackage{wideband-cc}
 \wbccReserve{150pt}{220pt}
 \raggedbottom
 \pagestyle{empty}
