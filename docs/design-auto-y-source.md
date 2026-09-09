@@ -1,6 +1,10 @@
-# Automatic Y source for wideband-cc — approach
+# Automatic Y (and page) source for wideband-cc — approach
 
 *Status: design/approach only (not implemented). Branch `cc/poc`.*
+
+> This doc covers two coupled placement questions — **which page** a band lands on and
+> **how far down** (Y) — because the same marker answers both. The page part is written
+> up in "Which page a band lands on" near the end.
 
 ## The problem
 
@@ -113,9 +117,55 @@ fit). Clamp:
 - **Multiple markers in different columns.** Each gets its own P and column test; the sort
   + equal-Y guard order and de-collide them.
 
+## Which page a band lands on
+
+A band can land on the **wrong page** today, independently of Y. Observed (to-check
+example, 2026-09-09): a band authored after paragraph [08] rendered on page 1 even
+though [08] falls on page 2.
+
+**Cause — the same one as manual Y.** The band is tied to a page by a *global* flag
+(`\wbcc@pending`), set the instant `\begin{wideband}` is read. But the band is captured
+*out* of the flow, so it has zero height on the page; TeX's page builder reads ahead past
+the following paragraphs and the band declarations while still filling the current page.
+By the time page 1's output routine fires, the flag is already set, so page 1 grabs the
+band — even though its authored position belongs to page 2. The band is anchored to a
+flag, not to its position in the text.
+
+**The marker fixes page assignment for free.** The auto-Y marker sits at the authored
+position, so it flows onto whichever page that position lands on. Change the output
+routine to place a band only when **its marker is in the current page's galley**
+(otherwise hold it and re-check on the next page). Then:
+
+- band after [06], [06] on page 1 → placed on page 1;
+- band after [08], [08] on page 2 → held on page 1, placed on page 2.
+
+So one marker gives both the correct **page** (which galley contains it) and the correct
+**Y** (its height within that galley's column). No page number to supply. This also means
+a band whose marker never appears (authored past the end) simply flushes on the last page
+rather than being stranded.
+
+**Manual page control — as an override, forward only.** When the automatic page is not
+what an author wants, expose a *relative* nudge, e.g. `\begin{wideband}[<Y>][+1]` =
+"one page later." Design constraints, honestly:
+
+- **Forward (defer) is safe.** Holding a band an extra page is just deferring its
+  placement — cheap and robust. (This is the direction the observed case needs: the band
+  is landing too *early*.)
+- **Backward (pull to an earlier page) is not reliable.** The earlier page is often
+  already shipped, and may have no room; do not promise it.
+- **Absolute page numbers are fragile.** A hardcoded `[page=2]` silently goes wrong when
+  content shifts the pagination; prefer a relative offset over an absolute page.
+
+So the plan: marker-driven automatic page assignment (fixes the bug), with an optional
+**forward** page-offset override for fine control — not an absolute page, not a backward
+pull.
+
 ## Not doing yet
 
 Nothing here is built. The next step, when picked up, is tier 1: emit the marker, revive
-the scan, wire `Y = within-column height` with clamping behind the "auto" default, and
-add a test that a bare `\begin{wideband}` lands where authored (a marker-position bbox
-check) for both a left-column and a right-column band.
+the scan, and use it for **both** page assignment (place a band only when its marker is
+in the current galley) and `Y = within-column height` with clamping — behind the "auto"
+default. Tests: a bare `\begin{wideband}` lands on the right page *and* where authored,
+for a left-column and a right-column band (the marker-after-[08]-on-page-2 case is the
+regression to lock in). The optional forward page-offset override comes after the
+automatic behaviour is solid.
