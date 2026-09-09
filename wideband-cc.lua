@@ -164,8 +164,7 @@ function M.takebotfloats(colnum, holdnum)
   local hb = tex.box[holdnum]
   if hb and hb.list then
     local tl = N.tail(hb.list)
-    local g = N.new(GLUE); g.width = 6 * 65536; g.subtype = 0   -- \floatsep between floats
-    tl.next = ch; ch.prev = tl                                  -- (kept simple; no glue node inserted)
+    tl.next = ch; ch.prev = tl        -- floats abut; \@makecol supplies their spacing
     local box = N.vpack(hb.list); hb.list = nil; tex.box[holdnum] = nil
     tex.setbox("global", holdnum, box)
   else
