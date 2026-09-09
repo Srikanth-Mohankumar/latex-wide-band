@@ -43,43 +43,35 @@ Then check the file's `ASSERTION`:
 | `stress-no-bands-baseline-unchanged` | The package loaded but unused — ordinary two-column pages. |
 
 These sixteen build with no `Overfull \vbox`, conserve their paragraphs (checked at the
-**body** level, not just the `[NN]` tags), and place each band on the asserted page. The
-seventeenth file is a bug reproducer:
+**body** level, not just the `[NN]` tags), and place each band on the asserted page. A
+seventeenth file is a content-conservation regression:
 
 | File | What it exercises |
 |------|-------------------|
-| `stress-KNOWN-ISSUE-final-overflow-content-loss` | **Reproduces a pre-existing content-loss bug — EXPECTED to drop text.** Fails-before for a follow-up `\output`-flush fix. |
+| `stress-final-overflow-content-conserved` | A band-rebuild's overflow that is the document's **last content** still ships (once dropped ~2 sentences; now 2 pages, all 28 present). |
 
-## Known limitation found while writing these tests
+## A content-loss bug this suite found and fixed
 
-**Final-overflow content loss, pre-existing — not the page-assignment concern.** When a
-band-rebuild's overflow is the *document's last content* (nothing authored after the
-band's page), that overflow is dropped instead of shipping as a final page. This is what
-`stress-KNOWN-ISSUE-final-overflow-content-loss.tex` captures: the tail of the last
-paragraph (~2 sentences) never renders.
+Writing these tests exposed a pre-existing bug (present before the page-assignment work
+too): when a band-rebuild's overflow was the *document's last content*, it was **dropped**
+instead of shipping as a final page — the tail of the last paragraph (~2 sentences) never
+rendered.
 
-Measured facts and the named mechanism:
+Mechanism (measured): the assembled band page is a correct `\vbox to\@colht`, and the
+~55pt overflow is `\unvbox`'d back for the next page. With content after the band it
+re-fills and ships normally; only as the *last* content was it lost, because at
+`\end{document}` the band rebuild fires from `\clearpage`'s forcing penalty and **consumes
+it**, so nothing fires for the trailing overflow (a clean probe showed two output-routine
+firings, both on the band page, none for the overflow). The fix (in `wideband-cc.sty`) is
+the plain-TeX idiom `\penalty\outputpenalty` right after the re-inject: it re-asserts the
+break that fired the output, so a `\clearpage`-forced flush re-forces a page for the
+trailing galley, while a natural page break leaves it inert. Verified content-safe across
+the whole suite (every other test's output is byte-identical; only this file changes,
+1 → 2 pages with the recovered text).
 
-- The assembled band page is a correct `\vbox to\@colht` (`550/0`); its natural
-  height+depth is `549pt` < `\textheight` (`550pt`) — it fits. So it is **not** a
-  budget/reserve problem, and not a `joincols` problem.
-- The overflow galley (~55pt) is `\unvbox`'d back for the next page. With more content
-  after the band it re-fills and ships normally (add paragraphs after the last one →
-  2 pages, every sentence present). Only when the overflow is the *last* content is it
-  lost.
-- In that case **no output routine fires for the trailing partial page** at
-  `\end{document}`: a clean probe shows exactly two OR firings, both on the band page,
-  and none for the overflow. `\clearpage` does not ship it, and forcing a page ships an
-  *empty* one — the content is gone from the list by document end.
-- It reproduces on the pre-page-assignment code as well, so it is not a regression. The
-  stray `Overfull \vbox (10.0pt)` is a side effect of the same event, not the defect.
+**Detection note:** a `[NN]`-tag count does *not* catch body-text loss — the paragraph tag
+survives even when its body is dropped. Verify conservation at the body-word level (e.g.
+count `minim`: it must equal `2 ×` the paragraph count).
 
-**Detection note:** a `[NN]`-tag count does *not* catch this — the paragraph tag survives
-even when its body is dropped. Verify conservation at the body-word level (e.g. count
-`minim`: it must equal `2 ×` the paragraph count). The runner and `test-bandpage` use the
-body-word check for this reason.
-
-A follow-up rung should add the missing final-page flush to the `\@outputdblcol` override
-(stock LaTeX ships a trailing first-column-only page; this override does not), then this
-file becomes a passing content-conservation regression. A separate rung adds an automatic
-`Ymax` clamp so a too-large manual `Y` defers rather than being placed too low.
+Still open (a separate rung): an automatic `Ymax` clamp so a too-large manual `Y` defers
+rather than being placed too low.

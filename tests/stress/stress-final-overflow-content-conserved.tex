@@ -1,0 +1,38 @@
+%% =====================================================================
+%% CONTENT-CONSERVATION regression — a band-rebuild's overflow that is the DOCUMENT'S
+%% LAST content must still ship (no dropped text).
+%%
+%% The band sits after [10]; paragraphs [11]-[14] run past the band page, and ~2
+%% sentences (the tail of [14]) overflow. Nothing is authored after them, so this is the
+%% boundary case: the overflow is the last content in the document.
+%%
+%% HISTORY: this once dropped that overflow. The assembled band page is a correct
+%% \vbox to\@colht and the ~55pt overflow is \unvbox'd back for the next page, but when
+%% it was the last content NO output routine fired for it at \end{document} (\clearpage's
+%% single forcing penalty was consumed by the band rebuild itself), so the trailing
+%% partial page was lost -- rendering 1 page with only 26 of the 28 body sentences.
+%% FIX: re-assert the firing break after re-injecting the overflow (\penalty\outputpenalty),
+%% so a \clearpage-forced flush re-forces a page for the trailing galley while a natural
+%% break stays inert. See wideband-cc.sty.
+%%
+%% ASSERTION: 2 pages; the body word "minim" appears 28 times (14 paragraphs x 2
+%% sentences) -- i.e. NO body-text loss; [01]-[14] each once; no "Overfull \vbox".
+%% NOTE: check conservation at the BODY-word level ("minim" == 2 x paragraphs), not just
+%% the [NN] tags -- a paragraph tag survives even when its body is dropped, which is what
+%% originally hid this bug.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{150pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\begin{wideband}\[ E=mc^2 \quad[\text{BOUNDARY-BAND}] \]\end{wideband}
+\Par{11}\Par{12}\Par{13}\Par{14}
+\end{document}

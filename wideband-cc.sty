@@ -316,6 +316,16 @@
       \global\@colht\textheight
       \unvbox\wbcc@galley           % overflow becomes the next page
       \unskip\unpenalty\unskip      % drop \@makecol's column-bottom glue
+      \penalty\outputpenalty        % re-assert the break that fired us, so the overflow
+                                    % ships even when it is the document's last content:
+                                    % on a \clearpage-forced flush (\outputpenalty=-\@Mi)
+                                    % this re-forces a page for the trailing galley; on a
+                                    % natural page break it is inert and later content
+                                    % fills the next page as before (plain-TeX idiom).
+                                    % ONLY the rebuild branch re-inserts: the stock \else
+                                    % branch ships a whole page and must NOT add this, or
+                                    % the second (overflow) firing would re-force again and
+                                    % emit a blank page. Do not "symmetrise" the two.
     \else
       %% nothing to place this page (no overdue band, and no new marker fit): defer any
       %% found-but-unfitting bands to the next page as overdue, and ship the two finished
