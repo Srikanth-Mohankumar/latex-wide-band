@@ -300,3 +300,51 @@ re-flows the single-band pages relative to the earlier budget-reserved layout.
 the *begin* code, not the *end* code (`Illegal parameter number in \endwideband`);
 the Y is captured into `\wbcc@curY` in the begin code and used at `\end`. Still ahead
 in the rung: **floats** and **marks / running heads**.
+
+## Hazards rung — floats: content-safe, placement limited (investigated)
+
+Floats on a band page were tested across the cases (`tests/test-float.tex`, and the
+`figure*`/`[b]` variants). Headline: **they are content-safe** — no float is lost,
+duplicated, or scattered mid-page, and content conservation holds even with a float
++ footnote + band on the same page (distinct=20, dups=0, figure once, note once).
+The rebuild does **not** break floats.
+
+Placement, however, is limited:
+- **single-column `[t]` top floats place correctly** on the band page — `\@makecol`
+  puts them at the column head, and `joincols` only strips the column *tail*, so the
+  float rides into the top segment. `tests/test-float.tex` shows this.
+- **single-column `[b]` bottom floats and double-column `figure*` defer** to a later
+  page when the band is present. A `[b]` float that lands on page 1 band-free is
+  pushed to the next page with the band — because `\@makecol` places a bottom float
+  at the column bottom (at full `\textheight`), and the rebuild's reduced budget
+  carries that bottom region into the overflow. Safe (the float still appears once),
+  but not optimally placed.
+
+Fixing bottom/double placement would need a float **extract-and-replace** in the
+output routine, mirroring the footnote handling: pull the column's float boxes out
+before the recombine, hold them, and re-place at the band-page column tops/bottoms
+(and, for `figure*`, above/below the band via `\@combinedblfloats`). A further rung;
+not done here. Note the `\unvbox\wbcc@galley` still sits before `\@startdblcolumn`
+(architecture §7) — with a pending double float this deferred safely in every test,
+but the ordering remains the reason a `figure*` waits.
+
+## Hazards rung — marks / running heads: diagnosed, not fixed
+
+Running heads on a band page are **wrong**: a mark on content the rebuild overflows
+to the next page is still counted on the band page. In `tests/test-marks.tex` (a mark
+`M##` per paragraph, head printing `\leftmark`/`\rightmark`), page 1's `\leftmark`
+came out `M15` though `[15]` is on page 2, and page 2's `\rightmark` was `M20` instead
+of the first mark actually there. Cause: TeX sets `\firstmark`/`\botmark` from the
+pre-rebuild column (box255), which included the overflow's marks; my `\@outputpage`
+then uses those. It is **not** a regression in the non-band path (stock twocolumn and
+the band-free page behave identically).
+
+Fix direction (attempted, reverted): split **all** of page 1 off the galley in one
+`\vsplit` (so `\splitfirstmark`/`\splitbotmark` capture this page's true marks — the
+per-segment splits only see the last segment), sub-split that into the column
+segments, and override `\leftmark`/`\rightmark` for this page's `\@outputpage` from
+the captured split marks (restoring the kernel accessors after). This **fixed page 2**
+in testing (`\rightmark` → `M15`), but the page-1 split restructure introduced a
+content-scramble bug I did not resolve in the time, so it was reverted to keep the
+known-good multi-band code. The mechanism and the page-2 result are recorded for the
+next attempt.
