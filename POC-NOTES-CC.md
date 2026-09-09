@@ -229,9 +229,41 @@ one would want the full glue spec via `tex.getglue`).
 Still hardcoded: Y (the target position) and the band budget — both orthogonal to
 the rebuild (Y is the separate "Y source" rung; the budget would come from the
 captured band's measured height). Still out of scope:
-- **marks/footnotes/floats.** Note the `\unvbox\wbcc@galley` deliberately sits
+- **marks/floats.** Note the `\unvbox\wbcc@galley` deliberately sits
   *after* `\@outputpage` and *before* the `\@startdblcolumn` float loop; with a
   double float pending, the overflow would already be on the list when the float
   routine ships — an untested interaction (architecture §7). It sits there so the
   overflow becomes the next page's body; do not move it without handling floats;
 - multiple bands, the column-1 in-flow + late-band interaction.
+
+## Hazards rung — footnotes on band pages FIXED (commit follows)
+
+`\@makecol` bakes each finished column's footnotes at its bottom
+(`[\skip\footins glue][colour push][kern -3][\footnoterule][kern 2.6][footnote
+boxes][colour pop]`). cc3's rebuild **splits those finished columns**, so the
+footnotes scatter: in `tests/test-footnote.tex` (before), footnote 1 (from `[02]`,
+left column) landed mid-page in the *right* column with its own rule, and footnote 2
+(from `[11]`) was pushed to page 2 — neither at the page bottom.
+
+Fix (`wideband-cc.lua::M.takefootnotes` + the band branch of `wideband-cc3.sty`):
+in the output routine, before `joincols`, pull each column's footnote apparatus out
+(anchor on the `\footnoterule` — the last rule narrower than the column), keep only
+the footnote *content* boxes (+ their interline glue; drop the rule, kerns,
+`\skip\footins` glue and the balanced colour-stack whatsits) into a hold box
+`\wbcc@fn`; recombine the now footnote-free text; shrink the per-column budget by the
+footnote block's height so columns + band + notes fit; and set **one** clean block —
+`\vskip\skip\footins \footnoterule \unvbox\wbcc@fn` — at the true page bottom.
+
+**Verified** (fails-before/passes-after, `tests/test-footnote.tex`): both footnotes
+at the page-1 bottom under one rule, in order; all 20 paragraphs conserved;
+deterministic over three fresh runs; a band-*without*-footnotes page
+(`test-rightband`) and a band-*free* page with footnotes are both unaffected (the
+handling lives only in the band branch, gated on `\ifvoid\wbcc@fn`).
+
+**Honest limits (POC):** (1) all held footnotes are placed on the band page — a
+footnote whose referencing paragraph *overflows* to the next page would wrongly stay
+behind (not yet tied to its mark's page); (2) both columns' notes are combined at the
+page bottom, left-aligned under one rule, rather than per-column as stock twocolumn
+does; (3) the `\footnoterule` anchor assumes the standard rule (a full-width
+redefinition would defeat the width test). Still ahead in the rung: **floats**,
+**marks / running heads**, **multiple bands per page**.

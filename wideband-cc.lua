@@ -200,4 +200,73 @@ function M.joincols(dstnum, c1num, c2num, bs, ls, limit)
   tex.setbox("global", dstnum, box)
 end
 
+-- Footnote extraction for the in-run rebuild. \@makecol bakes each finished
+-- column's footnotes at its bottom as: [\skip\footins glue][colour push]
+-- [kern -3][\footnoterule][kern 2.6][footnote boxes][colour pop] + the \@makecol
+-- bottom tail. Splitting such a column scatters those footnotes mid-page. This
+-- removes that apparatus from a column and appends the footnote *content* (the
+-- boxes below the rule, with their interline glue) to a hold box, so the caller
+-- can set one clean footnote block at the true page bottom. Returns nothing; the
+-- column keeps its text (+ \@makecol tail, which joincols strips later).
+local function apparatus_start(rule, isbox)   -- first non-box node before the rule
+  local p = rule
+  while p.prev and not isbox(p.prev) do p = p.prev end
+  return p
+end
+function M.takefootnotes(colnum, holdnum)
+  local b = tex.box[colnum]
+  if not (b and b.list) then return end
+  local function isbox(n) return n and (n.id == HLIST or n.id == VLIST) end
+  -- locate the footnote rule: the last rule narrower than the column
+  local rule
+  local x = b.list
+  while x do
+    if x.id == RULE and x.width and x.width > 0 and x.width < 0.7 * (b.width or 0) then rule = x end
+    x = x.next
+  end
+  if not rule then return end
+  local startp = apparatus_start(rule, isbox)          -- \skip\footins glue
+  -- \@makecol tail = first sub=0 glue of negative width after the rule
+  local tail = rule.next
+  while tail do
+    if tail.id == GLUE and (tail.subtype or 0) == 0 and (tail.width or 0) < 0 then break end
+    tail = tail.next
+  end
+  local blockend = tail and tail.prev or N.tail(b.list)
+  -- excise the apparatus [startp .. blockend] from the column
+  local before = startp.prev
+  if before then before.next = tail else b.list = tail end
+  if tail then tail.prev = before end
+  if startp then startp.prev = nil end
+  if blockend then blockend.next = nil end
+  -- from the excised block keep boxes + interline glue (sub=2/1); drop the rule,
+  -- kerns, \skip\footins glue and the colour-stack whatsits (as a balanced pair)
+  local ch, ctl
+  local n = startp
+  while n do
+    local nx = n.next
+    n.next, n.prev = nil, nil
+    local keep = isbox(n) or (n.id == GLUE and (n.subtype == 2 or n.subtype == 1) and ch)
+    if keep and n ~= rule then
+      if not ch then ch = n; ctl = n else ctl.next = n; n.prev = ctl; ctl = n end
+    else
+      N.free(n)
+    end
+    n = nx
+  end
+  if not ch then return end
+  -- append to the hold box (with a baselineskip between a previous block and this)
+  local hb = tex.box[holdnum]
+  if hb and hb.list then
+    local t = N.tail(hb.list)
+    local g = N.new(GLUE); g.width = 6*65536; g.subtype = 0   -- \skip\footins between columns' notes
+    t.next = g; g.prev = t; g.next = ch; ch.prev = g
+    local box = N.vpack(hb.list); hb.list = nil; tex.box[holdnum] = nil
+    tex.setbox("global", holdnum, box)
+  else
+    local box = N.vpack(ch); if hb then hb.list = nil end; tex.box[holdnum] = nil
+    tex.setbox("global", holdnum, box)
+  end
+end
+
 return M

@@ -1,0 +1,33 @@
+%% RIGHT-COLUMN BAND sample.
+%%
+%% The \begin{wideband} is authored after paragraph [09], which — with this much
+%% preceding text — falls in the *right* column of the two-column flow. A genuine
+%% right-column band cannot stay at its source position on the same page (the
+%% impossibility theorem), so wideband-cc places it by DETACH-UP: the band is
+%% pulled up to a chosen height Y and set full width, and both columns flow around
+%% it. The equation is the Standard Model Lagrangian — genuinely too wide for one
+%% column, which is the whole reason a full-width band is wanted.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{wideband-cc3}
+\wbccReserve{58pt}{210pt}     % band budget 58pt, pulled up to Y=210pt
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\usepackage{xcolor}
+\newcommand\Pnum[1]{\par\noindent{\bfseries\color{blue!55!black}[#1]}\space}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit,
+sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim.}
+\newcommand\Par[1]{\Pnum{#1}\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Pnum{02}\Body\footnote{First footnote — belongs at the bottom of page one.}\ \Body\par\medskip\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}
+\begin{wideband}
+\[
+  \mathcal{L}_{\mathrm{SM}} = -\tfrac14 F_{\mu\nu}F^{\mu\nu}
+    + i\,\overline{\psi}\,\gamma^{\mu}D_{\mu}\psi
+    + \overline{\psi}_i\,y_{ij}\,\psi_j\,\phi + \mathrm{h.c.}
+    + |D_{\mu}\phi|^{2} - V(\phi)
+\]
+\end{wideband}
+\Par{10}\Pnum{11}\Body\ \Body\footnote{Second footnote — also belongs at the page-one bottom.}\par\medskip\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}
