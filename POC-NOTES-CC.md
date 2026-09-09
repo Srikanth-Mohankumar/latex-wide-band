@@ -265,5 +265,38 @@ footnote whose referencing paragraph *overflows* to the next page would wrongly 
 behind (not yet tied to its mark's page); (2) both columns' notes are combined at the
 page bottom, left-aligned under one rule, rather than per-column as stock twocolumn
 does; (3) the `\footnoterule` anchor assumes the standard rule (a full-width
-redefinition would defeat the width test). Still ahead in the rung: **floats**,
-**marks / running heads**, **multiple bands per page**.
+redefinition would defeat the width test). Still ahead in the rung: **floats** and
+**marks / running heads**.
+
+## Hazards rung — multiple bands per page FIXED (commit follows)
+
+The single-band POC held the band in one box `\wbcc@band` and a flag `\wbcc@pending`.
+A second `\begin{wideband}` on the same page overwrote that box, so
+(`tests/test-twoband.tex`, before) only the *second* band rendered — the first was
+silently dropped.
+
+Fix (`wideband-cc3.sty`): bands accumulate onto a per-page list — a pool of band
+boxes `\wbcc@b@i` and split heights `\wbcc@Yd@i` (default `\wbcc@detachY`, or a
+per-band optional argument `\begin{wideband}[<Y>]`), counted by `\wbcc@nb`. In the
+output routine the per-column budget becomes `\textheight − Σ(band heights) −
+notes`, and each recombined column is `\vsplit` into **N+1 segments** at the sorted
+`Y_i`; the page is then assembled by interleaving `row₁, band₁, row₂, …, band_N,
+row_{N+1}` (each row a two-column `hbox`), notes at the bottom, overflow to the next
+page. Up to `\wbcc@MAX = 4` bands per page.
+
+**Verified** (`tests/test-twoband.tex`, two bands `E=mc²` at Y=150pt and Ampère's
+law at Y=330pt): both bands set full width at their heights, three two-column
+segments flowing around them, reading order `[01]–[06]` / `[07]–[12]`; all
+paragraphs conserved, no dups; deterministic over three fresh runs. The single-band
+tests (`test-rightband`, `test-footnote`, `test-seam`, `test-rebuild`) all still pass
+(20 conserved, no dups, seam and junction still clean) through the N=1 path.
+
+**Behaviour change:** the per-column budget is now the *measured* band height, not
+`\wbccReserve`'s first argument (which becomes vestigial — its second, `\wbcc@detachY`,
+is still the default Y). This is more accurate (no over-reserved whitespace) but
+re-flows the single-band pages relative to the earlier budget-reserved layout.
+
+**Bug fixed while building it:** `\newenvironment`'s optional `#1` is visible only in
+the *begin* code, not the *end* code (`Illegal parameter number in \endwideband`);
+the Y is captured into `\wbcc@curY` in the begin code and used at `\end`. Still ahead
+in the rung: **floats** and **marks / running heads**.

@@ -1,0 +1,16 @@
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc3}
+\wbccReserve{48pt}{170pt}
+\raggedbottom \pagestyle{empty} \setlength{\parindent}{0pt}
+\usepackage{xcolor}
+\newcommand\Pnum[1]{\par\noindent{\bfseries\color{blue!55!black}[#1]}\space}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim.}
+\newcommand\Par[1]{\Pnum{#1}\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{wideband}[150pt]\[ E = mc^2 \qquad\text{(BAND ONE)} \]\end{wideband}
+\Par{04}\Par{05}\Par{06}\Par{07}
+\begin{wideband}[330pt]\[ \oint \mathbf{B}\cdot d\boldsymbol{\ell} = \mu_0 I \qquad\text{(BAND TWO)} \]\end{wideband}
+\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}
+\end{document}

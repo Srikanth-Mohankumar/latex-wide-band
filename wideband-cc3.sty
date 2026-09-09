@@ -1,34 +1,86 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{wideband-cc3}[2026/09/08 CC col-2 detach-up + in-run rebuild POC (throwaway)]
+\ProvidesPackage{wideband-cc3}[2026/09/09 CC in-run rebuild POC: footnotes + multi-band (throwaway)]
 \RequirePackage{iftex}\RequireLuaTeX
 \directlua{wbcc = dofile("wideband-cc.lua")}
 
-\newbox\wbcc@band
-\newbox\wbcc@Ltop \newbox\wbcc@Lbot \newbox\wbcc@Rtop \newbox\wbcc@Rbot
+\newbox\wbcc@band                          % scratch capture box
 \newbox\wbcc@galley
 \newbox\wbcc@fn
-\newdimen\wbcc@budget   \wbcc@budget=48\p@   % band budget (hardcoded)
-\newdimen\wbcc@detachY  \wbcc@detachY=220\p@ % target Y (hardcoded)
-\newcount\wbcc@pending  \global\wbcc@pending\z@
+\newdimen\wbcc@budget   \wbcc@budget=48\p@  % (legacy) default per-band budget
+\newdimen\wbcc@detachY  \wbcc@detachY=220\p@% default split height Y
 \newdimen\wbcc@sep      \wbcc@sep=6\p@
+\newdimen\wbcc@bud                          % per-column text budget on a band page
+\newdimen\wbcc@prevY
+\newcount\wbcc@pending  \global\wbcc@pending\z@
+\newcount\wbcc@nb       \global\wbcc@nb\z@   % bands pending on the current page
+\newcount\wbcc@i
+\chardef\wbcc@MAX=4                          % up to 4 bands / 5 segments per page
+
+%% Pools: band boxes + split heights, and the L/R column-segment boxes.
+\wbcc@i=\@ne
+\loop
+  \expandafter\newbox\csname wbcc@b@\the\wbcc@i\endcsname
+  \expandafter\newdimen\csname wbcc@Yd@\the\wbcc@i\endcsname
+  \expandafter\newbox\csname wbcc@L@\the\wbcc@i\endcsname
+  \expandafter\newbox\csname wbcc@R@\the\wbcc@i\endcsname
+  \advance\wbcc@i\@ne
+\ifnum\wbcc@i<\numexpr\wbcc@MAX+\tw@\relax \repeat  % one extra segment box (N+1)
 
 \newcommand\wbccReserve[2]{\global\wbcc@budget=#1\relax \global\wbcc@detachY=#2\relax}
 
-%% Band authored in column 2: captured OUT of the flow, page marked pending.
-%% NOTE: no budget is reserved up front — the band is discovered late (as it
-%% really is), and the room for it is made by an in-run rebuild in the OR.
-\newenvironment{wideband}{%
+%% Each band is captured OUT of the flow and pushed onto the page's band list with
+%% its own split height Y (optional arg, default \wbcc@detachY). Y is the amount of
+%% column text placed above the band, i.e. its galley-split position.
+\newenvironment{wideband}[1][\wbcc@detachY]{%
+  \def\wbcc@curY{#1}%              % capture Y here — #1 is not visible in \end
   \par
   \setbox\wbcc@band\vbox\bgroup
     \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
 }{%
   \egroup
-  \global\setbox\wbcc@band\vbox{\hrule\@height\p@ \kern3\p@
+  \global\advance\wbcc@nb\@ne
+  \global\setbox\csname wbcc@b@\the\wbcc@nb\endcsname\vbox{\hrule\@height\p@ \kern3\p@
      \box\wbcc@band \kern3\p@ \hrule\@height\p@}%
+  \global\csname wbcc@Yd@\the\wbcc@nb\endcsname=\wbcc@curY\relax
   \global\wbcc@pending\@ne
 }
 
 \def\wbcc@vtop#1{\vtop{\kern\z@\unvbox#1}}
+
+%% Split one recombined column (already in \wbcc@galley) into \wbcc@nb+1 segments:
+%% segment i (i=1..nb) has height Y_i - Y_{i-1}; the last has \wbcc@bud - Y_nb.
+%% #1 is L or R.
+\def\wbcc@splitcol#1{%
+  \wbcc@prevY\z@
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \setbox\csname wbcc@#1@\the\wbcc@i\endcsname
+      \vsplit\wbcc@galley to\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname-\wbcc@prevY\relax
+    \wbcc@prevY\csname wbcc@Yd@\the\wbcc@i\endcsname
+    \advance\wbcc@i\@ne}%
+  \setbox\csname wbcc@#1@\the\wbcc@i\endcsname
+    \vsplit\wbcc@galley to\dimexpr\wbcc@bud-\wbcc@prevY\relax
+}
+
+%% One two-column row from segment #1.
+\def\wbcc@row#1{%
+  \hb@xt@\textwidth{%
+    \hb@xt@\columnwidth{\wbcc@vtop{\csname wbcc@L@#1\endcsname}\hss}%
+    \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
+    \hb@xt@\columnwidth{\wbcc@vtop{\csname wbcc@R@#1\endcsname}\hss}}%
+}
+
+%% Interleave segments and bands: row1, band1, row2, band2, ..., row(nb+1).
+\def\wbcc@assemble{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \wbcc@row{\the\wbcc@i}%
+    \vskip\wbcc@sep
+    \hb@xt@\textwidth{\box\csname wbcc@b@\the\wbcc@i\endcsname\hss}%
+    \vskip\wbcc@sep
+    \advance\wbcc@i\@ne}%
+  \wbcc@row{\the\wbcc@i}%
+}
 
 \def\@outputdblcol{%
   \if@firstcolumn
@@ -37,13 +89,9 @@
   \else
     \global\@firstcolumntrue
     \ifnum\wbcc@pending>\z@
-      %% ---- in-run rebuild: both columns are full (H); make room for the band
-      %% by recombining and re-splitting at the reduced budget H-B; the tail
-      %% overflows to the next page. ----
-      %% footnotes: pull each finished column's \@makecol footnote block out
-      %% (splitting the column would scatter them mid-page) and hold the content;
-      %% set one clean block at the true page bottom, and shrink the text budget
-      %% by its height so the columns + band + notes fit the page.
+      %% ---- in-run rebuild with N bands ----
+      %% footnotes: pull each finished column's \@makecol footnote block out and
+      %% hold it; one clean block goes at the true page bottom.
       \global\setbox\wbcc@fn\box\voidb@x
       \directlua{wbcc.takefootnotes(\number\@leftcolumn, \number\wbcc@fn)
         wbcc.takefootnotes(\number\@outputbox, \number\wbcc@fn)}%
@@ -51,54 +99,33 @@
       \ifvoid\wbcc@fn\else
         \@tempdimc\dimexpr\skip\footins + \ht\wbcc@fn + \dp\wbcc@fn + 4\p@\relax
       \fi
-      \dimen@\dimexpr\textheight-\wbcc@budget-\@tempdimc\relax   % H - band - notes
-      %% Recombine the two finished columns into one galley. A plain
-      %% \unvbox\@leftcolumn\unvbox\@outputbox would leave column 1's \@makecol
-      %% bottom tail (\vskip-\dp + an infinite-stretch \@textbottom) butted
-      %% against column 2's leading \topskip at the join, which reads ~2pt tight
-      %% mid-column. joincols drops both and splices the baselineskip TeX would
-      %% have put there (needs the depth/height, hence Lua).
+      %% per-column text budget = \textheight - (sum of band heights + gaps) - notes
+      \@tempdima\z@
+      \wbcc@i\@ne
+      \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+        \advance\@tempdima\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
+          +\dp\csname wbcc@b@\the\wbcc@i\endcsname+\tw@\wbcc@sep\relax
+        \advance\wbcc@i\@ne}%
+      \wbcc@bud\dimexpr\textheight-\@tempdima-\@tempdimc\relax
+      %% recombine both finished columns (seam-correct join), then split per band.
       \@tempdima\baselineskip \@tempdimb\lineskip
       \directlua{wbcc.joincols(\number\wbcc@galley, \number\@leftcolumn,
         \number\@outputbox, \number\@tempdima, \number\@tempdimb, \number\lineskiplimit)}%
       \splittopskip\z@skip \splitmaxdepth\maxdimen \vbadness\maxdimen \vfuzz\maxdimen
-      \setbox\wbcc@Ltop\vsplit\wbcc@galley to\wbcc@detachY
-      \setbox\wbcc@Lbot\vsplit\wbcc@galley to\dimexpr\dimen@-\wbcc@detachY\relax
-      \setbox\wbcc@Rtop\vsplit\wbcc@galley to\wbcc@detachY
-      \setbox\wbcc@Rbot\vsplit\wbcc@galley to\dimexpr\dimen@-\wbcc@detachY\relax
-      %% \wbcc@galley now holds the overflow (~2B) for the next page
+      \wbcc@splitcol L
+      \wbcc@splitcol R
+      %% \wbcc@galley now holds the overflow for the next page
       \setbox\@outputbox\vbox to\textheight{%
-        \hb@xt@\textwidth{%
-          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Ltop\hss}%
-          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
-          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Rtop\hss}}%
-        \vskip\wbcc@sep
-        \hb@xt@\textwidth{\box\wbcc@band\hss}%
-        \vskip\wbcc@sep
-        \hb@xt@\textwidth{%
-          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Lbot\hss}%
-          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
-          \hb@xt@\columnwidth{\wbcc@vtop\wbcc@Rbot\hss}}%
+        \wbcc@assemble
         \vfil
         \ifvoid\wbcc@fn\else
           \vskip\skip\footins \footnoterule \unvbox\wbcc@fn
         \fi}%
       \global\wbcc@pending\z@
+      \global\wbcc@nb\z@
       \@combinedblfloats
       \@outputpage
       \global\@colht\textheight
-      %% Re-inject the overflow so it becomes the next page. \@outputbox (column
-      %% 2) was built by \@makecol, so its tail is the column-bottom glue: a
-      %% \vskip of -\dp (depth compensation) followed by \@textbottom, an
-      %% infinite-stretch fill (\raggedbottom). \unvbox\@outputbox carried that
-      %% tail into the galley, and it rides the overflow's bottom. Left in place
-      %% it lands mid-column on the next page and shares that column's slack, so
-      %% a paragraph split by the break rejoins with a stretched (loose) gap.
-      %% Dropping it (pure TeX, on the list \unvbox just laid down) heals the
-      %% seam; the held material keeps its own break glue on the contribution
-      %% list. NB: no \pagediscards — it is empty here (\savingvdiscards is 0),
-      %% and once integration sets \savingvdiscards=1 it would hold column 2's
-      %% *top* discards, i.e. the wrong glue at this seam.
       \unvbox\wbcc@galley           % overflow becomes the next page
       \unskip\unpenalty\unskip      % drop \@makecol's column-bottom glue
     \else
