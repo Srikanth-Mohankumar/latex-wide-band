@@ -1,7 +1,10 @@
 -- wideband-cc.lua — Continuous-Column wide-band node surgery (throwaway POC).
 --
--- Three operations, all run in the output routine on the two finished \@makecol
--- columns before they are recombined and re-split around the band:
+-- Operations run in the output routine on the two finished \@makecol columns:
+--   M.mark           write a position marker at the band's authored point in the flow
+--   M.markpos        scan the finished columns for band markers (count + within-column
+--                    heights) — drives page assignment and automatic Y
+--   M.stripmarks     remove the placed bands' markers before the columns are recombined
 --   M.joincols       recombine the columns with a correct interline glue at the join
 --   M.takefootnotes  pull each column's footnote block out (re-set at the page bottom)
 --   M.takebotfloats  pull each column's [b] bottom float out (re-set at the page bottom)
@@ -13,8 +16,95 @@ local GLUE    = N.id("glue")
 local HLIST   = N.id("hlist")
 local VLIST   = N.id("vlist")
 local RULE    = N.id("rule")
+local WHATSIT = N.id("whatsit")
+local UD      = (N.subtype and N.subtype("user_defined")) or 8
+local USER_ID = 0x57424E44                     -- "WBND"
 
 local function zerokern() local k = N.new(KERN, 1); k.kern = 0; return k end
+
+-- A band leaves this marker in the flow at the point it was authored. It has zero
+-- height/depth, so it never affects layout; it rides with the surrounding text into
+-- whichever page's column that authored position lands on, which is how the output
+-- routine decides which page the band belongs to.
+local function is_marker(n)
+  return n.id == WHATSIT and n.subtype == UD and n.user_id == USER_ID
+end
+
+function M.mark()
+  local w = N.new(WHATSIT, UD)
+  w.user_id = USER_ID; w.type = 100; w.value = 0
+  N.write(w)                                   -- append to the current (vertical) list
+end
+
+-- vertical walk: total at a node = TeX's \pagetotal there. Returns the list's full
+-- accumulated height (total + trailing depth) so the caller can offset a second
+-- column onto the same galley coordinate.
+local function vscan(head, visit)
+  local total, depth = 0, 0
+  local n = head
+  while n do
+    if visit then visit(n, total) end
+    local id = n.id
+    if id == HLIST or id == VLIST or id == RULE then
+      total = total + depth + (n.height or 0); depth = n.depth or 0
+    elseif id == GLUE then total = total + depth + (n.width or 0); depth = 0
+    elseif id == KERN then total = total + depth + (n.kern or 0); depth = 0 end
+    n = n.next
+  end
+  return total + depth
+end
+
+-- Scan the two finished columns (boxes a, b) for band markers, in reading order:
+-- all of column a top-to-bottom, then all of column b. Store the number found in
+-- count register `kreg`, and each marker's GALLEY position (its \pagetotal, in sp,
+-- measured in the recombined [col1|col2] galley) in the consecutive dimen registers
+-- base, base+1, ... A column-1 marker's galley position is its within-column height;
+-- a column-2 marker's is A_end + its within-column height, where A_end is column 1's
+-- accumulated height — because joincols lays column 2 directly below column 1. The
+-- i-th marker corresponds to the i-th pending band with a marker on this page (they
+-- are emitted in document order). Non-destructive. `base` is \wbcc@mh@1's register.
+function M.markpos(a, b, kreg, base)
+  base = tonumber(base)
+  local k = 0
+  local ba = tex.box[tonumber(a)]
+  local aend = (ba and ba.list) and vscan(ba.list, function(n, total)
+    if is_marker(n) then tex.setdimen("global", base + k, total); k = k + 1 end
+  end) or 0
+  local bb = tex.box[tonumber(b)]
+  if bb and bb.list then
+    vscan(bb.list, function(n, total)
+      if is_marker(n) then tex.setdimen("global", base + k, aend + total); k = k + 1 end
+    end)
+  end
+  tex.setcount("global", tonumber(kreg), k)
+end
+
+-- Remove the first `n` markers (reading order: column a then b) from the two
+-- finished columns. The caller passes n = every marker found on this page, so no
+-- marker survives into the assembled page or the overflow: a band deferred off this
+-- page is tracked by the output routine (\wbcc@overdue) and force-placed next page
+-- from the pool, not by letting a marker ride forward. Call before joincols (which
+-- would otherwise free a marker sitting at the column seam).
+function M.stripmarks(a, b, n)
+  n = tonumber(n)
+  local removed = 0
+  local function strip(num)
+    local box = tex.box[tonumber(num)]
+    if not (box and box.list) then return end
+    local x = box.list
+    while x and removed < n do
+      local nx = x.next
+      if is_marker(x) then
+        local p = x.prev
+        if p then p.next = nx else box.list = nx end
+        if nx then nx.prev = p end
+        x.next, x.prev = nil, nil; N.free(x); removed = removed + 1
+      end
+      x = nx
+    end
+  end
+  strip(a); strip(b)
+end
 
 -- Concatenate the two finished columns into the galley with a correct interline
 -- glue at the join. \@makecol left column 1 with a bottom tail (\vskip-\dp then

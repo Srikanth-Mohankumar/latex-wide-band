@@ -1,0 +1,47 @@
+%% PAGE-ASSIGNMENT regression — a band authored after a page-2 paragraph must be
+%% PLACED on page 2, not dragged onto page 1 by an earlier band's page-1 rebuild.
+%%
+%% Setup mirrors the reported case (a top figure* + several bands): BAND-1 is authored
+%% after [06] and belongs on page 1; BAND-2 is authored after [08], which falls on
+%% page 2; BAND-3 is authored after [16] (also page 2). A band is captured OUT of the
+%% flow, so it has zero height while TeX fills the page and the page builder reads far
+%% ahead — past [08] and BAND-2 — while still completing page 1 (the top figure* widens
+%% that read-ahead).
+%%
+%% FAILS BEFORE (flag-based code): the band was tied to a global flag set the instant
+%% \begin{wideband} was read and incremented a per-page band count. By the time page 1's
+%% output routine fired, BOTH BAND-1 and BAND-2 were captured, so page 1's rebuild
+%% greedily placed BOTH — BAND-2 rendered on page 1 even though its authored position
+%% ([08]) is on page 2.
+%%
+%% PASSES AFTER (marker-driven code): each band leaves a zero-size marker at its authored
+%% point. The output routine places a band only when that marker lands in the current
+%% page's recombined galley (and fits the reduced budget); otherwise the band is deferred.
+%% So page 1 places only BAND-1; BAND-2 and BAND-3 are placed on page 2.
+%%
+%% ASSERTION: BAND-1 is on page 1; BAND-2 is NOT on page 1 (it is on page 2, with BAND-3);
+%% no "Overfull \vbox"; every [NN] paragraph present exactly once. Add \usepackage{showframe}
+%% to see the text-area frame.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{stfloats}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{180pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\begin{figure*}[!t]\centering
+  \fbox{\rule{0pt}{150pt}\rule{\columnwidth}{0pt}}\caption{sample figure}
+\end{figure*}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}
+\begin{wideband}\[ E=mc^2 \quad[\text{BAND-1}] \]\end{wideband}
+\Par{07}\Par{08}
+\begin{wideband}\[ E=mc^2 \quad[\text{BAND-2}] \]\end{wideband}
+\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\begin{wideband}\[ E=mc^2 \quad[\text{BAND-3}] \]\end{wideband}
+\Par{17}\Par{18}
+\end{document}

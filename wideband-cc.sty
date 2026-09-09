@@ -37,9 +37,13 @@
 \newdimen\wbcc@sep      \wbcc@sep=6\p@
 \newdimen\wbcc@bud                          % per-column text budget on a band page
 \newdimen\wbcc@prevY
-\newcount\wbcc@pending  \global\wbcc@pending\z@
-\newcount\wbcc@nb       \global\wbcc@nb\z@   % bands pending on the current page
+\newcount\wbcc@np       \global\wbcc@np\z@   % bands captured but not yet placed (all pages)
+\newcount\wbcc@overdue  \global\wbcc@overdue\z@% front prefix of the pool forced onto THIS page
+\newcount\wbcc@found \edef\wbcc@found@n{\the\allocationnumber}% count-register index for Lua
+\newcount\wbcc@nb       \global\wbcc@nb\z@   % bands PLACED on the current page (overdue + fit)
+\newcount\wbcc@m                             % new markers that fit this page (descent result)
 \newcount\wbcc@i \newcount\wbcc@j            % \wbcc@j: inner counter for the band sort
+\newif\ifwbcc@more                           % descent loop continuation flag
 \chardef\wbcc@MAX=4                          % up to 4 bands / 5 segments per page
 
 %% Pools: band boxes + split heights, and the L/R column-segment boxes.
@@ -51,6 +55,17 @@
   \expandafter\newbox\csname wbcc@R@\the\wbcc@i\endcsname
   \advance\wbcc@i\@ne
 \ifnum\wbcc@i<\numexpr\wbcc@MAX+\tw@\relax \repeat  % one extra segment box (N+1)
+
+%% Marker-height pool \wbcc@mh@1..MAX: each band marker's galley position, filled by
+%% wbcc.markpos. Allocated in a dedicated loop so the registers are CONTIGUOUS (Lua
+%% writes base, base+1, ...); \wbcc@mh@base is \wbcc@mh@1's register index.
+\expandafter\newdimen\csname wbcc@mh@1\endcsname
+\edef\wbcc@mh@base{\the\allocationnumber}%
+\wbcc@i=\tw@
+\loop
+  \expandafter\newdimen\csname wbcc@mh@\the\wbcc@i\endcsname
+  \advance\wbcc@i\@ne
+\ifnum\wbcc@i<\numexpr\wbcc@MAX+\@ne\relax \repeat
 
 \newcommand\wbccReserve[2]{\global\wbcc@budget=#1\relax \global\wbcc@detachY=#2\relax}
 
@@ -64,11 +79,11 @@
     \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
 }{%
   \egroup
-  \global\advance\wbcc@nb\@ne
-  \global\setbox\csname wbcc@b@\the\wbcc@nb\endcsname\vbox{\hrule\@height\p@ \kern3\p@
+  \global\advance\wbcc@np\@ne
+  \global\setbox\csname wbcc@b@\the\wbcc@np\endcsname\vbox{\hrule\@height\p@ \kern3\p@
      \box\wbcc@band \kern3\p@ \hrule\@height\p@}%
-  \global\csname wbcc@Yd@\the\wbcc@nb\endcsname=\wbcc@curY\relax
-  \global\wbcc@pending\@ne
+  \global\csname wbcc@Yd@\the\wbcc@np\endcsname=\wbcc@curY\relax
+  \directlua{wbcc.mark()}%       % leave a marker at the authored position (page assignment)
 }
 
 \def\wbcc@vtop#1{\vtop{\kern\z@\unvbox#1}}
@@ -147,14 +162,92 @@
   \wbcc@row{\the\wbcc@i}%
 }
 
+%% Per-column text budget for placing \wbcc@nb bands: \@colht minus the band heights
+%% (+gaps), minus footnotes (\@tempdimc) and bottom floats (\wbcc@bfh), minus a
+%% per-row depth/interline reserve. Use \@colht (NOT \textheight): on a page carrying
+%% a \dbltop float the columns were built at the reduced \@colht and \@combinedblfloats
+%% adds the float back to reach \textheight, so budgeting on \textheight would
+%% double-count. Each of the N+1 rows can carry up to \maxdepth of last-line depth, so
+%% reserve (N+1)*\maxdepth; the band sits a \lineskip below each row, so reserve
+%% N*\lineskip too. The caller sets \@tempdimc/\wbcc@bfh first (0 during the fit
+%% descent, real values for the actual split).
+\def\wbcc@computebud{%
+  \@tempdima\z@
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \advance\@tempdima\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
+      +\dp\csname wbcc@b@\the\wbcc@i\endcsname+\tw@\wbcc@sep\relax
+    \advance\wbcc@i\@ne}%
+  \wbcc@i\numexpr\wbcc@nb+\@ne\relax
+  \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
+  \@tempdimb\lineskip \multiply\@tempdimb\wbcc@nb        % N*\lineskip: row->band interline glue
+  \advance\@tempdimd\@tempdimb
+  \wbcc@bud\dimexpr\@colht-\@tempdima-\@tempdimc-\wbcc@bfh-\@tempdimd\relax
+}
+
+%% How many bands to place on this page. The overdue prefix (bands deferred from an
+%% earlier page) is always placed; the descent decides how many of THIS page's new
+%% markers also fit. Bands are laid on the recombined galley [col1|col2], so a marker
+%% at galley position P lands on this page iff P <= 2*\wbcc@bud (a col-1 marker below
+%% \wbcc@bud simply becomes the top of the rebuilt right column — still on the page).
+%% Galley order is document order, so the deepest fitting marker is the last one;
+%% shrink \wbcc@m (fitting new markers) until marker \wbcc@m fits, then \wbcc@nb =
+%% overdue + \wbcc@m. Notes/floats are treated as 0 here (optimistic — it can place a
+%% boundary band one page early but never overflows, as the final \vbox to\@colht
+%% still clips; a page with footnotes/floats AND a marginal band is the only gap).
+\def\wbcc@duecount{%
+  \@tempdimc\z@ \wbcc@bfh\z@
+  \wbcc@m\wbcc@found
+  \loop
+    \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
+    \wbcc@morefalse
+    \ifnum\wbcc@m>\z@
+      \wbcc@computebud
+      \@tempdima\csname wbcc@mh@\the\wbcc@m\endcsname
+      \@tempdimb\tw@\wbcc@bud
+      \ifdim\@tempdima>\@tempdimb \advance\wbcc@m\m@ne \wbcc@moretrue \fi
+    \fi
+  \ifwbcc@more\repeat
+}
+
+%% After placing \wbcc@nb bands (pool prefix 1..\wbcc@nb), drop them and slide the
+%% still-pending tail (\wbcc@nb+1 .. \wbcc@np) down to the front, boxes and Y's
+%% together, then shrink the pending total.
+\def\wbcc@shiftpool{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@np-\wbcc@nb+\@ne\relax\do{%
+    \edef\wbcc@src{\the\numexpr\wbcc@i+\wbcc@nb\relax}%
+    \global\setbox\csname wbcc@b@\the\wbcc@i\endcsname\box\csname wbcc@b@\wbcc@src\endcsname
+    \global\csname wbcc@Yd@\the\wbcc@i\endcsname\csname wbcc@Yd@\wbcc@src\endcsname
+    \advance\wbcc@i\@ne}%
+  \global\advance\wbcc@np-\wbcc@nb
+}
+
 \def\@outputdblcol{%
   \if@firstcolumn
     \global\@firstcolumnfalse
     \global\setbox\@leftcolumn\box\@outputbox
   \else
     \global\@firstcolumntrue
-    \ifnum\wbcc@pending>\z@
-      %% ---- in-run rebuild with N bands ----
+    %% Page assignment (marker-driven): scan both finished columns non-destructively.
+    %% \wbcc@found = this page's markers; their galley positions land in \wbcc@mh@1..
+    %% A band is placed on the page its authored marker falls on — not the page where
+    %% \begin{wideband} happened to be read.
+    \directlua{wbcc.markpos(\number\@leftcolumn, \number\@outputbox,
+      \wbcc@found@n, \wbcc@mh@base)}%
+    \wbcc@j\numexpr\wbcc@np-\wbcc@overdue\relax     % pending bands still carrying a marker
+    \ifnum\wbcc@found>\wbcc@j
+      \PackageWarning{wideband-cc}{markpos found \the\wbcc@found\space markers but
+        \the\wbcc@j\space marked bands pending; clamping}%
+      \global\wbcc@found\wbcc@j
+    \fi
+    \wbcc@duecount        % -> \wbcc@m fitting new markers; \wbcc@nb = \wbcc@overdue + \wbcc@m
+    %% strip THIS page's markers (all found) before any node surgery: placed bands must
+    %% leave no marker behind, and a deferred-new band is re-placed from the pool next
+    %% page (tracked by \wbcc@overdue), never by letting its marker ride the overflow.
+    \directlua{wbcc.stripmarks(\number\@leftcolumn, \number\@outputbox, \number\wbcc@found)}%
+    \ifnum\wbcc@nb>\z@
+      %% ---- in-run rebuild placing \wbcc@nb bands (overdue + newly-fitting) ----
       %% footnotes: pull each finished column's \@makecol footnote block out and
       %% hold it; one clean block goes at the true page bottom.
       \global\setbox\wbcc@fn\box\voidb@x
@@ -178,27 +271,10 @@
         \ifdim\@tempdimd>\wbcc@bfh \wbcc@bfh\@tempdimd \fi
       \fi
       \ifdim\wbcc@bfh>\z@ \advance\wbcc@bfh\textfloatsep \fi
-      %% sort bands by Y so the segment split sees ascending split heights; near-equal
-      %% Y's then stack (see \wbcc@splitcol) instead of forcing a ~0pt segment.
+      %% sort the placed bands by Y so the segment split sees ascending split heights;
+      %% near-equal Y's then stack (see \wbcc@splitcol) instead of forcing a ~0pt segment.
       \ifnum\wbcc@nb>\@ne \wbcc@sortbands \fi
-      %% per-column text budget = \@colht - (sum of band heights + gaps) - notes -
-      %% floats - a per-segment depth reserve. Use \@colht (NOT \textheight): on a page
-      %% carrying a \dbltop float the columns were built at the reduced \@colht and
-      %% \@combinedblfloats adds the float back to reach \textheight, so budgeting on
-      %% \textheight would double-count the float and overflow. Each of the N+1 rows can
-      %% carry up to \maxdepth of last-line depth (bounded below by \splitmaxdepth), so
-      %% reserve (N+1)*\maxdepth to keep the assembled page within \@colht.
-      \@tempdima\z@
-      \wbcc@i\@ne
-      \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
-        \advance\@tempdima\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
-          +\dp\csname wbcc@b@\the\wbcc@i\endcsname+\tw@\wbcc@sep\relax
-        \advance\wbcc@i\@ne}%
-      \wbcc@i\numexpr\wbcc@nb+\@ne\relax
-      \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
-      \@tempdimb\lineskip \multiply\@tempdimb\wbcc@nb        % N*\lineskip: row->band interline glue
-      \advance\@tempdimd\@tempdimb
-      \wbcc@bud\dimexpr\@colht-\@tempdima-\@tempdimc-\wbcc@bfh-\@tempdimd\relax
+      \wbcc@computebud      % real per-column budget (footnote/float heights now known)
       %% recombine both finished columns (seam-correct join), then split per band.
       \@tempdima\baselineskip \@tempdimb\lineskip
       \directlua{wbcc.joincols(\number\wbcc@galley, \number\@leftcolumn,
@@ -229,7 +305,11 @@
         \ifvoid\wbcc@fn\else
           \vskip\skip\footins \footnoterule \unvbox\wbcc@fn
         \fi}%
-      \global\wbcc@pending\z@
+      %% pool bookkeeping: deferred-new bands (\wbcc@found - \wbcc@m) become overdue and
+      %% are forced onto the next page; drop the placed prefix and slide the pending
+      %% tail down to the front.
+      \global\wbcc@overdue\numexpr\wbcc@found-\wbcc@m\relax
+      \wbcc@shiftpool
       \global\wbcc@nb\z@
       \@combinedblfloats
       \@outputpage
@@ -237,6 +317,11 @@
       \unvbox\wbcc@galley           % overflow becomes the next page
       \unskip\unpenalty\unskip      % drop \@makecol's column-bottom glue
     \else
+      %% nothing to place this page (no overdue band, and no new marker fit): defer any
+      %% found-but-unfitting bands to the next page as overdue, and ship the two finished
+      %% columns as a normal two-column page. A pending band with no marker here is left
+      %% untouched — it is placed on the page its marker lands on.
+      \global\wbcc@overdue\wbcc@found
       \setbox\@outputbox\vbox{%
         \hb@xt@\textwidth{%
           \hb@xt@\columnwidth{\box\@leftcolumn\hss}%

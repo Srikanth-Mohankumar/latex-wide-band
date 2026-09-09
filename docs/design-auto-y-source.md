@@ -1,6 +1,8 @@
 # Automatic Y (and page) source for wideband-cc — approach
 
-*Status: design/approach only (not implemented). Branch `cc/poc`.*
+*Status: Phase A (marker-driven **page assignment**) is implemented on branch `cc/poc`.
+Phase B (**automatic Y** from the marker's height) is still design-only. This doc keeps
+the full plan; the "Which page a band lands on" section below marks what now ships.*
 
 > This doc covers two coupled placement questions — **which page** a band lands on and
 > **how far down** (Y) — because the same marker answers both. The page part is written
@@ -143,6 +145,26 @@ So one marker gives both the correct **page** (which galley contains it) and the
 **Y** (its height within that galley's column). No page number to supply. This also means
 a band whose marker never appears (authored past the end) simply flushes on the last page
 rather than being stranded.
+
+**Implemented (Phase A).** The output routine now scans both finished columns for markers
+(`wbcc.markpos`, non-destructive) and reports each marker's position in *galley*
+coordinates — a column-1 marker at height `h` keeps `P = h`; a column-2 marker gets
+`P = A_end + h`, where `A_end` is column 1's height, because `joincols` lays column 2
+directly below column 1. A marker lands on this page iff **`P ≤ 2·bud`** (a column-1
+marker below `bud` simply becomes the top of the rebuilt right column — still on the
+page). Galley order is document order, so the deepest fitting marker is the last one, and
+a one-pass descent shrinks the fitting count until it holds. The pool is split into a
+persistent pending total (`\wbcc@np`) and a per-page place count (`\wbcc@nb =` overdue +
+fitting-new). Because deferring a band while building the page at the larger `bud`
+would let its marker *stay* on the page (the "ride" hole), **all** of this page's markers
+are stripped, and deferred bands are tracked by `\wbcc@overdue` and force-placed first on
+the next page — one mechanism, no riding. Note the fit descent budgets footnotes/floats
+as zero (optimistic): it can place a boundary band one page early on a page that also
+carries footnotes or bottom floats, but never overflows, since the final `\vbox to\@colht`
+still clips. Regression: `tests/test-bandpage.tex` (a band after [08], which falls on
+page 2, must not render on page 1). Phase A keeps **manual Y** — a deferred (overdue) band
+has no marker position, so Phase B will give it `Y = Ymin`; today it lands at its manual Y
+on the next page.
 
 **Manual page control — as an override, forward only.** When the automatic page is not
 what an author wants, expose a *relative* nudge, e.g. `\begin{wideband}[<Y>][+1]` =
