@@ -475,3 +475,28 @@ KNOWN, SEPARATE (own commit): two bands on the **same** page at **equal/near-equ
 line, breaking the budget bound. Guard = sort Y's and skip a row when the gap is
 sub-line (bands stack). Not triggered by the user's file (its two bands land on
 different pages).
+
+## Equal-Y guard — same-page bands at equal/near-equal Y now stack (commit follows)
+
+The separate case flagged above. Two bands on ONE page at the same (or within one
+`\baselineskip`) Y made the between-them segment `\vsplit` to ~0pt, which still takes a
+whole line → the page overflowed ~7pt (`t-equalY`: two bands both at Y=200 on page 1,
+Overfull 6.94pt before). Fix, in `wideband-cc.sty` only:
+
+- `\wbcc@sortbands` — bubble-sort the pending bands ascending by Y (N<=4; swaps the band
+  box and its Y together). Bands are captured in source order but may be authored with
+  out-of-order Y; the segment split assumes ascending Y. Verified: a band authored at
+  Y=330 before one at Y=150 now renders the Y=150 band above the Y=330 band, content
+  conserved.
+- `\wbcc@splitcol` gap test — segment i is the text row above band i, height
+  `Y_i - (last real split)`. If that gap `< \baselineskip`, void the segment (no row)
+  and DON'T advance the split point, so band i+1 measures from the same point. The bands
+  then stack directly (a `\vskip\wbcc@sep` between them).
+- `\wbcc@assemble` — emit the text row before band i only when its segment is non-void.
+
+VERIFIED fails-before/passes-after (`tests/test-equalband.tex`, two bands both default
+Y=200 on page 1): 6.94pt overflow → 0, both bands set, all 20 paragraphs once, reading
+order intact (each column continuous through the stacked pair). No regression: the
+distinct-Y multi-band test (`test-twoband`, Y=150/330) and all other cc tests unchanged;
+`make test` (stratum) green. Multi-band on one page is now robust to equal and
+out-of-order Y.

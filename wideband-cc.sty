@@ -39,7 +39,7 @@
 \newdimen\wbcc@prevY
 \newcount\wbcc@pending  \global\wbcc@pending\z@
 \newcount\wbcc@nb       \global\wbcc@nb\z@   % bands pending on the current page
-\newcount\wbcc@i
+\newcount\wbcc@i \newcount\wbcc@j            % \wbcc@j: inner counter for the band sort
 \chardef\wbcc@MAX=4                          % up to 4 bands / 5 segments per page
 
 %% Pools: band boxes + split heights, and the L/R column-segment boxes.
@@ -73,16 +73,47 @@
 
 \def\wbcc@vtop#1{\vtop{\kern\z@\unvbox#1}}
 
-%% Split one recombined column (already in \wbcc@galley) into \wbcc@nb+1 segments:
-%% segment i (i=1..nb) has height Y_i - Y_{i-1}; the last has \wbcc@bud - Y_nb.
-%% #1 is L or R.
+%% Sort the pending bands ascending by split height Y (bubble sort; N<=4). Bands are
+%% captured in source order but may be authored with out-of-order Y; the segment split
+%% below assumes ascending Y (segment i = Y_i - Y_{i-1} >= 0). Swap the band box and its
+%% Y together.
+\def\wbcc@sortbands{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\wbcc@nb\do{%
+    \wbcc@j\@ne
+    \@whilenum\wbcc@j<\numexpr\wbcc@nb-\wbcc@i+\@ne\relax\do{%
+      \@tempdima\csname wbcc@Yd@\the\wbcc@j\endcsname
+      \edef\wbcc@next{\the\numexpr\wbcc@j+\@ne\relax}%
+      \@tempdimb\csname wbcc@Yd@\wbcc@next\endcsname
+      \ifdim\@tempdima>\@tempdimb
+        \setbox\@tempboxa\box\csname wbcc@b@\the\wbcc@j\endcsname
+        \global\setbox\csname wbcc@b@\the\wbcc@j\endcsname\box\csname wbcc@b@\wbcc@next\endcsname
+        \global\setbox\csname wbcc@b@\wbcc@next\endcsname\box\@tempboxa
+        \csname wbcc@Yd@\the\wbcc@j\endcsname\@tempdimb
+        \csname wbcc@Yd@\wbcc@next\endcsname\@tempdima
+      \fi
+      \advance\wbcc@j\@ne}%
+    \advance\wbcc@i\@ne}%
+}
+
+%% Split one recombined column (already in \wbcc@galley) into up to \wbcc@nb+1 segments:
+%% segment i (i=1..nb) is the text row ABOVE band i, height Y_i - (last real split). If
+%% that gap is below one \baselineskip — two bands at equal or near-equal Y — no text
+%% fits between them, so the row is voided (segment i empty) and the bands stack; the
+%% split point does NOT advance, so band i+1 measures its gap from the same point. This
+%% keeps a degenerate \vsplit to ~0pt (which still takes a whole line) from overflowing
+%% the page. #1 is L or R; run \wbcc@sortbands first.
 \def\wbcc@splitcol#1{%
   \wbcc@prevY\z@
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
-    \setbox\csname wbcc@#1@\the\wbcc@i\endcsname
-      \vsplit\wbcc@galley to\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname-\wbcc@prevY\relax
-    \wbcc@prevY\csname wbcc@Yd@\the\wbcc@i\endcsname
+    \@tempdima\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname-\wbcc@prevY\relax
+    \ifdim\@tempdima<\baselineskip
+      \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\box\voidb@x   % stacked band: no text row
+    \else
+      \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\vsplit\wbcc@galley to\@tempdima
+      \wbcc@prevY\csname wbcc@Yd@\the\wbcc@i\endcsname
+    \fi
     \advance\wbcc@i\@ne}%
   \setbox\csname wbcc@#1@\the\wbcc@i\endcsname
     \vsplit\wbcc@galley to\dimexpr\wbcc@bud-\wbcc@prevY\relax
@@ -104,8 +135,11 @@
 \def\wbcc@assemble{%
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
-    \wbcc@row{\the\wbcc@i}%
-    \vskip\wbcc@sep
+    \ifvoid\csname wbcc@L@\the\wbcc@i\endcsname
+    \else                                    % stacked band (voided segment): no row
+      \wbcc@row{\the\wbcc@i}%
+      \vskip\wbcc@sep
+    \fi
     \hb@xt@\textwidth{\box\csname wbcc@b@\the\wbcc@i\endcsname\hss}%
     \vskip\wbcc@sep
     \nointerlineskip
@@ -144,6 +178,9 @@
         \ifdim\@tempdimd>\wbcc@bfh \wbcc@bfh\@tempdimd \fi
       \fi
       \ifdim\wbcc@bfh>\z@ \advance\wbcc@bfh\textfloatsep \fi
+      %% sort bands by Y so the segment split sees ascending split heights; near-equal
+      %% Y's then stack (see \wbcc@splitcol) instead of forcing a ~0pt segment.
+      \ifnum\wbcc@nb>\@ne \wbcc@sortbands \fi
       %% per-column text budget = \@colht - (sum of band heights + gaps) - notes -
       %% floats - a per-segment depth reserve. Use \@colht (NOT \textheight): on a page
       %% carrying a \dbltop float the columns were built at the reduced \@colht and

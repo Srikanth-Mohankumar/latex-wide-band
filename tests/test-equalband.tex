@@ -1,0 +1,30 @@
+%% EQUAL-Y regression — two bands on the same page at equal (or near-equal) Y.
+%%
+%% Both bands here take the default Y=200pt and both land on page 1. The segment of
+%% column text "between" them is then Y2 - Y1 = 0pt: a \vsplit to ~0pt still takes a
+%% whole line, so the assembled page ran ~7pt past the text area. The guard
+%% (\wbcc@sortbands + the gap test in \wbcc@splitcol) sorts the bands by Y and, when
+%% two are within one \baselineskip, voids the between-row so the bands STACK directly
+%% (no zero-height row). The out-of-order-Y case is covered by the same sort.
+%%
+%% ASSERTION: no "Overfull \vbox"; every [NN] paragraph present once; both bands set.
+%% Add \usepackage{showframe} to see the text-area boundary.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{200pt}      % both bands default to Y=200 -> same page, equal Y
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}
+\begin{wideband}\[ E = mc^2 \quad[\text{BAND A}] \]\end{wideband}
+\Par{05}\Par{06}
+\begin{wideband}\[ \textstyle\oint \mathbf{B}\cdot d\boldsymbol{\ell}=\mu_0 I
+  \quad[\text{BAND B}] \]\end{wideband}
+\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}%
+\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}
