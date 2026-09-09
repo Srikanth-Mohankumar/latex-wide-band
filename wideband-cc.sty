@@ -97,6 +97,10 @@
 }
 
 %% Interleave segments and bands: row1, band1, row2, band2, ..., row(nb+1).
+%% A band box has depth 0 and a \wbcc@row is a height-0 \vtop, so TeX would insert a
+%% full \baselineskip of interline glue before each post-band row — unbudgeted height
+%% that pushes the page past \@colht. \nointerlineskip after each band suppresses just
+%% that glue (the explicit \vskip\wbcc@sep still spaces the band from the row).
 \def\wbcc@assemble{%
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
@@ -104,6 +108,7 @@
     \vskip\wbcc@sep
     \hb@xt@\textwidth{\box\csname wbcc@b@\the\wbcc@i\endcsname\hss}%
     \vskip\wbcc@sep
+    \nointerlineskip
     \advance\wbcc@i\@ne}%
   \wbcc@row{\the\wbcc@i}%
 }
@@ -139,23 +144,42 @@
         \ifdim\@tempdimd>\wbcc@bfh \wbcc@bfh\@tempdimd \fi
       \fi
       \ifdim\wbcc@bfh>\z@ \advance\wbcc@bfh\textfloatsep \fi
-      %% per-column text budget = \textheight - (sum of band heights + gaps) - notes
+      %% per-column text budget = \@colht - (sum of band heights + gaps) - notes -
+      %% floats - a per-segment depth reserve. Use \@colht (NOT \textheight): on a page
+      %% carrying a \dbltop float the columns were built at the reduced \@colht and
+      %% \@combinedblfloats adds the float back to reach \textheight, so budgeting on
+      %% \textheight would double-count the float and overflow. Each of the N+1 rows can
+      %% carry up to \maxdepth of last-line depth (bounded below by \splitmaxdepth), so
+      %% reserve (N+1)*\maxdepth to keep the assembled page within \@colht.
       \@tempdima\z@
       \wbcc@i\@ne
       \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
         \advance\@tempdima\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
           +\dp\csname wbcc@b@\the\wbcc@i\endcsname+\tw@\wbcc@sep\relax
         \advance\wbcc@i\@ne}%
-      \wbcc@bud\dimexpr\textheight-\@tempdima-\@tempdimc-\wbcc@bfh\relax
+      \wbcc@i\numexpr\wbcc@nb+\@ne\relax
+      \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
+      \@tempdimb\lineskip \multiply\@tempdimb\wbcc@nb        % N*\lineskip: row->band interline glue
+      \advance\@tempdimd\@tempdimb
+      \wbcc@bud\dimexpr\@colht-\@tempdima-\@tempdimc-\wbcc@bfh-\@tempdimd\relax
       %% recombine both finished columns (seam-correct join), then split per band.
       \@tempdima\baselineskip \@tempdimb\lineskip
       \directlua{wbcc.joincols(\number\wbcc@galley, \number\@leftcolumn,
         \number\@outputbox, \number\@tempdima, \number\@tempdimb, \number\lineskiplimit)}%
-      \splittopskip\z@skip \splitmaxdepth\maxdimen \vbadness\maxdimen \vfuzz\maxdimen
+      %% \splitmaxdepth\maxdepth bounds each segment's last-line depth (matching the
+      %% (N+1)*\maxdepth budget reserve above). \vbadness is silenced (the trailing
+      %% \vfil makes every band page technically underfull). \vfuzz is a small 2pt
+      %% tolerance — NOT \maxdimen (which hid the real spill): \vsplit quantizes to
+      %% line boundaries, so the arithmetic budget leaves a sub-point (<1px) rounding
+      %% residual that cannot be shaved without discarding a whole line. 2pt swallows
+      %% that rounding but is far below one \baselineskip, so any Overfull \vbox on a
+      %% band page is a genuine defect (content spilling past the text area). Tests
+      %% assert no Overfull \vbox at all.
+      \splittopskip\z@skip \splitmaxdepth\maxdepth \vbadness\maxdimen \vfuzz2\p@
       \wbcc@splitcol L
       \wbcc@splitcol R
       %% \wbcc@galley now holds the overflow for the next page
-      \setbox\@outputbox\vbox to\textheight{%
+      \setbox\@outputbox\vbox to\@colht{%
         \wbcc@assemble
         \vfil
         \ifdim\wbcc@bfh>\z@

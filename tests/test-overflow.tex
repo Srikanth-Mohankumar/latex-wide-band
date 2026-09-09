@@ -1,0 +1,27 @@
+%% OVERFLOW regression — a band at a large Y must not spill past the text area.
+%%
+%% A single band low on the page (Y=420pt) leaves a short below-band region. Before
+%% the fix the assembled page was built as \vbox to\textheight with the overfull
+%% signal suppressed (\vfuzz\maxdimen) and a phantom \baselineskip of interline glue
+%% before the post-band row — so the below-band text printed ~8pt past the bottom of
+%% the text area instead of paginating. The fix bounds the page to \@colht, suppresses
+%% that phantom glue, reserves the row depths, and stops hiding overfull.
+%%
+%% ASSERTION: the log must contain no "Overfull \vbox" (\vfuzz is a 2pt line-
+%% quantization tolerance, far below the ~8pt spill this guards against). Add
+%% \usepackage{showframe} to see the text-area boundary while eyeballing.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{420pt}      % band low on the page → short below-band region
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}
+\begin{wideband}\[ E = mc^2 \quad[\text{BAND}] \]\end{wideband}
+\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}

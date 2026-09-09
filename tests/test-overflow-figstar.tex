@@ -1,0 +1,37 @@
+%% OVERFLOW regression (figure* / \@colht) — a band on a page that also carries a
+%% full-width figure* must stay within the text area.
+%%
+%% A figure*[!t] shrinks the page's column height: LaTeX builds both columns at the
+%% reduced \@colht and \@combinedblfloats adds the float back to reach \textheight.
+%% The band branch used to budget on \textheight, double-counting the float, so the
+%% band page spilled ~16-19pt past the bottom (this is the shape of the user's
+%% to-check/wideband-cc exploration). Budgeting the reassembled page on \@colht fixes
+%% it. Self-contained: the figure is a \rule (no external image); one band, at a Y
+%% that lands it on the figure* page, so this isolates the \@colht fix (two same-page
+%% bands at equal Y are a separate case with their own guard/test).
+%%
+%% ASSERTION: no "Overfull \vbox" in the log; every [NN] paragraph present once.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{stfloats}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{300pt}      % band lands on the figure* page (below the float)
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\begin{figure*}[!t]
+  \centering\rule{0.9\textwidth}{3cm}
+  \caption{sample figure}
+\end{figure*}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}
+\begin{wideband}\[
+  \nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0}\qquad
+  \nabla\times\mathbf{B} = \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
+  \quad[\text{BAND}]
+\]\end{wideband}
+\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}

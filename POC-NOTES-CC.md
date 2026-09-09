@@ -437,3 +437,41 @@ preserved in git history and in the sections above; nothing here is scrubbed.
 - `takebotfloats` allocated a glue node it never linked or freed (a small per-band-page
   node leak). Left byte-identical in the consolidation commit so the equivalence above
   is diff-verifiable; removed in the immediately following one-line commit.
+
+## Band-page overflow FIXED — bound the assembled page to `\@colht` (commit follows)
+
+Reported from `to-check/wideband-cc`: with `showframe`, below-band text sometimes
+printed *past* the bottom of the text area instead of paginating — the band should
+act like a reserved frame the columns flow around. Two silent causes (the branch set
+`\vfuzz\maxdimen`, so TeX never warned):
+
+1. **Phantom interline glue.** A band box has depth 0 and a `\wbcc@row` is a height-0
+   `\vtop` (measured: a 420pt segment → `\vtop` ht 0, dp 414), so TeX inserted a full
+   `\baselineskip` (12pt) of interline glue before each post-band row — unbudgeted.
+   Fix: `\nointerlineskip` after each band in `\wbcc@assemble` (the explicit
+   `\vskip\wbcc@sep` still spaces band from row). Not global `\offinterlineskip` —
+   that also kills the row1→band spacing and collapses the page.
+2. **`\textheight` vs `\@colht`.** On a page carrying a `figure*`, columns are built at
+   the reduced `\@colht` and `\@combinedblfloats` adds the float back to `\textheight`;
+   budgeting the reassembled page on `\textheight` double-counted the float (~16-23pt
+   spill, the user's figure* case). Fix: budget and `\vbox to` on `\@colht`.
+
+Also: `\splitmaxdepth\maxdepth` (was `\maxdimen`) bounds each segment's last-line
+depth, and the budget reserves `(N+1)*\maxdepth + N*\lineskip` for the N+1 row depths
+and the N row→band `\lineskip`s. `\vfuzz` is set to **2pt** (was `\maxdimen`): `\vsplit`
+quantizes to line boundaries, leaving an unshavable sub-point (<1px) rounding residual
+(a constant 0.619pt at Y=220); 2pt swallows it but is far below one `\baselineskip`, so
+any `Overfull \vbox` on a band page is now a genuine defect signal.
+
+VERIFIED fails-before/passes-after (fixed `\vfuzz` only, on the pre-fix sty, shows the
+spill; the fix clears it): `test-overflow.tex` (single band, Y=420) 8.38pt→0;
+`test-overflow-figstar.tex` (figure*+band sharing a page) 22.6pt→0; the user's two-band
+figure* file 16.5/19.1pt→0. Renders confirm all below-band text now stops inside the
+`showframe` boundary. All cc tests pass with no `Overfull \vbox` and content conserved;
+`make test` (stratum suite) green.
+
+KNOWN, SEPARATE (own commit): two bands on the **same** page at **equal/near-equal Y**
+(`Y_i - Y_{i-1} < \baselineskip`) — the middle segment `\vsplit`s to ~0 but takes ≥1
+line, breaking the budget bound. Guard = sort Y's and skip a row when the gap is
+sub-line (bands stack). Not triggered by the user's file (its two bands land on
+different pages).
