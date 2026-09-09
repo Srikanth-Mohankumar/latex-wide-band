@@ -356,18 +356,25 @@ open float items.
 Running heads on a band page are **wrong**: a mark on content the rebuild overflows
 to the next page is still counted on the band page. In `tests/test-marks.tex` (a mark
 `M##` per paragraph, head printing `\leftmark`/`\rightmark`), page 1's `\leftmark`
-came out `M15` though `[15]` is on page 2, and page 2's `\rightmark` was `M20` instead
-of the first mark actually there. Cause: TeX sets `\firstmark`/`\botmark` from the
-pre-rebuild column (box255), which included the overflow's marks; my `\@outputpage`
-then uses those. It is **not** a regression in the non-band path (stock twocolumn and
-the band-free page behave identically).
+came out `M15` though `[15]` is on page 2, and page 2's `\rightmark` was off too. It
+is **not** a regression in the non-band path (stock twocolumn and the band-free page
+behave identically).
 
-Fix direction (attempted, reverted): split **all** of page 1 off the galley in one
-`\vsplit` (so `\splitfirstmark`/`\splitbotmark` capture this page's true marks — the
-per-segment splits only see the last segment), sub-split that into the column
-segments, and override `\leftmark`/`\rightmark` for this page's `\@outputpage` from
-the captured split marks (restoring the kernel accessors after). This **fixed page 2**
-in testing (`\rightmark` → `M15`), but the page-1 split restructure introduced a
-content-scramble bug I did not resolve in the time, so it was reverted to keep the
-known-good multi-band code. The mechanism and the page-2 result are recorded for the
-next attempt.
+**Two attempts, both on the wrong mechanism — the real reason recorded here.** I
+first tried to capture the page's marks from `\splitfirstmark`/`\splitbotmark` during
+the `\vsplit`s and override `\leftmark`/`\rightmark` (defined classically as
+`\@firstoftwo\botmark`). Every read came back **empty** even though the galley
+provably still holds the mark nodes (counted `col1=21, col2=18, galley=39` — joincols
+preserves them all). The cause: **modern LaTeX no longer uses classic `\mark`.**
+`\meaning\leftmark` is `\mark_use_last:nn {page}{2e-left}` — the LaTeX3 (`expl3`) mark
+system, with mark *classes* `2e-left`/`2e-right` in region `page`. Classic
+`\firstmark`/`\botmark`/`\splitfirstmark` are class 0 and are simply empty here, so
+both attempts were targeting a mechanism the running heads don't use.
+
+A correct fix must integrate with the `expl3` mark system: capture the `2e-left`/
+`2e-right` marks for the material that actually stays on the band page (the region-
+aware `\mark_use_*` / split-mark interfaces), and feed the page head from those rather
+than from whatever the pre-rebuild column left in the `page` region. That is a real
+piece of `expl3` output-routine work, version-sensitive; deferred. The classic-mark
+attempts are reverted; the known-good code stands. `tests/test-marks.tex` still
+demonstrates the visible symptom.
