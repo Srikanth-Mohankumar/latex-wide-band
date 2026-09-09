@@ -1,0 +1,25 @@
+%% =====================================================================
+%% STRESS TEST (Phase B, automatic Y): precedence — an EXPLICIT [Y] band and a BARE
+%% (auto) band on the SAME page. The explicit band keeps its supplied Y; the bare band
+%% is auto-placed from its marker. Both land on page 1, sorted ascending by their final
+%% Y (the auto band, authored after [02], is higher than the explicit [260pt] band).
+%% ASSERTION: both AUTO-MIX-A and EXPLICIT-MIX-B on page 1; no "Overfull \vbox";
+%% paras 01-08 each once; body word "minim" appears 16 times (8 paras x 2). The explicit
+%% band's placement must be UNCHANGED from a fixed-Y build (auto default does not disturb it).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}
+\begin{wideband}\[ E=mc^2 \quad[\text{AUTO-MIX-A}] \]\end{wideband}
+\Par{03}\Par{04}
+\begin{wideband}[260pt]\[ E=mc^2 \quad[\text{EXPLICIT-MIX-B}] \]\end{wideband}
+\Par{05}\Par{06}\Par{07}\Par{08}
+\end{document}

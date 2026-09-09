@@ -1,0 +1,27 @@
+%% =====================================================================
+%% STRESS TEST (Phase B, automatic Y): TWO bare (auto) bands on the same page — the N>1
+%% clamp probe. Both bands derive Y from their own markers; \wbcc@autoY applies one
+%% page-wide [Ymin, Ymax] clamp (Ymax from the tallest placed band) and the existing
+%% sort + near-equal-Y stack de-collide them. This exercises the deliberately simple
+%% multi-auto-band clamp (see docs/design-auto-y-source.md): the two bands must stay in
+%% authored order and neither may overflow.
+%% ASSERTION: both TWO-AUTO-A (after [02]) and TWO-AUTO-B (after [05]) on page 1, in that
+%% vertical order (A above B); no "Overfull \vbox"; paras 01-10 each once; body word
+%% "minim" appears 20 times (10 paras x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}
+\begin{wideband}\[ E=mc^2 \quad[\text{TWO-AUTO-A}] \]\end{wideband}
+\Par{03}\Par{04}\Par{05}
+\begin{wideband}\[ E=mc^2 \quad[\text{TWO-AUTO-B}] \]\end{wideband}
+\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\end{document}

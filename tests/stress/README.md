@@ -50,6 +50,43 @@ seventeenth file is a content-conservation regression:
 |------|-------------------|
 | `stress-final-overflow-content-conserved` | A band-rebuild's overflow that is the document's **last content** still ships (once dropped ~2 sentences; now 2 pages, all 28 present). |
 
+## Automatic Y (Phase B)
+
+With **no** `[Y]` and **no** `\wbccReserve`, a band's split height Y is derived
+automatically from its marker's within-column position, so the band appears where it was
+authored. These files exercise the automatic path (all conserve their paragraphs at the
+body level; the first four build with no `Overfull \vbox`):
+
+| File | What it exercises |
+|------|-------------------|
+| `stress-auto-Y-left-column` | A bare band in the **left** column lands where authored (between [03] and [04]). |
+| `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
+| `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
+| `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-KNOWN-ISSUE-auto-Y-budget-resonance` | A bare **right**-column band (detach-up, Y=P−bud, correct) that also trips a **pre-existing** budget resonance — see below. |
+
+### A pre-existing budget resonance that auto-Y exposes
+
+`stress-KNOWN-ISSUE-auto-Y-budget-resonance` overflows the band page by **4.56pt**. It is
+**not** an auto-Y defect and **not** data loss (content is fully conserved — 16 paras, 32
+`minim`; the page is merely drawn 4.56pt too tall):
+
+- **Pre-existing:** the identical 4.56pt overflow occurs on the old code with a fixed
+  `\begin{wideband}[351.44pt]` on the same document. Auto-Y just picks that Y (`P − bud`).
+- **Y-specific resonance (measured):** sweeping the explicit Y over 200..420pt, *only*
+  Y=351.44pt overflows; every other value is clean. At that Y both columns `\vsplit` land
+  on line boundaries summing to **exactly** `bud` (L1=351.44=Y, L2=147.06=bud−Y), leaving
+  zero snapping slack, so the unbudgeted per-row depth excess of the height-0 `\wbcc@vtop`
+  rows (~7pt/row, measured) pushes the box past `\@colht`. Off-resonance Y leaves slack
+  that absorbs it.
+- **Why auto-Y surfaces it:** auto Y = the marker's true position, itself a natural line
+  boundary, so exact-fill resonance is over-represented compared with hand-picked Y.
+
+**Fix (a separate rung):** `\wbcc@computebud`'s reserve under-accounts for the height-0
+`\wbcc@vtop` rows' first-line excess; it needs to cover that without wasting space
+off-resonance. Because changing the reserve moves `bud` on *every* band page (breaking the
+byte-identical guarantee), it is deliberately kept out of the auto-Y change.
+
 ## A content-loss bug this suite found and fixed
 
 Writing these tests exposed a pre-existing bug (present before the page-assignment work
@@ -73,5 +110,7 @@ the whole suite (every other test's output is byte-identical; only this file cha
 survives even when its body is dropped. Verify conservation at the body-word level (e.g.
 count `minim`: it must equal `2 ×` the paragraph count).
 
-Still open (a separate rung): an automatic `Ymax` clamp so a too-large manual `Y` defers
-rather than being placed too low.
+Still open (a separate rung): the `\wbcc@vtop` budget resonance documented above
+(`stress-KNOWN-ISSUE-auto-Y-budget-resonance`) — the per-column reserve under-accounts for
+the height-0 rows' first-line excess, so an exact-fill split point overflows by a few
+points.

@@ -33,9 +33,10 @@
 \newbox\wbcc@bfL \newbox\wbcc@bfR
 \newdimen\wbcc@bfh \newdimen\@tempdimd
 \newdimen\wbcc@budget   \wbcc@budget=48\p@  % legacy \wbccReserve #1 — unused (see header)
-\newdimen\wbcc@detachY  \wbcc@detachY=220\p@% default split height Y
+\newdimen\wbcc@detachY  \wbcc@detachY=\maxdimen% AUTO sentinel: derive Y from the marker
 \newdimen\wbcc@sep      \wbcc@sep=6\p@
 \newdimen\wbcc@bud                          % per-column text budget on a band page
+\newdimen\wbcc@ymax                         % lowest a band may be auto-placed (Phase B clamp)
 \newdimen\wbcc@prevY
 \newcount\wbcc@np       \global\wbcc@np\z@   % bands captured but not yet placed (all pages)
 \newcount\wbcc@overdue  \global\wbcc@overdue\z@% front prefix of the pool forced onto THIS page
@@ -98,6 +99,8 @@
     \wbcc@j\@ne
     \@whilenum\wbcc@j<\numexpr\wbcc@nb-\wbcc@i+\@ne\relax\do{%
       \@tempdima\csname wbcc@Yd@\the\wbcc@j\endcsname
+      \ifdim\@tempdima=\maxdimen \PackageError{wideband-cc}{auto Y unresolved for a
+        placed band}{\string\wbcc@autoY\space must run before \string\wbcc@sortbands}\fi
       \edef\wbcc@next{\the\numexpr\wbcc@j+\@ne\relax}%
       \@tempdimb\csname wbcc@Yd@\wbcc@next\endcsname
       \ifdim\@tempdima>\@tempdimb
@@ -183,6 +186,52 @@
   \@tempdimb\lineskip \multiply\@tempdimb\wbcc@nb        % N*\lineskip: row->band interline glue
   \advance\@tempdimd\@tempdimb
   \wbcc@bud\dimexpr\@colht-\@tempdima-\@tempdimc-\wbcc@bfh-\@tempdimd\relax
+}
+
+%% Automatic split height Y for each placed band whose \wbcc@Yd@i is still the AUTO
+%% sentinel (\maxdimen). Y = the marker's height WITHIN its own rebuilt column, so the
+%% band appears where it was authored:
+%%   - a NEW band (pool position i > \wbcc@overdue) reads its marker's galley position
+%%     P = \wbcc@mh@(i-\wbcc@overdue). The rebuilt page is [col1|col2] cut at \wbcc@bud,
+%%     so a marker with P<=\wbcc@bud sits in the left column (Y=P) and one with P>\wbcc@bud
+%%     in the right column (Y=P-\wbcc@bud, the detach-up placement). \wbcc@bud IS the L/R
+%%     boundary because \wbcc@splitcol's L segments sum to exactly \wbcc@bud.
+%%   - an OVERDUE band (pool position i <= \wbcc@overdue) was deferred from an earlier page
+%%     and has NO marker here (they were stripped), so it lands at the top (Ymin).
+%% Clamp to [Ymin, \wbcc@ymax]: Ymin = one \baselineskip (never flush to the header);
+%% \wbcc@ymax = \wbcc@bud - (tallest placed band) - gaps - \baselineskip guarantees the
+%% band plus one line below still fit. Clamping is monotone so it cannot reorder bands;
+%% near-equal clamped Y's are de-collided by \wbcc@sortbands + the \wbcc@splitcol stack.
+%% MUST run AFTER \wbcc@computebud (needs \wbcc@bud) and BEFORE \wbcc@sortbands (the marker
+%% index i-\wbcc@overdue tracks the UNSORTED pool order, which the sort permutes). The N>1
+%% clamp is deliberately simple (one page-wide \wbcc@ymax from the tallest band); see
+%% docs/design-auto-y-source.md.
+\def\wbcc@autoY{%
+  \@tempdima\z@                                   % tallest placed band (ht+dp)
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \@tempdimb\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
+      +\dp\csname wbcc@b@\the\wbcc@i\endcsname\relax
+    \ifdim\@tempdimb>\@tempdima \@tempdima\@tempdimb \fi
+    \advance\wbcc@i\@ne}%
+  \wbcc@ymax\dimexpr\wbcc@bud-\@tempdima-\tw@\wbcc@sep-\baselineskip\relax
+  \ifdim\wbcc@ymax<\baselineskip \wbcc@ymax\baselineskip \fi  % degenerate page: no inverted range
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \@tempdimb\csname wbcc@Yd@\the\wbcc@i\endcsname
+    \ifdim\@tempdimb=\maxdimen                     % auto sentinel -> derive from marker
+      \ifnum\wbcc@i>\wbcc@overdue
+        \edef\wbcc@mk{\the\numexpr\wbcc@i-\wbcc@overdue\relax}%   marker index (unsorted order)
+        \@tempdimb\csname wbcc@mh@\wbcc@mk\endcsname             % galley position P
+        \ifdim\@tempdimb>\wbcc@bud \advance\@tempdimb-\wbcc@bud \fi  % right column: P-\wbcc@bud
+      \else
+        \@tempdimb\baselineskip                    % overdue band: no marker here -> top
+      \fi
+      \ifdim\@tempdimb<\baselineskip \@tempdimb\baselineskip \fi  % clamp up to Ymin
+      \ifdim\@tempdimb>\wbcc@ymax \@tempdimb\wbcc@ymax \fi        % clamp down to Ymax
+      \csname wbcc@Yd@\the\wbcc@i\endcsname\@tempdimb
+    \fi
+    \advance\wbcc@i\@ne}%
 }
 
 %% How many bands to place on this page. The overdue prefix (bands deferred from an
@@ -271,10 +320,14 @@
         \ifdim\@tempdimd>\wbcc@bfh \wbcc@bfh\@tempdimd \fi
       \fi
       \ifdim\wbcc@bfh>\z@ \advance\wbcc@bfh\textfloatsep \fi
+      %% Order matters: budget first (auto-Y's clamp needs \wbcc@bud), then resolve any
+      %% auto (\maxdimen) split heights from the marker positions, THEN sort. \wbcc@autoY
+      %% keys markers to UNSORTED pool positions, so it MUST run before \wbcc@sortbands.
+      \wbcc@computebud      % real per-column budget (footnote/float heights now known)
+      \wbcc@autoY           % auto Y = marker's within-column height, clamped (Phase B)
       %% sort the placed bands by Y so the segment split sees ascending split heights;
       %% near-equal Y's then stack (see \wbcc@splitcol) instead of forcing a ~0pt segment.
       \ifnum\wbcc@nb>\@ne \wbcc@sortbands \fi
-      \wbcc@computebud      % real per-column budget (footnote/float heights now known)
       %% recombine both finished columns (seam-correct join), then split per band.
       \@tempdima\baselineskip \@tempdimb\lineskip
       \directlua{wbcc.joincols(\number\wbcc@galley, \number\@leftcolumn,

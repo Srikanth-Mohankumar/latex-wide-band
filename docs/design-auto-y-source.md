@@ -1,8 +1,47 @@
 # Automatic Y (and page) source for wideband-cc — approach
 
-*Status: Phase A (marker-driven **page assignment**) is implemented on branch `cc/poc`.
-Phase B (**automatic Y** from the marker's height) is still design-only. This doc keeps
-the full plan; the "Which page a band lands on" section below marks what now ships.*
+*Status: Phase A (marker-driven **page assignment**) and Phase B (**automatic Y** from the
+marker's within-column height, clamped) are both implemented on branch `cc/poc`. This doc
+keeps the full plan; "Which page a band lands on" and "Phase B — as implemented" below mark
+what now ships.*
+
+## Phase B — as implemented
+
+`\wbcc@detachY` is now the sentinel `\maxdimen` ("auto"); the env's optional-argument
+default is still `[\wbcc@detachY]`, so a bare `\begin{wideband}` requests auto. In the band
+branch of `\@outputdblcol` the order is **`\wbcc@computebud` → `\wbcc@autoY` → sort**:
+
+- `\wbcc@autoY` resolves every placed band whose `\wbcc@Yd@i` is still `\maxdimen`. A **new**
+  band (pool position `i > \wbcc@overdue`) reads its marker's galley position
+  `P = \wbcc@mh@(i-\wbcc@overdue)` and sets `Y = (P ≤ bud) ? P : P − bud` — the second case
+  is a genuine right-column band detaching up. `bud` (not the original left-column height)
+  is the L/R boundary, because `\wbcc@splitcol`'s L segments sum to exactly `bud`. An
+  **overdue** band has no marker on the page it lands on, so it takes `Y = Ymin`.
+- Clamp to `[Ymin, \wbcc@ymax]`: `Ymin = \baselineskip`; `\wbcc@ymax = bud − (tallest placed
+  band) − 2·sep − \baselineskip`. Clamping is monotone, so it cannot reorder bands;
+  near-equal clamped Y's are de-collided by the existing sort + `\wbcc@splitcol` stack.
+- It **must** run before the sort (the marker index `i − overdue` keys the *unsorted* pool
+  order). A leftover `\maxdimen` reaching `\wbcc@sortbands` raises a `\PackageError`.
+- Precedence: an explicit `[<Y>]` or a `\wbccReserve{...}{<Y>}` sets a concrete
+  `\wbcc@Yd@i ≠ \maxdimen`, which `\wbcc@autoY` leaves untouched. Every explicit/reserve
+  test is byte-identical to the pre-Phase-B build (verified across the whole `tests/` and
+  `tests/stress/` suites; only the two bare-auto cases change).
+
+**Known simplification (N>1).** The clamp uses a single page-wide `\wbcc@ymax` from the
+tallest placed band rather than a per-band `Ymax_i`. This is correct (monotone clamp cannot
+reorder; the deepest band is the binding one) and simpler; `stress-two-auto-bands-same-page`
+exercises it. A per-band refinement is possible but not needed today.
+
+**Known bug this exposed — a `\wbcc@vtop` budget resonance.** Auto Y derives Y from the
+marker's true position, itself a natural line boundary, so it over-represents the
+*exact-fill* split where both columns' `\vsplit` sum to exactly `bud` with zero snapping
+slack. At that point the unbudgeted per-row depth excess of the height-0 `\wbcc@vtop` rows
+(~7pt/row, measured) pushes the band page ~4.56pt past `\@colht`. It is **pre-existing**
+(the same fixed Y on the old code overflows identically) and **cosmetic** (content
+conserved). Reproducer + measurements: `tests/stress/stress-KNOWN-ISSUE-auto-Y-budget-resonance.tex`.
+The fix — making `\wbcc@computebud`'s reserve cover the `\wbcc@vtop` first-line excess
+without wasting space off-resonance — is a separate rung, kept out of the auto-Y change
+because it moves `bud` on every band page.
 
 > This doc covers two coupled placement questions — **which page** a band lands on and
 > **how far down** (Y) — because the same marker answers both. The page part is written
@@ -189,12 +228,18 @@ So the plan: marker-driven automatic page assignment (fixes the bug), with an op
 **forward** page-offset override for fine control — not an absolute page, not a backward
 pull.
 
-## Not doing yet
+## Built vs. still to do
 
-Nothing here is built. The next step, when picked up, is tier 1: emit the marker, revive
-the scan, and use it for **both** page assignment (place a band only when its marker is
-in the current galley) and `Y = within-column height` with clamping — behind the "auto"
-default. Tests: a bare `\begin{wideband}` lands on the right page *and* where authored,
-for a left-column and a right-column band (the marker-after-[08]-on-page-2 case is the
-regression to lock in). The optional forward page-offset override comes after the
-automatic behaviour is solid.
+Built (tiers 1–2): the marker emits at the authored position; the scan drives **both**
+page assignment (Phase A) and `Y = within-column height` with clamping (Phase B, see "Phase
+B — as implemented" above). Covered by `tests/test-cc` (bare, left column) and the
+`tests/stress/stress-auto-Y-*` / `stress-KNOWN-ISSUE-auto-Y-budget-resonance` files (left
+column, right column, explicit+auto mix, two auto bands, overdue→top).
+
+Still to do:
+
+- **The `\wbcc@vtop` budget resonance** (see "Known bug this exposed" above) — the next
+  rung, since auto-Y makes an exact-fill overflow more likely.
+- **Tier 3, external production source** — feed `\wbcc@Yd@<i>` from the pgc-editor /
+  `satellite.json` layer, on top of the automatic default.
+- **The optional forward page-offset override** (`[<Y>][+1]`) for manual page control.
