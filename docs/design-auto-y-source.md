@@ -166,6 +166,13 @@ page 2, must not render on page 1). Phase A keeps **manual Y** — a deferred (o
 has no marker position, so Phase B will give it `Y = Ymin`; today it lands at its manual Y
 on the next page.
 
+The overflow galley `\unvbox`'d back for the next page is followed by `\penalty
+\outputpenalty` (the plain-TeX re-inject idiom): it re-asserts the break that fired the
+output, so a band whose overflow is the *document's last content* still ships (a
+`\clearpage`-forced flush re-forces a final page; a natural break stays inert). Only the
+rebuild branch adds it — the stock branch would double-force and emit a blank page.
+Regression: `tests/stress/stress-final-overflow-content-conserved.tex`.
+
 **Manual page control — as an override, forward only.** When the automatic page is not
 what an author wants, expose a *relative* nudge, e.g. `\begin{wideband}[<Y>][+1]` =
 "one page later." Design constraints, honestly:
