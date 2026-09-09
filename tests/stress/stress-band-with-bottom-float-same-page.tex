@@ -1,0 +1,21 @@
+%% =====================================================================
+%% STRESS TEST: A band on a page that also carries a [b] bottom float
+%% ASSERTION: BAND-WITH-BOTTOM-FLOAT and the float both on page 1; no overfull; paras 01-08 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{stfloats}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{150pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{wideband}\[ E=mc^2 \quad[\text{BAND-WITH-BOTTOM-FLOAT}] \]\end{wideband}
+\begin{figure}[b]\centering\fbox{\rule{0pt}{40pt}\rule{0.6\columnwidth}{0pt}}\caption{bottom float}\end{figure}
+\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}
+\end{document}

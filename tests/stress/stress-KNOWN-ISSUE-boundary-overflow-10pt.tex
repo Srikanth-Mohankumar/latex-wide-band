@@ -1,0 +1,33 @@
+%% =====================================================================
+%% KNOWN ISSUE (pre-existing, NOT the page-assignment concern) — bug reproducer.
+%% A band on a page packed to within ~10pt of \textheight overflows the text area
+%% by ~10pt instead of deferring that sliver to the next page.
+%%
+%% EXPECTED (today): exactly one "Overfull \vbox (10.0pt too high)". This is a
+%% FAILS-BEFORE test for a follow-up budget fix — it must OVERFLOW on the current
+%% code and stop overflowing once the reserve is corrected.
+%%
+%% Measured facts (do not over-interpret): the assembled page's natural height+depth
+%% is 549pt < \textheight (550pt), i.e. the content fits, yet the frame still spills
+%% ~10pt; the overflow reproduces on the pre-page-assignment code too (not a
+%% regression); \boxmaxdepth\z@ on the outer assembly box does not change it. See
+%% README.md ("Known limitation").
+%%
+%% The feature-demo versions of this scenario (authored with headroom, no overflow)
+%% are stress-band-right-column-page1.tex and stress-band-with-figurestar-top-float.tex.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{150pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\begin{wideband}\[ E=mc^2 \quad[\text{BOUNDARY-BAND}] \]\end{wideband}
+\Par{11}\Par{12}\Par{13}\Par{14}
+\end{document}

@@ -1,0 +1,19 @@
+%% =====================================================================
+%% STRESS TEST: A band authored too low to fit is deferred (overdue) to the next page
+%% ASSERTION: DEFERRED-BAND appears exactly once (on a later page); no overfull; paras 01-22 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\Par{11}\Par{12}\Par{13}
+\begin{wideband}[380pt]\[ E=mc^2 \quad[\text{DEFERRED-BAND}] \]\end{wideband}
+\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}\Par{21}\Par{22}
+\end{document}

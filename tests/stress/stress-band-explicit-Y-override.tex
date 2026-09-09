@@ -1,0 +1,19 @@
+%% =====================================================================
+%% STRESS TEST: A band with an explicit [Y] optional argument overriding the default
+%% ASSERTION: EXPLICIT-Y-200 on page 1 lower than the 100pt default; no overfull; paras 01-10 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{100pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}
+\begin{wideband}[200pt]\[ E=mc^2 \quad[\text{EXPLICIT-Y-200}] \]\end{wideband}
+\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\end{document}

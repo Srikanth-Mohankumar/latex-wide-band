@@ -1,0 +1,23 @@
+%% =====================================================================
+%% STRESS TEST: Three bands, one per page, spread across a 3+ page document
+%% ASSERTION: Each of PAGE1/PAGE2/PAGE3-BAND appears once on ascending pages; no overfull; paras 01-30 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{150pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}
+\begin{wideband}\[ E=mc^2 \quad[\text{PAGE1-BAND}] \]\end{wideband}
+\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}
+\begin{wideband}\[ E=mc^2 \quad[\text{PAGE2-BAND}] \]\end{wideband}
+\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}\Par{21}\Par{22}\Par{23}\Par{24}\Par{25}\Par{26}
+\begin{wideband}\[ E=mc^2 \quad[\text{PAGE3-BAND}] \]\end{wideband}
+\Par{27}\Par{28}\Par{29}\Par{30}
+\end{document}

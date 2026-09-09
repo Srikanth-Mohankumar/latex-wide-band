@@ -1,0 +1,20 @@
+%% =====================================================================
+%% STRESS TEST: Two bands authored with descending Y are sorted before splitting
+%% ASSERTION: Both bands on page 1, no overfull (sort prevents a 0pt segment); paras 01-10 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{wideband}[300pt]\[ E=mc^2 \quad[\text{DESC-BAND-HIGH}] \]\end{wideband}
+\Par{04}\Par{05}
+\begin{wideband}[120pt]\[ E=mc^2 \quad[\text{DESC-BAND-LOW}] \]\end{wideband}
+\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\end{document}

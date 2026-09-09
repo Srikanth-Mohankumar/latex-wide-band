@@ -1,0 +1,21 @@
+%% =====================================================================
+%% STRESS TEST: Two bands on one page at equal Y stack without overflow
+%% ASSERTION: EQ-BAND-A and EQ-BAND-B both on page 1; no overfull; paras 01-12 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{200pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}
+\begin{wideband}\[ E=mc^2 \quad[\text{EQ-BAND-A}] \]\end{wideband}
+\Par{05}\Par{06}
+\begin{wideband}\[ E=mc^2 \quad[\text{EQ-BAND-B}] \]\end{wideband}
+\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}
+\end{document}

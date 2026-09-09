@@ -1,0 +1,23 @@
+%% =====================================================================
+%% STRESS TEST: A page-1 band and a page-2 band; the page-2 band must not be dragged onto page 1
+%% ASSERTION: PG1-BAND on page 1; PG2-BAND NOT on page 1 (on page 2); no overfull; paras 01-18 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{stfloats}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{180pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\begin{figure*}[!t]\centering\fbox{\rule{0pt}{150pt}\rule{\columnwidth}{0pt}}\caption{top figure}\end{figure*}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}
+\begin{wideband}\[ E=mc^2 \quad[\text{PG1-BAND}] \]\end{wideband}
+\Par{07}\Par{08}
+\begin{wideband}\[ E=mc^2 \quad[\text{PG2-BAND}] \]\end{wideband}
+\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}
+\end{document}

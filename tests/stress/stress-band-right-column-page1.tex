@@ -1,0 +1,19 @@
+%% =====================================================================
+%% STRESS TEST: Band authored in the RIGHT column of page 1 (detach-up to the split height)
+%% ASSERTION: RIGHTCOL-BAND on page 1; no overfull; paras 01-10 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\wbccReserve{48pt}{150pt}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}
+\begin{wideband}\[ E=mc^2 \quad[\text{RIGHTCOL-BAND}] \]\end{wideband}
+\Par{08}\Par{09}\Par{10}
+\end{document}
