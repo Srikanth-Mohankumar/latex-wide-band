@@ -15,11 +15,10 @@
 %% Node surgery (joincols / takefootnotes / takebotfloats) lives in
 %% wideband-cc.lua. See POC-NOTES-CC.md for the mechanism and honest limits.
 %%
-%% \wbccReserve{<budget>}{<Y>} sets the default split height Y. NOTE: the first
-%% argument (<budget>, \wbcc@budget) is currently UNUSED — the per-page text
-%% budget is computed in the output routine from \textheight and the band
-%% heights, not from this value. It is kept only so existing tests need not
-%% change; a follow-up should drop it to \wbccReserve{<Y>}.
+%% \wbccReserve{<Y>} sets the document default split height Y for bands that do not
+%% give their own [<Y>]. Omitting \wbccReserve entirely leaves Y automatic (derived
+%% from each band's marker; see \wbcc@detachY and \wbcc@autoY). The per-page text
+%% budget is computed in the output routine from \@colht and the band heights.
 %%
 %% NOTE: throwaway POC on the cc/poc branch. The earlier per-rung POCs (col-1
 %% marker CC; col-2 foreknowledge detach-up) are superseded by this single
@@ -32,7 +31,6 @@
 \newbox\wbcc@fn
 \newbox\wbcc@bfL \newbox\wbcc@bfR
 \newdimen\wbcc@bfh \newdimen\@tempdimd
-\newdimen\wbcc@budget   \wbcc@budget=48\p@  % legacy \wbccReserve #1 — unused (see header)
 \newdimen\wbcc@detachY  \wbcc@detachY=\maxdimen% AUTO sentinel: derive Y from the marker
 \newdimen\wbcc@sep      \wbcc@sep=6\p@
 \newdimen\wbcc@bud                          % per-column text budget on a band page
@@ -68,7 +66,7 @@
   \advance\wbcc@i\@ne
 \ifnum\wbcc@i<\numexpr\wbcc@MAX+\@ne\relax \repeat
 
-\newcommand\wbccReserve[2]{\global\wbcc@budget=#1\relax \global\wbcc@detachY=#2\relax}
+\newcommand\wbccReserve[1]{\global\wbcc@detachY=#1\relax}
 
 %% Each band is captured OUT of the flow and pushed onto the page's band list with
 %% its own split height Y (optional arg, default \wbcc@detachY). Y is the amount of
