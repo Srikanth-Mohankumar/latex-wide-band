@@ -124,6 +124,15 @@ the whole suite (every other test's output is byte-identical; only this file cha
 survives even when its body is dropped. Verify conservation at the body-word level (e.g.
 count `minim`: it must equal `2 ×` the paragraph count).
 
+**Baseline alignment.** Segments produced by `\vsplit` start with `\splittopskip` glue, which
+the package sets to `\topskip` (it was `0pt`). Before, the right column's first baseline sat
+3.1pt above the left's on every band page (the left column's top row keeps the page's
+`\topskip`, a split-off segment did not), and rows after a band could misalign by their
+first lines' height difference; now both columns' first baselines coincide with a stock
+page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
+holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
+files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
 Known limit (shared with stock two-column LaTeX): an unbreakable item taller than the
 room left at a split point — a large display or an in-column figure sitting exactly where
 a row ends — is taken by `\vsplit` regardless and protrudes; nothing here can split it.

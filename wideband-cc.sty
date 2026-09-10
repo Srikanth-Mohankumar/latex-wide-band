@@ -407,7 +407,14 @@
       %% page is a genuine defect (content past the text area). Tests assert none.
       %% (It used to be 2pt, which silently absorbed the shrink re-expansion that
       %% \wbcc@fitseg now removes.)
-      \splittopskip\z@skip \splitmaxdepth\maxdepth \vbadness\maxdimen \vfuzz.1\p@
+      %% \splittopskip\topskip: every segment after the first is the head of a
+      %% remainder, so \vsplit gives it \splittopskip glue. With \z@skip its first line
+      %% sat flush at its own height (~7pt) while the left column's top row keeps the
+      %% page's \topskip (10pt): the right column's first baseline was 3.1pt higher than
+      %% the left's on every band page, and rows after a band could misalign by their
+      %% first lines' height difference. \topskip puts every segment's first baseline
+      %% where a stock column puts it. Budget-neutral: the glue is inside the segment.
+      \splittopskip\topskip \splitmaxdepth\maxdepth \vbadness\maxdimen \vfuzz.1\p@
       \wbcc@splitcol L
       \wbcc@splitcol R
       %% \wbcc@galley now holds the overflow for the next page

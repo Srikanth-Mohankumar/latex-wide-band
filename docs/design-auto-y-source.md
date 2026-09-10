@@ -49,6 +49,11 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Baseline alignment.** `\splittopskip` is `\topskip` (was `0pt`): a split-off segment now
+starts its first baseline where a stock column does, so the right column's top row no
+longer sits 3.1pt above the left's and rows after a band align across columns.
+Budget-neutral (the glue is inside the segment); each segment holds ~3pt less text.
+
 > This doc covers two coupled placement questions — **which page** a band lands on and
 > **how far down** (Y) — because the same marker answers both. The page part is written
 > up in "Which page a band lands on" near the end.
