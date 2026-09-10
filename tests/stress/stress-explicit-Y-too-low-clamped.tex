@@ -1,0 +1,27 @@
+%% =====================================================================
+%% STRESS TEST: an EXPLICIT [Y] too low for the page is clamped (with a warning) rather
+%% than placed where the band plus one line below cannot fit.
+%%
+%% The per-column budget here is ~498pt and Ymax = budget - band - gaps - one line, about
+%% 446pt. [492pt] leaves only ~6pt for the last row, which is less than one line, so an
+%% unclamped split forces a one-line overfull last row (the page overflows by several pt).
+%% With the clamp the band is pulled up to Ymax: a full line fits below it.
+%%
+%% ASSERTION: TOO-LOW-BAND on page 1 with at least one line of body text below it in
+%% each column; NO "Overfull \vbox"; the log carries a wideband-cc warning that the
+%% split height 492pt was clamped; paras 01-10 each once; "minim" 20 times (10 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{wideband}[492pt]\[ E=mc^2 \quad[\text{TOO-LOW-BAND}] \]\end{wideband}
+\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\end{document}

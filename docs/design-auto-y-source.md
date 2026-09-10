@@ -22,10 +22,12 @@ branch of `\@outputdblcol` the order is **`\wbcc@computebud` → `\wbcc@autoY` �
   near-equal clamped Y's are de-collided by the existing sort + `\wbcc@splitcol` stack.
 - It **must** run before the sort (the marker index `i − overdue` keys the *unsorted* pool
   order). A leftover `\maxdimen` reaching `\wbcc@sortbands` raises a `\PackageError`.
-- Precedence: an explicit `[<Y>]` or a `\wbccReserve{...}{<Y>}` sets a concrete
-  `\wbcc@Yd@i ≠ \maxdimen`, which `\wbcc@autoY` leaves untouched. Every explicit/reserve
-  test is byte-identical to the pre-Phase-B build (verified across the whole `tests/` and
-  `tests/stress/` suites; only the two bare-auto cases change).
+- Precedence: an explicit `[<Y>]` or a `\wbccReserve{<Y>}` sets a concrete
+  `\wbcc@Yd@i ≠ \maxdimen`, which `\wbcc@autoY` keeps — but clamps into the same
+  `[Ymin, Ymax]`, with a `\PackageWarning` naming the requested and clamped values, since
+  a Y that leaves no room for the band plus one line below it can only be honoured by a
+  one-line overfull last row (`stress-explicit-Y-too-low-clamped`). Explicit Y's that do
+  fit are untouched (verified byte-identical across the suites when Phase B landed).
 
 **Known simplification (N>1).** The clamp uses a single page-wide `\wbcc@ymax` from the
 tallest placed band rather than a per-band `Ymax_i`. This is correct (monotone clamp cannot
@@ -242,9 +244,6 @@ column, right column, explicit+auto mix, two auto bands, overdue→top).
 
 Still to do:
 
-- **Clamp an explicit `[Y]`** to the same `[Ymin, Ymax]` as auto Y (with a warning): a
-  manual Y that leaves no room for a line below the band forces a one-line overfull last
-  row.
 - **Exact fit decision with footnotes/floats**: `\wbcc@duecount` budgets them as zero
   (optimistic), so a boundary band can be placed one page early on a page that also
   carries notes or bottom floats — measure them non-destructively before the descent.

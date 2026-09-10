@@ -259,12 +259,23 @@
       \else
         \@tempdimb\baselineskip                    % overdue band: no marker here -> top
       \fi
-      \ifdim\@tempdimb<\baselineskip \@tempdimb\baselineskip \fi  % clamp up to Ymin
-      \ifdim\@tempdimb>\wbcc@ymax \@tempdimb\wbcc@ymax \fi        % clamp down to Ymax
-      \csname wbcc@Yd@\the\wbcc@i\endcsname\@tempdimb
+      \wbcc@clampY
+    \else                                          % explicit [Y] / \wbccReserve: same
+      \dimen@\@tempdimb                            % clamp, but say so — the author asked
+      \wbcc@clampY                                 % for a Y the page cannot honour
+      \ifdim\dimen@=\@tempdimb\else
+        \PackageWarning{wideband-cc}{split height \the\dimen@\space leaves no room for the
+          band and a line below it on this page; clamped to \the\@tempdimb}%
+      \fi
     \fi
+    \csname wbcc@Yd@\the\wbcc@i\endcsname\@tempdimb
     \advance\wbcc@i\@ne}%
 }
+%% Clamp \@tempdimb into [Ymin, \wbcc@ymax] (Ymin = one \baselineskip, never flush to
+%% the header; \wbcc@ymax leaves the band plus one line below it).
+\def\wbcc@clampY{%
+  \ifdim\@tempdimb<\baselineskip \@tempdimb\baselineskip \fi
+  \ifdim\@tempdimb>\wbcc@ymax \@tempdimb\wbcc@ymax \fi}
 
 %% How many bands to place on this page. The overdue prefix (bands deferred from an
 %% earlier page) is always placed; the descent decides how many of THIS page's new
