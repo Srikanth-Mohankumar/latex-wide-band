@@ -63,29 +63,41 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
-| `stress-KNOWN-ISSUE-auto-Y-budget-resonance` | A bare **right**-column band (detach-up, Y=P−bud, correct) that also trips a **pre-existing** budget resonance — see below. |
+| `stress-shrunk-split-row-no-overflow` | A bare **right**-column band (detach-up, Y=P−bud) whose split lands where `\vsplit` had to **shrink glue** — the regression for the row re-expansion bug below (once overflowed 4.56pt). |
 
-### A pre-existing budget resonance that auto-Y exposes
+### A row re-expansion bug this suite found and fixed
 
-`stress-KNOWN-ISSUE-auto-Y-budget-resonance` overflows the band page by **4.56pt**. It is
-**not** an auto-Y defect and **not** data loss (content is fully conserved — 16 paras, 32
-`minim`; the page is merely drawn 4.56pt too tall):
+`stress-shrunk-split-row-no-overflow` used to overflow its band page by **4.56pt** (it was
+first committed as `stress-KNOWN-ISSUE-auto-Y-budget-resonance`). It was never an auto-Y
+defect and never data loss; the diagnosis went through one wrong turn worth recording:
 
-- **Pre-existing:** the identical 4.56pt overflow occurs on the old code with a fixed
-  `\begin{wideband}[351.44pt]` on the same document. Auto-Y just picks that Y (`P − bud`).
-- **Y-specific resonance (measured):** sweeping the explicit Y over 200..420pt, *only*
-  Y=351.44pt overflows; every other value is clean. At that Y both columns `\vsplit` land
-  on line boundaries summing to **exactly** `bud` (L1=351.44=Y, L2=147.06=bud−Y), leaving
-  zero snapping slack, so the unbudgeted per-row depth excess of the height-0 `\wbcc@vtop`
-  rows (~7pt/row, measured) pushes the box past `\@colht`. Off-resonance Y leaves slack
-  that absorbs it.
-- **Why auto-Y surfaces it:** auto Y = the marker's true position, itself a natural line
-  boundary, so exact-fill resonance is over-represented compared with hand-picked Y.
+- **Pre-existing:** the identical overflow occurs on the old code with a fixed
+  `\begin{wideband}[351.44pt]`; auto-Y merely picks that Y (`P − bud`). Sweeping the
+  explicit Y over 200..420pt, *only* 351.44pt overflowed — a "resonance".
+- **Wrong first explanation (retracted):** a toy probe suggested each height-0
+  `\wbcc@vtop` row carried an unbudgeted "first-line excess". The toy lacked
+  `\makeatletter`, so `\kern\z@` had typeset a stray `@` paragraph — the excess was the
+  probe's own artefact. Lesson re-learned: `\showbox` the real box, don't infer.
+- **Real mechanism (measured in the package with `\showbox`):** `\vsplit … to X`
+  packages a segment **exactly** to X, and TeX may reach X by *shrinking* glue
+  (`\medskip` has `minus 2pt`). The row then did `\unvbox`, which **drops the glue-set**
+  and lets the segment re-expand to its natural height — past X and past the budget.
+  Measured: L1 set 351.44+2.06 → unboxed 360.06 (+6.56); R1 +3.50; L2 +3.88. The
+  "resonance" is simply a split point where the best break needed shrink; elsewhere an
+  underfull break wins and its slack hides the error. Smaller instances (0.9–2pt) were
+  present in several other tests, silently absorbed by the old 2pt `\vfuzz`.
 
-**Fix (a separate rung):** `\wbcc@computebud`'s reserve under-accounts for the height-0
-`\wbcc@vtop` rows' first-line excess; it needs to cover that without wasting space
-off-resonance. Because changing the reserve moves `bud` on *every* band page (breaking the
-byte-identical guarantee), it is deliberately kept out of the auto-Y change.
+**Fix (`\wbcc@fitseg` in `wideband-cc.sty`):** each segment is finished the way
+`\@makecol` finishes a column. If `\vsplit` shrank it, the set box is kept (as
+`\flushbottom` would). Otherwise, under `\flushbottom` the row is filled exactly to its
+split height, and under `\raggedbottom` it is reboxed to its natural height so the band
+follows the taller column's last line. In every branch a row is at most its split height
+plus a `\maxdepth`-clamped depth, so the rows sum to at most `bud + (N+1)·\maxdepth` and
+the budget reserve bounds the page **for any Y** — no split height can overflow. With
+that, `\vfuzz` is back at TeX's default 0.1pt: any overfull band page is a genuine defect.
+Verified across the whole suite: 0 overfull, every paragraph conserved, every band and
+paragraph on the same page as before; 23 of 38 files render byte-identically, the rest
+move by ≤ 2pt (the previously masked shrink, now honoured; one by 6.5pt — this file).
 
 ## A content-loss bug this suite found and fixed
 
@@ -110,7 +122,6 @@ the whole suite (every other test's output is byte-identical; only this file cha
 survives even when its body is dropped. Verify conservation at the body-word level (e.g.
 count `minim`: it must equal `2 ×` the paragraph count).
 
-Still open (a separate rung): the `\wbcc@vtop` budget resonance documented above
-(`stress-KNOWN-ISSUE-auto-Y-budget-resonance`) — the per-column reserve under-accounts for
-the height-0 rows' first-line excess, so an exact-fill split point overflows by a few
-points.
+Still open (separate rungs): an explicit `[Y]` is not yet clamped to the page (a manual Y
+that leaves no room for a line below the band forces a one-line overfull last row), and
+`\wbcc@duecount` budgets footnotes/bottom floats as zero when deciding which bands fit.

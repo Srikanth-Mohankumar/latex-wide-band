@@ -85,7 +85,39 @@
   \directlua{wbcc.mark()}%       % leave a marker at the authored position (page assignment)
 }
 
-\def\wbcc@vtop#1{\vtop{\kern\z@\unvbox#1}}
+%% A height-0 \vtop around box #1 (the leading \kern makes the height 0 so all of #1
+%% is depth; see \wbcc@assemble for why). #1 is \box'ed, NOT \unvbox'ed, so a segment
+%% keeps the exact height \wbcc@fitseg gave it.
+\def\wbcc@vtop#1{\vtop{\kern\z@\box#1}}
+
+%% Finish one column segment #1 (a box register) that \wbcc@splitcol just produced
+%% with \vsplit ... to X. \vsplit packages the segment EXACTLY to X, but TeX may have
+%% reached X by SHRINKING glue (\medskip has minus 2pt), and the old \unvbox in the row
+%% dropped that glue-set, letting the row re-expand to its natural height — past X and
+%% past the budget (measured +6.56pt on one row; only at split points where the best
+%% break needed shrink, hence the "resonance"). So:
+%%   - natural size > the set size (vsplit shrank): keep the box as set — the same
+%%     thing stock \flushbottom does at a column bottom;
+%%   - otherwise, under \flushbottom (\@textbottom is \relax): fill the row exactly to X
+%%     the way \@makecol finishes a column (\unvbox, back up the last depth), so the
+%%     glue stretches and both columns end level at the band;
+%%   - otherwise (\raggedbottom): rebox to the NATURAL height (<= X), so glue stays
+%%     natural and the band follows the taller column's last line, not a fixed Y.
+%% In every branch the box is no taller than X + \maxdepth-clamped depth, so the rows
+%% sum to at most \wbcc@bud + (N+1)\maxdepth and \wbcc@computebud's reserve bounds the
+%% page: no split height can overflow it. \boxmaxdepth\maxdepth mirrors \vsplit's
+%% \splitmaxdepth so a deep last line moves into the height, never past the reserve.
+\def\wbcc@fitseg#1{%
+  \setbox\@tempboxa\vbox{\boxmaxdepth\maxdepth\unvcopy#1}%   natural size of the content
+  \ifdim\dimexpr\ht\@tempboxa+\dp\@tempboxa\relax>\dimexpr\ht#1+\dp#1\relax
+  \else
+    \ifx\@textbottom\relax
+      \dimen@\dp\@tempboxa
+      \setbox#1\vbox to\ht#1{\unvbox#1\vskip-\dimen@}%
+    \else
+      \setbox#1\box\@tempboxa
+    \fi
+  \fi}
 
 %% Sort the pending bands ascending by split height Y (bubble sort; N<=4). Bands are
 %% captured in source order but may be authored with out-of-order Y; the segment split
@@ -128,11 +160,13 @@
       \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\box\voidb@x   % stacked band: no text row
     \else
       \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\vsplit\wbcc@galley to\@tempdima
+      \expandafter\wbcc@fitseg\csname wbcc@#1@\the\wbcc@i\endcsname
       \wbcc@prevY\csname wbcc@Yd@\the\wbcc@i\endcsname
     \fi
     \advance\wbcc@i\@ne}%
   \setbox\csname wbcc@#1@\the\wbcc@i\endcsname
     \vsplit\wbcc@galley to\dimexpr\wbcc@bud-\wbcc@prevY\relax
+  \expandafter\wbcc@fitseg\csname wbcc@#1@\the\wbcc@i\endcsname
 }
 
 %% One two-column row from segment #1.
@@ -332,14 +366,15 @@
         \number\@outputbox, \number\@tempdima, \number\@tempdimb, \number\lineskiplimit)}%
       %% \splitmaxdepth\maxdepth bounds each segment's last-line depth (matching the
       %% (N+1)*\maxdepth budget reserve above). \vbadness is silenced (the trailing
-      %% \vfil makes every band page technically underfull). \vfuzz is a small 2pt
-      %% tolerance — NOT \maxdimen (which hid the real spill): \vsplit quantizes to
-      %% line boundaries, so the arithmetic budget leaves a sub-point (<1px) rounding
-      %% residual that cannot be shaved without discarding a whole line. 2pt swallows
-      %% that rounding but is far below one \baselineskip, so any Overfull \vbox on a
-      %% band page is a genuine defect (content spilling past the text area). Tests
-      %% assert no Overfull \vbox at all.
-      \splittopskip\z@skip \splitmaxdepth\maxdepth \vbadness\maxdimen \vfuzz2\p@
+      %% \vfil makes every band page technically underfull, and a \flushbottom row
+      %% filled to its split height may be underfull too). \vfuzz stays at TeX's
+      %% default 0.1pt: every row is exactly its split height or shorter (see
+      %% \wbcc@fitseg), the budget is exact sp arithmetic, and the footnote/float
+      %% blocks are budgeted with their own slack, so any Overfull \vbox on a band
+      %% page is a genuine defect (content past the text area). Tests assert none.
+      %% (It used to be 2pt, which silently absorbed the shrink re-expansion that
+      %% \wbcc@fitseg now removes.)
+      \splittopskip\z@skip \splitmaxdepth\maxdepth \vbadness\maxdimen \vfuzz.1\p@
       \wbcc@splitcol L
       \wbcc@splitcol R
       %% \wbcc@galley now holds the overflow for the next page

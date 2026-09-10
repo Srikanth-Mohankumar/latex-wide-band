@@ -1,0 +1,38 @@
+%% =====================================================================
+%% REGRESSION: a band-page row whose \vsplit had to SHRINK glue must not re-expand past
+%% its split height (this once overflowed the band page by 4.56pt).
+%%
+%% Also a bare (auto) RIGHT-column band: authored after [11], its marker sits past the
+%% left column (galley P > bud), so auto Y = P - bud places it just below [11] in the
+%% right column (detach-up) with the left column cut at the same page height.
+%%
+%% HISTORY: with this content, auto Y lands on a split point where \vsplit reaches its
+%% target only by shrinking \medskip glue (minus 2pt each). \vsplit packages the segment
+%% EXACTLY to the target, but the row used \unvbox, which drops the glue-set, so the
+%% segment re-expanded to its natural height: measured L1 set 351.44+2.06pt -> unboxed
+%% 360.06pt (+6.56), R1 +3.50, L2 +3.88 -- past the budget, hence the overfull. It was
+%% pre-existing (the same overflow with a fixed [351.44pt] on the old code) and content
+%% was never lost. An earlier "first-line excess" explanation was a probe artefact (a
+%% \kern\z@ typeset without \makeatletter) and is retracted.
+%% FIX: \wbcc@fitseg finishes each segment like \@makecol finishes a column -- keep the
+%% set box when \vsplit shrank, fill to the split height under \flushbottom, rebox to the
+%% natural height under \raggedbottom -- so a row is never taller than its split height
+%% (+ clamped depth) and the budget bounds the page for any Y. \vfuzz is back to 0.1pt.
+%%
+%% ASSERTION: RIGHTCOL-AUTO band on page 1 just below [11]; NO "Overfull \vbox"; content
+%% conserved (16 paras, 32 "minim", each [NN] once).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}
+\begin{wideband}\[ E=mc^2 \quad[\text{RIGHTCOL-AUTO}] \]\end{wideband}
+\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\end{document}

@@ -32,16 +32,20 @@ tallest placed band rather than a per-band `Ymax_i`. This is correct (monotone c
 reorder; the deepest band is the binding one) and simpler; `stress-two-auto-bands-same-page`
 exercises it. A per-band refinement is possible but not needed today.
 
-**Known bug this exposed — a `\wbcc@vtop` budget resonance.** Auto Y derives Y from the
-marker's true position, itself a natural line boundary, so it over-represents the
-*exact-fill* split where both columns' `\vsplit` sum to exactly `bud` with zero snapping
-slack. At that point the unbudgeted per-row depth excess of the height-0 `\wbcc@vtop` rows
-(~7pt/row, measured) pushes the band page ~4.56pt past `\@colht`. It is **pre-existing**
-(the same fixed Y on the old code overflows identically) and **cosmetic** (content
-conserved). Reproducer + measurements: `tests/stress/stress-KNOWN-ISSUE-auto-Y-budget-resonance.tex`.
-The fix — making `\wbcc@computebud`'s reserve cover the `\wbcc@vtop` first-line excess
-without wasting space off-resonance — is a separate rung, kept out of the auto-Y change
-because it moves `bud` on every band page.
+**A bug auto-Y exposed, now fixed — rows re-expanding past their split height.** With
+some contents auto Y lands on a split point where `\vsplit … to X` reaches X only by
+*shrinking* glue (`\medskip` has `minus 2pt`). `\vsplit` packages the segment exactly to X,
+but the row then `\unvbox`ed it, dropping the glue-set, so the segment re-expanded to its
+natural height — measured L1 351.44+2.06 → 360.06 (+6.56pt) — and the band page overflowed
+by 4.56pt. It was pre-existing (a fixed `[351.44pt]` on the old code did the same) and
+content was never lost; an earlier "first-line excess" explanation came from a probe that
+lacked `\makeatletter` and is retracted. Fix: `\wbcc@fitseg` finishes each segment the way
+`\@makecol` finishes a column — the set box is kept when `\vsplit` shrank, the row is filled
+to X under `\flushbottom`, and reboxed to its natural height under `\raggedbottom` (so the
+band follows the taller column, as before). A row is therefore never taller than X plus a
+`\maxdepth`-clamped depth, the rows sum to at most `bud + (N+1)·\maxdepth`, and the budget
+reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
+`tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
 > This doc covers two coupled placement questions — **which page** a band lands on and
 > **how far down** (Y) — because the same marker answers both. The page part is written
@@ -233,13 +237,17 @@ pull.
 Built (tiers 1–2): the marker emits at the authored position; the scan drives **both**
 page assignment (Phase A) and `Y = within-column height` with clamping (Phase B, see "Phase
 B — as implemented" above). Covered by `tests/test-cc` (bare, left column) and the
-`tests/stress/stress-auto-Y-*` / `stress-KNOWN-ISSUE-auto-Y-budget-resonance` files (left
+`tests/stress/stress-auto-Y-*` / `stress-shrunk-split-row-no-overflow` files (left
 column, right column, explicit+auto mix, two auto bands, overdue→top).
 
 Still to do:
 
-- **The `\wbcc@vtop` budget resonance** (see "Known bug this exposed" above) — the next
-  rung, since auto-Y makes an exact-fill overflow more likely.
+- **Clamp an explicit `[Y]`** to the same `[Ymin, Ymax]` as auto Y (with a warning): a
+  manual Y that leaves no room for a line below the band forces a one-line overfull last
+  row.
+- **Exact fit decision with footnotes/floats**: `\wbcc@duecount` budgets them as zero
+  (optimistic), so a boundary band can be placed one page early on a page that also
+  carries notes or bottom floats — measure them non-destructively before the descent.
 - **Tier 3, external production source** — feed `\wbcc@Yd@<i>` from the pgc-editor /
   `satellite.json` layer, on top of the automatic default.
 - **The optional forward page-offset override** (`[<Y>][+1]`) for manual page control.
