@@ -315,6 +315,52 @@ So the plan: marker-driven automatic page assignment (fixes the bug), with an op
 **forward** page-offset override for fine control — not an absolute page, not a backward
 pull.
 
+## Real-article validation (ACS, `acs-fla` template, 2026-09-10)
+
+Setup (scratch, `/data/neopage/.temporary/wideband-realtest/`, `run.sh`/`compare.sh`):
+copy an article's `process_folder` from `regression-check/acs`, compile unmodified as the
+baseline (lualatex ×2, as simba's harness does), then compile again with `wideband-cc`
+loaded after `autotemplate` and this hook, which turns every display wider than the column
+into a band — the production integration point is exactly this policy inside
+`neopage-math.sty`:
+
+```latex
+\usepackage{wideband-cc}          % after autotemplate (flushend/stfloats are loaded there)
+\makeatletter
+\let\np@DisplayFormula\DisplayFormula
+\long\gdef\DisplayFormula#1#2#3{%
+  \ifAppendixSection\np@DisplayFormula{#1}{#2}{#3}\else
+    \begin{TNQalign*}#3\end{TNQalign*}%          the template's own trial set -> \eqlen
+    \ifdim\eqlen>\columnwidth
+      \begin{wideband}\np@DisplayFormula{#1}{#2}{#3}\end{wideband}%  (\columnwidth=\textwidth inside)
+    \else\np@DisplayFormula{#1}{#2}{#3}\fi\fi}
+\let\np@DisplayFormulaImage\DisplayFormulaImage  % \mathImage scales images to \columnwidth
+\newsavebox\wbcc@eqimg
+\long\gdef\DisplayFormulaImage#1#2#3{%
+  \ifAppendixSection\np@DisplayFormulaImage{#1}{#2}{#3}\else
+    \sbox\wbcc@eqimg{\includegraphics{#2}}%       natural size (image file named by the id)
+    \ifdim\wd\wbcc@eqimg>\columnwidth
+      \begin{wideband}%
+        \ifdim\wd\wbcc@eqimg<\textwidth \columnwidth\wd\wbcc@eqimg \fi   % natural, not inflated
+        \np@DisplayFormulaImage{#1}{#2}{#3}%
+      \end{wideband}%
+    \else\np@DisplayFormulaImage{#1}{#2}{#3}\fi\fi}
+\makeatother
+```
+
+Results: `CI_6c00357` (38 pages, 25 displays; eq 23/24 are images 336/358pt wide in a 245pt
+column) → 38 pages, two bands on page 11 (one deferred from page 10, at the top; one at
+Y=317pt), word count identical (25 595). `EM_7c00997` (16 pages; eq 7 image 276pt) → 17
+pages, band on page 5, body text identical (+18 words = the extra page's running
+head/foot). No TeX errors. The one structural finding — the template's `flushend`/
+`stfloats` output routine being discarded — is fixed by the overlay above. Template noise
+to know about: the production page box is **1.25pt overfull on every page** in the baseline
+too (15/16 pages EM, 37/37 CI), so a per-page 1.25pt "while \output is active" is not ours;
+CI's single 1.6pt overfull in the band build sits between pages 30 and 33, produced by the
+host routine on re-flowed pages (the baseline had 1.83pt/0.23pt ones elsewhere). Cosmetic:
+`\DisplayFormulaImage` sets the image flush left with the number on the next line; in a
+band it should be centred — that is the template's layout, not the band's.
+
 ## Built vs. still to do
 
 Built (tiers 1–2): the marker emits at the authored position; the scan drives **both**
