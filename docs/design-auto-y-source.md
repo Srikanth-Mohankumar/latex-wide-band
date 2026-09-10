@@ -50,6 +50,12 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**`\flushbottom` band pages.** The assembly is now: bottom block (`\wbcc@bot`: floats,
+footnotes) boxed; rows 1..N with their bands boxed at natural size (`\wbcc@top`); under
+`\flushbottom` the leftover `\@colht − top − lastrow − bot` is measured and the last row's
+two segments are refilled (`\wbcc@refill`) to that total, so the band page ends where a
+plain flush page does. `\raggedbottom` keeps the `\vfil` and is byte-identical.
+
 **Per-band options.** `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…,
 rulewidth=…, fullpage]` via `keyval`; `\wbcc@setopts` keeps a bare dimension meaning `y`.
 Values are set locally in the environment group, so `\wbcc@capture` records them per band

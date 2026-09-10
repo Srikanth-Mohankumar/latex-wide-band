@@ -37,6 +37,7 @@
 \newbox\wbcc@galley
 \newbox\wbcc@fn
 \newbox\wbcc@bfL \newbox\wbcc@bfR
+\newbox\wbcc@top \newbox\wbcc@bot            % band page: rows+bands above the last row / bottom block
 \newdimen\wbcc@bfh \newdimen\@tempdimd
 \newdimen\wbcc@detachY  \wbcc@detachY=\maxdimen% AUTO sentinel: derive Y from the marker
 %% User spacing controls (\setlength). Recorded PER BAND when \end{wideband} is reached,
@@ -388,8 +389,20 @@
     \vskip\csname wbcc@bl@\the\wbcc@i\endcsname
     \nointerlineskip
     \advance\wbcc@i\@ne}%
-  \wbcc@row{\the\wbcc@i}%
 }
+%% (The last row, nb+1, is added by the caller: under \flushbottom it is refilled first
+%% to absorb the page's leftover, see \wbcc@refill.)
+
+%% Refill segment #1 (a box register) so that its height+depth is exactly \@tempdimb,
+%% if its natural content fits (a segment \vsplit had to shrink is left as set). Used
+%% under \flushbottom on the last row's two segments so both columns end at the page's
+%% bottom, like the columns of a plain \flushbottom page.
+\def\wbcc@refill#1{%
+  \setbox\@tempboxa\vbox{\boxmaxdepth\maxdepth\unvcopy#1}%
+  \ifdim\dimexpr\ht\@tempboxa+\dp\@tempboxa\relax>\@tempdimb \else
+    \@tempdimd\dp\@tempboxa
+    \setbox#1\vbox to\@tempdimb{\unvbox#1\vskip-\@tempdimd}%
+  \fi}
 
 %% Per-column text budget for placing \wbcc@nb bands: \@colht minus the band heights
 %% (+gaps), minus footnotes (\@tempdimc) and bottom floats (\wbcc@bfh), minus a
@@ -651,9 +664,9 @@
       %% \wbcc@galley now holds the overflow for the next page; count the deferred-new
       %% markers that ride in it (their bands stay pending WITH a marker, not overdue).
       \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%
-      \setbox\@outputbox\vbox to\@colht{%
-        \wbcc@assemble
-        \vfil
+      %% the bottom block (re-set bottom floats, then the footnotes) boxed first, so
+      %% its exact height is known; rows 1..nb with their bands at natural size.
+      \setbox\wbcc@bot\vbox{%
         \ifdim\wbcc@bfh>\z@
           \vskip\textfloatsep
           \hb@xt@\textwidth{%
@@ -664,6 +677,33 @@
         \ifvoid\wbcc@fn\else
           \vskip\skip\footins \footnoterule \unvbox\wbcc@fn
         \fi}%
+      \setbox\wbcc@top\vbox{\wbcc@assemble}%
+      \edef\wbcc@lr{\the\numexpr\wbcc@nb+\@ne\relax}%   the last row's segment index
+      %% \flushbottom: the budget's reserve ((N+1)\maxdepth + N\lineskip) is rarely used
+      %% in full, and the page used to end in \vfil — ragged by a few points in a flush
+      %% document. Measure the leftover now that everything else is boxed and refill
+      %% the last row's segments to absorb it, so both columns end at the page bottom.
+      \ifx\@textbottom\relax
+        \@tempdimb\dimexpr\ht\csname wbcc@L@\wbcc@lr\endcsname
+          +\dp\csname wbcc@L@\wbcc@lr\endcsname\relax
+        \@tempdimd\dimexpr\ht\csname wbcc@R@\wbcc@lr\endcsname
+          +\dp\csname wbcc@R@\wbcc@lr\endcsname\relax
+        \ifdim\@tempdimd>\@tempdimb \@tempdimb\@tempdimd \fi   % the last row's natural depth
+        \dimen@\dimexpr\@colht-\ht\wbcc@top-\dp\wbcc@top-\@tempdimb
+          -\ht\wbcc@bot-\dp\wbcc@bot\relax                      % leftover
+        \ifdim\dimen@>\z@
+          \advance\@tempdimb\dimen@                               % both segments -> this total
+          \expandafter\wbcc@refill\csname wbcc@L@\wbcc@lr\endcsname
+          \expandafter\wbcc@refill\csname wbcc@R@\wbcc@lr\endcsname
+        \fi
+      \fi
+      \setbox\@outputbox\vbox to\@colht{%
+        \unvbox\wbcc@top
+        \nointerlineskip
+        \wbcc@row{\wbcc@lr}%
+        \vfil                        % \raggedbottom: the leftover stays here
+        \nointerlineskip
+        \box\wbcc@bot}%
       %% pool bookkeeping: the placed prefix is 1..\wbcc@nb = (\wbcc@nb-\wbcc@m) overdue
       %% bands + \wbcc@m new ones. Still overdue for the next page: the overdue bands
       %% not placed (the per-page cap) plus this page's deferred-new markers that shipped

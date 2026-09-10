@@ -63,6 +63,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-flushbottom-band-page` | In a `\flushbottom` document the band page ends flush: its lowest baseline equals a plain page's (675.64pt here; it was 7.9pt short — the budget's unused reserve sat in a `\vfil`). |
 | `stress-fullpage-band-running-head` | `\pagestyle{headings}` with a section change on page 1 and a full-page band on page 2: the band page's head reads `2 BETA` (the section current when it begins), the next page `3 BETA`. A stock `figure*` float page shows the stale `1 ALPHA` here. |
 | `stress-band-keyval-options` | `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…, rulewidth=…, fullpage]` per band; a bare `[140pt]` still means `y=140pt`; `[fullpage]` forces a small band onto its own page. |
 | `stress-band-spacing-controls` | **User request.** `\wbccskipabove`/`\wbccskipbelow`/`\wbccframesep`/`\wbccrulewidth`, recorded per band: one default band and one with 18pt above, 2pt below, no padding, no rules — budget and clamp follow the per-band values. |
@@ -142,6 +143,14 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**`\flushbottom` band pages.** Rows are filled exactly to their split heights, but the
+page budget keeps a reserve (`(N+1)·\maxdepth + N·\lineskip`) the rows rarely use in
+full, and the band page ended in `\vfil` — ragged by a few points in a flush document.
+Now the bottom block (bottom floats, footnotes) and the rows above the last row are boxed
+first, the leftover is measured, and under `\flushbottom` the last row's two segments are
+refilled to absorb it, so both columns end at the page bottom. Under `\raggedbottom`
+nothing changes (the `\vfil` stays; all those tests are byte-identical).
 
 **Per-band options.** The optional argument takes key=value pairs (`keyval`):
 `y=<dimen>` (explicit split height; a bare `[<dimen>]` still works), `skipabove=`,

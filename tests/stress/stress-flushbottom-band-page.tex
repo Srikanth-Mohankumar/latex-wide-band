@@ -1,0 +1,31 @@
+%% =====================================================================
+%% STRESS TEST: a band page in a \flushbottom document ends flush at the text-area
+%% bottom, like every other page.
+%%
+%% Rows are filled exactly to their split heights under \flushbottom, but the page budget
+%% keeps a reserve ((N+1)*\maxdepth + N*\lineskip) that the rows rarely use in full; the
+%% band page used to end with \vfil, leaving that reserve as blank space at the bottom
+%% (a few points) — ragged, while the document is flush. Now, under \flushbottom, the
+%% leftover is measured after assembly and the LAST row is refilled to absorb it, so both
+%% columns end at the same bottom as a plain flushbottom page.
+%%
+%% ASSERTION: page 1 (the band page) and page 2 (a plain full page) end at the same
+%% bottom: the lowest text baseline on page 1 is within 1pt of the lowest on page 2, in
+%% both columns; no "Overfull \vbox"; paras 01-34 each once; "minim" 68 times (34 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\flushbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}
+\begin{wideband}\[ E=mc^2 \quad[\text{FLUSH-BAND}] \]\end{wideband}
+\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}
+\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}\Par{21}\Par{22}\Par{23}\Par{24}
+\Par{25}\Par{26}\Par{27}\Par{28}\Par{29}\Par{30}\Par{31}\Par{32}\Par{33}\Par{34}
+\end{document}
