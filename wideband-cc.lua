@@ -264,6 +264,17 @@ function M.takebotfloats(colnum, holdnum)
   return cnt
 end
 
+-- Count the band markers at the top level of box boxnum (used on the overflow galley
+-- after the split: those markers RIDE to the next page). Result -> count register kreg.
+function M.countmarks(boxnum, kreg)
+  local b = tex.box[boxnum]
+  local n = 0
+  if b and b.list then
+    for x in N.traverse(b.list) do if is_marker(x) then n = n + 1 end end
+  end
+  tex.setcount("global", kreg, n)
+end
+
 -- Non-destructive measurement for the fit decision. Before the output routine
 -- decides which bands fit this page it needs the footnote and bottom-float heights
 -- that the real split will subtract from the budget — but it must not touch the

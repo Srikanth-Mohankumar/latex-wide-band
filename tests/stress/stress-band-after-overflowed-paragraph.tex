@@ -1,0 +1,68 @@
+%% =====================================================================
+%% STRESS TEST (from a user report, to-check/wideband-cc/example.tex — same paragraph and
+%% band sequence, same packages incl. stfloats, minus showframe; band labels added):
+%% a band whose paragraph is pushed to the next page by that page's OTHER bands must
+%% follow its paragraph there — not sit near the top of the next page above it.
+%%
+%% Page 2 carries two bands (after [09] and [16]); the band after [20] is also authored in
+%% page 2's text, but past the band page's smaller budget, so it is deferred. The rebuild
+%% pushes the end of [19] and all of [20] onto page 3. The deferred band's marker lies in
+%% that overflow: it must RIDE to page 3 and be found there, so the band lands after
+%% [20]'s last line. (It used to be stripped, and the band force-placed at "Ymin" — one
+%% line from the top of page 3, i.e. BEFORE its own paragraph.) Likewise the band after
+%% [31], whose paragraph ends at the bottom of page 3: it lands at the very top of page 4
+%% (Y=0), not below an orphaned line of [32].
+%%
+%% ASSERTION: every band appears on the page where the paragraph it follows ENDS, below
+%% that paragraph's last line and above the next paragraph's first line (bands after
+%% [06], [09], [16], [20], [31]); no "Overfull \vbox"; paras 01-42 each once;
+%% "minim" 84 times (42 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,amssymb,graphicx}
+\usepackage{wideband-cc}
+\usepackage{stfloats}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\newcommand\Band[1]{\begin{wideband}\[ \nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0}
+  \qquad \nabla\times\mathbf{B} = \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
+  \quad[\text{#1}] \]\end{wideband}}
+\begin{document}
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\columnwidth]{example-image}
+  \caption{sample figure}
+\end{figure*}
+\Par{01}\Par{02}\Par{03}\Par{04}
+
+\Par{05}\Par{06}
+\Band{AFTER-06}
+\Par{07}\Par{08}
+
+\Par{09}
+\Band{AFTER-09}
+\Par{10}\Par{11}\Par{12}%
+\Par{13}\Par{14}
+\vspace*{0pt}
+\Par{15}\Par{16}
+\Band{AFTER-16}
+\Par{17}\Par{18}\Par{19}
+
+\Par{20}
+\Band{AFTER-20}
+\Par{21}\Par{22}\Par{23}\Par{24}
+
+\Par{25}\Par{26}
+
+\Par{27}
+
+\Par{28}\Par{29}\Par{30}
+
+\Par{31}
+\Band{AFTER-31}
+\Par{32}\Par{33}\Par{34}\Par{35}\Par{36}\Par{37}\Par{38}\Par{39}\Par{40}\Par{41}\Par{42}
+\end{document}

@@ -16,9 +16,10 @@ branch of `\@outputdblcol` the order is **`\wbcc@computebud` → `\wbcc@autoY` �
   `P = \wbcc@mh@(i-\wbcc@overdue)` and sets `Y = (P ≤ bud) ? P : P − bud` — the second case
   is a genuine right-column band detaching up. `bud` (not the original left-column height)
   is the L/R boundary, because `\wbcc@splitcol`'s L segments sum to exactly `bud`. An
-  **overdue** band has no marker on the page it lands on, so it takes `Y = Ymin`.
-- Clamp to `[Ymin, \wbcc@ymax]`: `Ymin = \baselineskip`; `\wbcc@ymax = bud − (tallest placed
-  band) − 2·sep − \baselineskip`. Clamping is monotone, so it cannot reorder bands;
+  **overdue** band has no marker on the page it lands on (its text ended on the previous
+  page), so it takes `Y = 0` — the very top.
+- Clamp to `[0, \wbcc@ymax]`: `\wbcc@ymax = bud − (tallest placed band) − 2·sep −
+  \baselineskip`. Clamping is monotone, so it cannot reorder bands;
   near-equal clamped Y's are de-collided by the existing sort + `\wbcc@splitcol` stack.
 - It **must** run before the sort (the marker index `i − overdue` keys the *unsorted* pool
   order). A leftover `\maxdimen` reaching `\wbcc@sortbands` raises a `\PackageError`.
@@ -123,8 +124,12 @@ the galley in order, with the band between the above- and below-segments.
 A raw P can be unusable (band too high to read, or so low the band + a line below don't
 fit). Clamp:
 
-- `Ymin` — leave a little above the band (e.g. one `\baselineskip`, or the first
-  paragraph), so a band authored at the very top isn't flush to the header.
+- `Ymin` — **0**, not a line. A marker sits between paragraphs, so if any text precedes
+  it on the page `P` is already ≥ one line; a band at `Y = 0` (nothing before it on the
+  page, or an overdue band whose text ended on the previous page) belongs at the very top.
+  A positive `Ymin` (an earlier draft used one `\baselineskip`) only orphans a line of the
+  *next* paragraph above the band. `\wbcc@splitcol` voids a row shorter than a line, so
+  `Y = 0` simply means "band first".
 - `Ymax = bud − (band height + gaps) − \baselineskip` — guarantee the band plus at least
   one line below it fit on the page; a marker below this detaches up to `Ymax` (or, as a
   policy choice, defers to the next page).
@@ -215,10 +220,23 @@ marker below `bud` simply becomes the top of the rebuilt right column — still 
 page). Galley order is document order, so the deepest fitting marker is the last one, and
 a one-pass descent shrinks the fitting count until it holds. The pool is split into a
 persistent pending total (`\wbcc@np`) and a per-page place count (`\wbcc@nb =` overdue +
-fitting-new). Because deferring a band while building the page at the larger `bud`
-would let its marker *stay* on the page (the "ride" hole), **all** of this page's markers
-are stripped, and deferred bands are tracked by `\wbcc@overdue` and force-placed first on
-the next page — one mechanism, no riding. The fit descent budgets the page's footnotes
+fitting-new). What happens to a deferred band's marker depends on where it ends up:
+
+- **Page rebuilt (`nb > 0`).** Only the placed bands' markers (the first `m` found) are
+  stripped. A deferred-new marker past the band-page budget lies in the **overflow** and
+  *rides* to the next page, where `markpos` finds it again at its true position — so the
+  band lands after its paragraph, which the rebuild pushed there too. After the split
+  `wbcc.countmarks` counts the riders in the overflow galley; a deferred-new marker that
+  instead lies inside this page's rows ships with them (a zero-size whatsit) and its band
+  becomes overdue. Pool bookkeeping: `overdue' = overdue − nb + found − ride`; galley order
+  is source order, so shipped-marker bands precede riders and the overdue prefix stays
+  contiguous. (Before this, *every* found marker was stripped and a deferred band was
+  force-placed near the top of the next page — *above* the tail of its own paragraph when
+  that tail had overflowed with it; reported from production, regression
+  `stress-band-after-overflowed-paragraph`.)
+- **Page shipped stock (`nb = 0`).** All found markers ship with the page; they are
+  stripped and their bands become overdue, force-placed first on the next page at the very
+  top (`Y = 0`, since their text ended on the shipped page). The fit descent budgets the page's footnotes
 and bottom floats exactly: before deciding, `wbcc.measurebottom` runs the real footnote/
 float extraction on *copies* of the finished columns (only when a band is pending) so the
 descent sees the same budget the split will use; a band whose text would be pushed off a

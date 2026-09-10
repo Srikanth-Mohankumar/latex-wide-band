@@ -63,6 +63,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-band-after-overflowed-paragraph` | **User-reported.** A band deferred from a page whose other bands push its paragraph to the next page: its marker now *rides* in the overflow and the band lands after `[20]` there (it used to be stripped and force-placed one line from the top, *above* its own paragraph); an overdue band whose text ended on the previous page sits at the very top, Y=0, with no orphaned line. Mirrors `to-check/wideband-cc/example.tex` (incl. `stfloats`). |
 | `stress-band-deferred-at-document-end` | A band deferred on the document's **last** page (nothing follows it) gets a final page instead of being silently dropped (it was: 1 page, band absent, no warning). |
 | `stress-onecolumn-band-inline` | In one-column mode (no `\@outputdblcol`) the band is typeset in the flow as a full-width display where written (it was captured and never placed). |
 | `stress-five-bands-overdue-cap` | Five bands deferred together from one page: four are placed on the next page (the per-page cap), the fifth waits for the page after — no errors (it used to run off the end of the segment pool). |
@@ -135,6 +136,15 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**Deferred markers ride; Ymin is 0.** When a band page is rebuilt, only the *placed*
+bands' markers are stripped. A deferred band's marker that lies in the overflow rides to
+the next page and is found there at its true position, so the band follows the paragraph
+the rebuild pushed over with it (`wbcc.countmarks` counts the riders; bookkeeping
+`overdue' = overdue − nb + found − ride`). Only markers that actually ship (a stock page, or
+a marker inside a rebuilt page's rows) make their band overdue — and an overdue band's text
+ended on the previous page, so it sits at the very top, `Y = 0`. The earlier `Ymin` of one
+`\baselineskip` orphaned a line of the next paragraph above every top-placed band.
 
 **Never lose a band silently.** Three guards, each with its failure mode named: a band
 deferred on the document's last page gets a final page (`\AtEndDocument`, only when a
