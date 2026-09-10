@@ -147,6 +147,17 @@ page's (137.70pt from the top in these tests) and post-band rows align. Each spl
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
 
+**A band with no room below its text defers, never climbs above it (user-reported).** The
+fit decision requires, for every new candidate band, room for the band *below its own
+position* (`Y + band + skips + rules ≤ bud`, Y from its marker or its explicit `[Y]`; the
+row below may be empty — a band may end a page). Before, a band that fit the page but not
+below its paragraph was placed and then pulled up by the `Ymax` clamp — on page 6 of the
+reported file the table band (raw Y 179.9pt, Ymax 93.2pt) landed 87pt *above* the paragraph
+it follows. Such a band is now shed by the descent; its marker ships with the page and it
+lands at the top of the next page, after its text. The clamp remains only as a safety net
+for automatic bands and as the warned clamp for explicit `[Y]`. Covered by
+`stress-band-follows-paragraph-end` (the table band, page 6→7).
+
 **Absolute split targets (user-reported: a band cut off its paragraph's last line).**
 `\vsplit` stops at a line boundary, so a segment consumes less than its target. Segment
 `i+1` used to be split to `Y_{i+1} − Y_i` from wherever segment `i` actually ended, so its
@@ -155,9 +166,26 @@ row above the second band on a page stopped one line short of the paragraph the 
 follows. Now, in the column that *reads* band `i`, its segment is split to `Y_i` minus what
 that column has consumed so far (plus, in the right column, the residual `r` the left column
 left in the galley — the right column starts there); in the other column the target is the
-plain gap `Y_i − Y_{i−1}`; the last segment is split to `bud − consumed`. A row may thus be
-up to one line taller than its nominal share, which the budget reserves (`N·\baselineskip`,
-one line of capacity per band on a band page).
+plain gap `Y_i − Y_{i−1}`; the last segment is split to `bud − consumed` and left empty when
+less than a line remains.
+
+**The overflow re-inject must not weld lines together.** `\penalty\outputpenalty` after
+the re-injected overflow re-asserts a *forcing* break (the content-loss fix). But when the
+output fired at glue, `\outputpenalty` is 10000, and re-inserting *that* puts an unbreakable
+penalty between the overflow's last line and the text after it; a later `\vsplit` whose
+target lands exactly there cannot break and takes two lines (14pt overfull, seen with the
+exact splits). Only a penalty `< 10000` is re-inserted now.
+
+**Measure, don't estimate.** A row can now be taller than its nominal share (it catches up
+the earlier rows' snapping), so no fixed reserve is exact. Instead the output routine keeps a
+copy of the joined galley, runs the placement (budget → Y's → order → split), then *adds up*
+exactly what the page will stack — rows, bands with skips and cue rules, the bottom block —
+and if that exceeds `\@colht` it corrects and runs again: first the last row is shortened by
+the overshoot (it just gets less text), and only when the last row is already empty is the
+last new band shed (it lands on the next page after its text). The pool is never permuted
+(an index sort orders the rows), placed bands' markers are left in place (they ship inside
+row boxes), and automatic Y's are re-resolved per attempt — so a re-run is exact. The old
+`(N+1)·\maxdepth` term is now just the first estimate.
 
 **Reading-order cue rules (house style, RevTeX geometry, arrangement by reading
 column).** One plain half-width rule **above** the band on one side and one **below** it on

@@ -50,6 +50,13 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Room below the band is part of the fit decision (user-reported).** `\wbcc@duecount`
+checks every new candidate band for `Y_j + (band + skips + rules) + \baselineskip ≤ bud`
+with `Y_j` from its marker; a band that fails is shed (it lands on the next page after
+its text) instead of being placed and then pulled above its paragraph by the `Ymax` clamp
+(which had happened: raw Y 179.9pt clamped to 93.2pt, 87pt above the text). The clamp is
+now a safety net for automatic bands; explicit `[Y]` keeps the warned clamp.
+
 **Absolute split targets (user-reported).** With relative targets (`Y_i − Y_{i−1}` from
 the previous segment's actual end) the reach of a page's second band row drifted up by
 the earlier row's line-snapping residual, cutting off the last line of the paragraph the
@@ -57,8 +64,20 @@ band follows. `\wbcc@splitcol` now tracks what each column has consumed (`\wbcc@
 from the galley's height) and splits the segment of the column that reads band `i` to
 `Y_i − used` (right column: `+ \wbcc@rL`, the left column's leftover in the galley, i.e.
 where the right column really starts), the other column's segment to the plain gap, and
-the last segment to `bud − used`. `\wbcc@computebud` reserves `N·\baselineskip` for the
-possible catch-up. Regression: `stress-band-follows-paragraph-end` (the reported file).
+the last segment to `bud − used` (empty when less than a line remains). Regression:
+`stress-band-follows-paragraph-end` (the reported file).
+
+**Measure-and-correct placement.** No reserve is exact once rows may catch up earlier
+snapping, so `\wbcc@attempt` keeps a `\copy` of the joined galley, runs
+`\wbcc@computebud → \wbcc@autoY → \wbcc@sortidx → \wbcc@splitcol L/R`, then `\wbcc@measure`
+adds up exactly what `\wbcc@assemble` will stack (rows = taller segment, bands + skips +
+`\wbcc@cueextra`, bottom block). If it exceeds `\@colht`: shorten the last row by the
+overshoot (`\wbcc@lastcut`) and rerun; if the last row is already empty, shed the last new
+band (`m−1`) or, with only overdue bands, place one fewer; bounded at 12 attempts. To make
+re-runs possible the pool is no longer permuted (`\wbcc@ord@i` orders rows), markers are not
+stripped before the split (a placed band's marker sits at the top of the segment below it,
+inside a shipped row box), and automatic Y's are snapshotted/restored per attempt
+(`\wbcc@snapauto`/`\wbcc@resetauto`). `(N+1)·\maxdepth` remains as the first estimate.
 
 **Reading-order cue rules (house style, RevTeX geometry, replaces the frame).**
 `\wbcc@autoY` records each placed band's reading column (`\wbcc@sd@i`: L if its marker's

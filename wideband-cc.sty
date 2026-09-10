@@ -55,6 +55,11 @@
 \newdimen\wbcc@ymax                         % lowest a band may be auto-placed (Phase B clamp)
 \newdimen\wbcc@prevY
 \newdimen\wbcc@used \newdimen\wbcc@gstart \newdimen\wbcc@rL  % \wbcc@splitcol: consumed, start, left residual
+\newdimen\wbcc@lastcut                       % attempt loop: shorten the last row by this much
+\newdimen\wbcc@total                         % measured height of the page's stack
+\newbox\wbcc@gcopy                           % the joined galley, kept for a re-split
+\newcount\wbcc@tries                         % attempt loop bound
+\newif\ifwbcc@row                            % assemble/measure: this row has a text segment
 \newcount\wbcc@np       \global\wbcc@np\z@   % bands captured but not yet placed (all pages)
 \newcount\wbcc@overdue  \global\wbcc@overdue\z@% front prefix of the pool forced onto THIS page
 \newcount\wbcc@found \edef\wbcc@found@n{\the\allocationnumber}% count-register index for Lua
@@ -65,6 +70,7 @@
 \newcount\wbcc@cap                           % this page's placement cap (see \wbcc@duecount)
 \newcount\wbcc@serial \global\wbcc@serial\z@ % bands captured so far: "band #n" in log lines
 \newif\ifwbcc@more                           % descent loop continuation flag
+\newif\ifwbcc@fit                            % descent: every candidate has room below its Y
 \chardef\wbcc@MAX=4                          % up to 4 bands / 5 segments per page
 
 %% Pools: band boxes + split heights, and the L/R column-segment boxes.
@@ -371,47 +377,9 @@
     \fi
   \fi}
 
-%% Sort the pending bands ascending by split height Y (bubble sort; N<=4). Bands are
-%% captured in source order but may be authored with out-of-order Y; the segment split
-%% below assumes ascending Y (segment i = Y_i - Y_{i-1} >= 0). Swap the band box and its
-%% Y together.
-\def\wbcc@sortbands{%
-  \wbcc@i\@ne
-  \@whilenum\wbcc@i<\wbcc@nb\do{%
-    \wbcc@j\@ne
-    \@whilenum\wbcc@j<\numexpr\wbcc@nb-\wbcc@i+\@ne\relax\do{%
-      \@tempdima\csname wbcc@Yd@\the\wbcc@j\endcsname
-      \ifdim\@tempdima=\maxdimen \PackageError{wideband-cc}{auto Y unresolved for a
-        placed band}{\string\wbcc@autoY\space must run before \string\wbcc@sortbands}\fi
-      \edef\wbcc@next{\the\numexpr\wbcc@j+\@ne\relax}%
-      \@tempdimb\csname wbcc@Yd@\wbcc@next\endcsname
-      \ifdim\@tempdima>\@tempdimb
-        \setbox\@tempboxa\box\csname wbcc@b@\the\wbcc@j\endcsname
-        \global\setbox\csname wbcc@b@\the\wbcc@j\endcsname\box\csname wbcc@b@\wbcc@next\endcsname
-        \global\setbox\csname wbcc@b@\wbcc@next\endcsname\box\@tempboxa
-        \csname wbcc@Yd@\the\wbcc@j\endcsname\@tempdimb
-        \csname wbcc@Yd@\wbcc@next\endcsname\@tempdima
-        \dimen@\csname wbcc@ab@\the\wbcc@j\endcsname          % the band's own spacing
-        \global\csname wbcc@ab@\the\wbcc@j\endcsname\csname wbcc@ab@\wbcc@next\endcsname
-        \global\csname wbcc@ab@\wbcc@next\endcsname\dimen@   % travels with it
-        \dimen@\csname wbcc@bl@\the\wbcc@j\endcsname
-        \global\csname wbcc@bl@\the\wbcc@j\endcsname\csname wbcc@bl@\wbcc@next\endcsname
-        \global\csname wbcc@bl@\wbcc@next\endcsname\dimen@
-        \expandafter\let\expandafter\wbcc@tmp\csname wbcc@sd@\the\wbcc@j\endcsname
-        \global\expandafter\let\csname wbcc@sd@\the\wbcc@j\expandafter\endcsname
-          \csname wbcc@sd@\wbcc@next\endcsname
-        \global\expandafter\let\csname wbcc@sd@\wbcc@next\endcsname\wbcc@tmp
-        \expandafter\let\expandafter\wbcc@tmp\csname wbcc@rs@\the\wbcc@j\endcsname
-        \global\expandafter\let\csname wbcc@rs@\the\wbcc@j\expandafter\endcsname
-          \csname wbcc@rs@\wbcc@next\endcsname
-        \global\expandafter\let\csname wbcc@rs@\wbcc@next\endcsname\wbcc@tmp
-      \fi
-      \advance\wbcc@j\@ne}%
-    \advance\wbcc@i\@ne}%
-}
 
 %% Split one recombined column (already in \wbcc@galley) into up to \wbcc@nb+1 segments:
-%% segment i (i=1..nb) is the text row ABOVE band i. #1 is L or R; run \wbcc@sortbands
+%% segment i (i=1..nb) is the text row ABOVE band i. #1 is L or R; run \wbcc@sortidx
 %% first, and L before R.
 %%
 %% Split targets are ABSOLUTE. \vsplit stops at a line boundary, so a segment consumes
@@ -432,36 +400,161 @@
 %% row is voided (segment i empty) and the bands stack; the split point does NOT advance,
 %% so band i+1 measures its gap from the same point (a degenerate \vsplit to ~0pt would
 %% still take a whole line).
+%% Rows are numbered i = 1..nb in Y order; row i belongs to the band at pool position
+%% \wbcc@ord@i (\wbcc@sortidx). Segments are stored per ROW (\wbcc@L@i / \wbcc@R@i).
+%% The last row (nb+1) is split to bud - used - \wbcc@lastcut (the attempt loop shortens
+%% it when the measured page overshoots) and is left EMPTY when less than a line remains
+%% (a \vsplit to a sub-line height would still take a whole line): a band may be the
+%% last thing on a page.
 \def\wbcc@splitcol#1{%
   \wbcc@prevY\z@
   \wbcc@gstart\dimexpr\ht\wbcc@galley+\dp\wbcc@galley\relax   % galley height as this column starts
   \if L#1\wbcc@rL\z@\fi                                    % no offset for the left column
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \edef\wbcc@k{\csname wbcc@ord@\the\wbcc@i\endcsname}%  the band of row i
     \wbcc@used\dimexpr\wbcc@gstart-\ht\wbcc@galley-\dp\wbcc@galley\relax
-    \if#1\csname wbcc@sd@\the\wbcc@i\endcsname            % this column reads band i
-      \@tempdima\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname+\wbcc@rL-\wbcc@used\relax
+    \if#1\csname wbcc@sd@\wbcc@k\endcsname                % this column reads the band
+      \@tempdima\dimexpr\csname wbcc@Yd@\wbcc@k\endcsname+\wbcc@rL-\wbcc@used\relax
     \else
-      \@tempdima\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname-\wbcc@prevY\relax
+      \@tempdima\dimexpr\csname wbcc@Yd@\wbcc@k\endcsname-\wbcc@prevY\relax
     \fi
     \ifdim\@tempdima<\baselineskip
       \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\box\voidb@x   % stacked band: no text row
     \else
       \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\vsplit\wbcc@galley to\@tempdima
       \expandafter\wbcc@fitseg\csname wbcc@#1@\the\wbcc@i\endcsname
-      \wbcc@prevY\csname wbcc@Yd@\the\wbcc@i\endcsname
+      \wbcc@prevY\csname wbcc@Yd@\wbcc@k\endcsname
     \fi
     \advance\wbcc@i\@ne}%
   \wbcc@used\dimexpr\wbcc@gstart-\ht\wbcc@galley-\dp\wbcc@galley\relax
-  \@tempdima\dimexpr\wbcc@bud-\wbcc@used\relax
-  \ifdim\@tempdima<\z@ \@tempdima\z@ \fi
-  \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\vsplit\wbcc@galley to\@tempdima
-  \expandafter\wbcc@fitseg\csname wbcc@#1@\the\wbcc@i\endcsname
+  \@tempdima\dimexpr\wbcc@bud-\wbcc@used-\wbcc@lastcut\relax
+  \ifdim\@tempdima<\baselineskip
+    \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\box\voidb@x     % nothing below the last band
+  \else
+    \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\vsplit\wbcc@galley to\@tempdima
+    \expandafter\wbcc@fitseg\csname wbcc@#1@\the\wbcc@i\endcsname
+  \fi
   \if L#1% the residual the left column leaves: where the right column really starts
     \wbcc@rL\dimexpr\wbcc@bud-\wbcc@gstart+\ht\wbcc@galley+\dp\wbcc@galley\relax
     \ifdim\wbcc@rL<\z@ \wbcc@rL\z@ \fi
   \fi
 }
+
+%% Index sort: \wbcc@ord@1..nb = the placed bands' pool positions in ascending Y (stable
+%% bubble sort, nb <= 4). The pool itself stays in source order, so marker indices keep
+%% matching pool positions and the attempt loop can run the whole placement again.
+\def\wbcc@sortidx{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \ifdim\csname wbcc@Yd@\the\wbcc@i\endcsname=\maxdimen
+      \PackageError{wideband-cc}{auto Y unresolved for a placed band}{\string\wbcc@autoY\space
+        must run before \string\wbcc@sortidx}\fi
+    \expandafter\xdef\csname wbcc@ord@\the\wbcc@i\endcsname{\the\wbcc@i}%
+    \advance\wbcc@i\@ne}%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\wbcc@nb\do{%
+    \wbcc@j\@ne
+    \@whilenum\wbcc@j<\numexpr\wbcc@nb-\wbcc@i+\@ne\relax\do{%
+      \edef\wbcc@next{\the\numexpr\wbcc@j+\@ne\relax}%
+      \@tempdima\csname wbcc@Yd@\csname wbcc@ord@\the\wbcc@j\endcsname\endcsname
+      \@tempdimb\csname wbcc@Yd@\csname wbcc@ord@\wbcc@next\endcsname\endcsname
+      \ifdim\@tempdima>\@tempdimb
+        \edef\wbcc@tmp{\csname wbcc@ord@\the\wbcc@j\endcsname}%
+        \expandafter\xdef\csname wbcc@ord@\the\wbcc@j\endcsname{\csname wbcc@ord@\wbcc@next\endcsname}%
+        \expandafter\xdef\csname wbcc@ord@\wbcc@next\endcsname{\wbcc@tmp}%
+      \fi
+      \advance\wbcc@j\@ne}%
+    \advance\wbcc@i\@ne}}
+
+%% Height of band #1's cue-rule boxes (0 when it has none), into \dimen@.
+\def\wbcc@cueextra#1{%
+  \edef\wbcc@tmp{\csname wbcc@rs@#1\endcsname}%
+  \expandafter\wbcc@rulesides\expandafter{\wbcc@tmp}{\csname wbcc@sd@#1\endcsname}%
+  \dimen@\z@
+  \if N\wbcc@above\else
+    \dimen@\ifdim\wbccruletick>\wbccrulewidth \wbccruletick\else\wbccrulewidth\fi
+  \fi
+  \if N\wbcc@below\else \advance\dimen@\dimexpr\wbccrulewidth+\wbccruletick\relax \fi}
+
+%% Exactly what \wbcc@assemble + the last row + the bottom block will stack, from the
+%% boxes: rows (the taller segment; a row with no segment adds nothing, and skips its
+%% band's skip-above like the assembly does), bands with their skips and cue rules, the
+%% bottom block. Into \wbcc@total.
+\def\wbcc@measure{%
+  \wbcc@total\dimexpr\ht\wbcc@bot+\dp\wbcc@bot\relax
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\tw@\relax\do{%
+    \wbcc@rowfalse
+    \ifvoid\csname wbcc@L@\the\wbcc@i\endcsname
+      \ifvoid\csname wbcc@R@\the\wbcc@i\endcsname\else\wbcc@rowtrue\fi
+    \else\wbcc@rowtrue\fi
+    \@tempdimb\dimexpr\ht\csname wbcc@L@\the\wbcc@i\endcsname+\dp\csname wbcc@L@\the\wbcc@i\endcsname\relax
+    \@tempdimd\dimexpr\ht\csname wbcc@R@\the\wbcc@i\endcsname+\dp\csname wbcc@R@\the\wbcc@i\endcsname\relax
+    \ifdim\@tempdimd>\@tempdimb \@tempdimb\@tempdimd \fi
+    \advance\wbcc@total\@tempdimb
+    \ifnum\wbcc@i>\wbcc@nb\else
+      \edef\wbcc@k{\csname wbcc@ord@\the\wbcc@i\endcsname}%
+      \wbcc@cueextra{\wbcc@k}%
+      \advance\wbcc@total\dimexpr\ht\csname wbcc@b@\wbcc@k\endcsname+\dp\csname wbcc@b@\wbcc@k\endcsname
+        +\csname wbcc@bl@\wbcc@k\endcsname+\dimen@\relax
+      \ifwbcc@row \advance\wbcc@total\csname wbcc@ab@\wbcc@k\endcsname \fi
+    \fi
+    \advance\wbcc@i\@ne}}
+
+%% Which placed bands have an automatic Y (so a re-run of \wbcc@autoY can resolve them
+%% again): snapshot before the first attempt, restore before every attempt.
+\def\wbcc@snapauto{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \ifdim\csname wbcc@Yd@\the\wbcc@i\endcsname=\maxdimen
+      \expandafter\def\csname wbcc@au@\the\wbcc@i\endcsname{1}%
+    \else
+      \expandafter\def\csname wbcc@au@\the\wbcc@i\endcsname{0}%
+    \fi
+    \advance\wbcc@i\@ne}}
+\def\wbcc@resetauto{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \ifnum\csname wbcc@au@\the\wbcc@i\endcsname=\@ne
+      \csname wbcc@Yd@\the\wbcc@i\endcsname\maxdimen
+    \fi
+    \advance\wbcc@i\@ne}}
+
+%% One placement attempt on a fresh copy of the joined galley: budget, Y's, order, split,
+%% measure. If the stack would overshoot \@colht: shorten the last row by the overshoot
+%% and try again (it just gets less text); when the last row is already empty, shed the
+%% last new band (it lands on the next page after its text), or, with only overdue bands
+%% left, place one fewer. Bounded; the last attempt's boxes are the page.
+\def\wbcc@attempt{%
+  \setbox\wbcc@galley\copy\wbcc@gcopy
+  \wbcc@resetauto
+  \wbcc@computebud      % per-column budget for this set of bands
+  \wbcc@autoY           % Y = marker's within-column height (auto), clamp (explicit), sides
+  \wbcc@sortidx         % rows in ascending Y
+  \wbcc@splitcol L
+  \wbcc@splitcol R
+  \wbcc@measure
+  \wbcc@morefalse
+  \ifdim\wbcc@total>\@colht
+    \advance\wbcc@tries\@ne
+    \ifnum\wbcc@tries<12
+      \edef\wbcc@lr{\the\numexpr\wbcc@nb+\@ne\relax}%
+      \@tempdimb\dimexpr\ht\csname wbcc@L@\wbcc@lr\endcsname+\dp\csname wbcc@L@\wbcc@lr\endcsname\relax
+      \@tempdimd\dimexpr\ht\csname wbcc@R@\wbcc@lr\endcsname+\dp\csname wbcc@R@\wbcc@lr\endcsname\relax
+      \ifdim\@tempdimd>\@tempdimb \@tempdimb\@tempdimd \fi
+      \ifdim\@tempdimb>\z@
+        \advance\wbcc@lastcut\dimexpr\wbcc@total-\@colht\relax
+        \wbcc@moretrue
+      \else\ifnum\wbcc@m>\z@
+        \advance\wbcc@m\m@ne \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
+        \wbcc@lastcut\z@ \wbcc@moretrue
+      \else\ifnum\wbcc@nb>\@ne
+        \advance\wbcc@nb\m@ne \wbcc@lastcut\z@ \wbcc@moretrue
+      \fi\fi\fi
+    \fi
+  \fi
+  \ifwbcc@more \expandafter\wbcc@attempt \fi}
 
 %% One two-column row from segment #1.
 \def\wbcc@row#1{%
@@ -479,20 +572,24 @@
 \def\wbcc@assemble{%
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \edef\wbcc@k{\csname wbcc@ord@\the\wbcc@i\endcsname}%  the band of row i
+    \wbcc@rowfalse                           % a row exists if either column has a segment
     \ifvoid\csname wbcc@L@\the\wbcc@i\endcsname
-    \else                                    % stacked band (voided segment): no row
+      \ifvoid\csname wbcc@R@\the\wbcc@i\endcsname\else\wbcc@rowtrue\fi
+    \else\wbcc@rowtrue\fi
+    \ifwbcc@row                              % (a stacked band has none)
       \wbcc@row{\the\wbcc@i}%
-      \vskip\csname wbcc@ab@\the\wbcc@i\endcsname
+      \vskip\csname wbcc@ab@\wbcc@k\endcsname
     \fi
     \nointerlineskip
-    \edef\wbcc@tmp{\csname wbcc@rs@\the\wbcc@i\endcsname}%  this band's rule style / column
-    \expandafter\wbcc@rulesides\expandafter{\wbcc@tmp}{\csname wbcc@sd@\the\wbcc@i\endcsname}%
+    \edef\wbcc@tmp{\csname wbcc@rs@\wbcc@k\endcsname}%  this band's rule style / column
+    \expandafter\wbcc@rulesides\expandafter{\wbcc@tmp}{\csname wbcc@sd@\wbcc@k\endcsname}%
     \wbcc@cueabove\wbcc@above
     \nointerlineskip
-    \hb@xt@\textwidth{\box\csname wbcc@b@\the\wbcc@i\endcsname\hss}%
+    \hb@xt@\textwidth{\box\csname wbcc@b@\wbcc@k\endcsname\hss}%
     \nointerlineskip
     \wbcc@cuebelow\wbcc@below
-    \vskip\csname wbcc@bl@\the\wbcc@i\endcsname
+    \vskip\csname wbcc@bl@\wbcc@k\endcsname
     \nointerlineskip
     \advance\wbcc@i\@ne}%
 }
@@ -516,10 +613,9 @@
 %% a \dbltop float the columns were built at the reduced \@colht and \@combinedblfloats
 %% adds the float back to reach \textheight, so budgeting on \textheight would
 %% double-count. Each of the N+1 rows can carry up to \maxdepth of last-line depth, so
-%% reserve (N+1)*\maxdepth, plus N*\baselineskip because a band row's segment in the
-%% column that reads the band is split to an ABSOLUTE target and may be up to a line
-%% taller than its nominal share (\wbcc@splitcol). \wbcc@assemble suppresses every
-%% interline glue, so nothing else is unbudgeted. The caller sets \@tempdimc/\wbcc@bfh.
+%% reserve (N+1)*\maxdepth. This is the ESTIMATE the placement starts from; the page is
+%% then measured exactly (\wbcc@measure) and corrected (\wbcc@attempt) — no other
+%% reserve is needed. The caller sets \@tempdimc/\wbcc@bfh.
 \def\wbcc@computebud{%
   \@tempdima\z@
   \wbcc@i\@ne
@@ -531,9 +627,6 @@
     \advance\wbcc@i\@ne}%
   \wbcc@i\numexpr\wbcc@nb+\@ne\relax
   \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
-  \@tempdimb\baselineskip \multiply\@tempdimb\wbcc@nb    % N*\baselineskip: a band row may be up
-  \advance\@tempdimd\@tempdimb                           % to a line taller than its nominal share
-                                                         % (absolute split targets, \wbcc@splitcol)
   \wbcc@bud\dimexpr\@colht-\@tempdima-\@tempdimc-\wbcc@bfh-\@tempdimd\relax
 }
 
@@ -550,8 +643,8 @@
 %% Clamp to [Ymin, \wbcc@ymax]: Ymin = one \baselineskip (never flush to the header);
 %% \wbcc@ymax = \wbcc@bud - (tallest placed band) - gaps - \baselineskip guarantees the
 %% band plus one line below still fit. Clamping is monotone so it cannot reorder bands;
-%% near-equal clamped Y's are de-collided by \wbcc@sortbands + the \wbcc@splitcol stack.
-%% MUST run AFTER \wbcc@computebud (needs \wbcc@bud) and BEFORE \wbcc@sortbands (the marker
+%% near-equal clamped Y's are de-collided by \wbcc@sortidx + the \wbcc@splitcol stack.
+%% MUST run AFTER \wbcc@computebud (needs \wbcc@bud) and BEFORE \wbcc@sortidx (the marker
 %% index i-\wbcc@overdue tracks the UNSORTED pool order, which the sort permutes). The N>1
 %% clamp is deliberately simple (one page-wide \wbcc@ymax from the tallest band); see
 %% docs/design-auto-y-source.md.
@@ -564,7 +657,7 @@
       +\csname wbcc@ab@\the\wbcc@i\endcsname+\csname wbcc@bl@\the\wbcc@i\endcsname\relax
     \ifdim\@tempdimb>\@tempdima \@tempdima\@tempdimb \fi
     \advance\wbcc@i\@ne}%
-  \wbcc@ymax\dimexpr\wbcc@bud-\@tempdima-\baselineskip\relax
+  \wbcc@ymax\dimexpr\wbcc@bud-\@tempdima\relax           % the band itself must still fit below Y
   \ifdim\wbcc@ymax<\z@ \wbcc@ymax\z@ \fi                      % degenerate page: no inverted range
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
@@ -604,7 +697,11 @@
     \csname wbcc@Yd@\the\wbcc@i\endcsname\@tempdimb
     \advance\wbcc@i\@ne}%
 }
-%% Clamp \@tempdimb into [0, \wbcc@ymax]. Ymin is 0, not a line: a marker sits between
+%% Clamp \@tempdimb into [0, \wbcc@ymax]. For an AUTOMATIC band this is only a safety
+%% net: \wbcc@duecount places a band on a page only if it has room below its own
+%% position, so the clamp never moves one (moving it up would put the band above the
+%% paragraph it follows); an EXPLICIT Y may be clamped, with a warning, since the author
+%% asked for a height the page cannot honour. Ymin is 0, not a line: a marker sits between
 %% paragraphs, so if any text precedes it on the page P is already >= one line, and a
 %% band at Y=0 (P=0, or an overdue band) belongs at the very top — a positive Ymin
 %% would only orphan one line of the NEXT paragraph above it. \wbcc@splitcol voids a
@@ -670,9 +767,30 @@
         \ifdim\wbcc@bud<\tw@\baselineskip    % not even a line above and below: shed
           \advance\wbcc@m\m@ne \wbcc@moretrue
         \else
-          \@tempdima\csname wbcc@mh@\the\wbcc@m\endcsname
-          \@tempdimb\tw@\wbcc@bud
-          \ifdim\@tempdima>\@tempdimb \advance\wbcc@m\m@ne \wbcc@moretrue \fi
+          %% Every NEW candidate band must have room for itself BELOW its own position:
+          %% Y_j + (band + its skips + rules) <= bud, with Y_j from its marker (P, or
+          %% P - bud in the right column) or its explicit Y. (The row below may be empty:
+          %% a band may end a page.) This also covers "the marker is past the page"
+          %% (P > 2 bud). A band that fails is not pulled up above its text by the Ymax
+          %% clamp — it is shed here and lands on the next page, after its text
+          %% (reported: a band clamped 87pt above the paragraph it follows). Shedding the
+          %% last candidate enlarges bud, so the remaining ones are re-checked.
+          \wbcc@fittrue
+          \wbcc@j\@ne
+          \@whilenum\wbcc@j<\numexpr\wbcc@m+\@ne\relax\do{%
+            \edef\wbcc@bi{\the\numexpr\wbcc@overdue+\wbcc@j\relax}%   its pool slot
+            %% Y from the marker for every band — also one with an explicit [Y]: its
+            %% author asked for THIS page, so a too-low explicit Y is clamped there (with
+            %% the warning) rather than sent to the next page.
+            \@tempdima\csname wbcc@mh@\the\wbcc@j\endcsname
+            \ifdim\@tempdima>\wbcc@bud \advance\@tempdima-\wbcc@bud \fi
+            \advance\@tempdima\dimexpr\ht\csname wbcc@b@\wbcc@bi\endcsname
+              +\dp\csname wbcc@b@\wbcc@bi\endcsname
+              +\csname wbcc@ab@\wbcc@bi\endcsname+\csname wbcc@bl@\wbcc@bi\endcsname
+              +\tw@\wbccrulewidth+\tw@\wbccruletick\relax
+            \ifdim\@tempdima>\wbcc@bud \wbcc@fitfalse \fi
+            \advance\wbcc@j\@ne}%
+          \ifwbcc@fit\else \advance\wbcc@m\m@ne \wbcc@moretrue \fi
         \fi
       \fi
     \fi
@@ -739,13 +857,14 @@
     \fi
     \wbcc@duecount        % -> \wbcc@m fitting new markers; \wbcc@nb = \wbcc@overdue + \wbcc@m
     \ifnum\wbcc@nb>\z@
-      %% strip only the markers of the bands PLACED here (the first \wbcc@m found — the
-      %% descent sheds from the last). A deferred-new marker past the band-page budget
-      %% lies in the OVERFLOW and rides to the next page, where it is found again at its
-      %% true position, so its band lands after its text and not at the page top. A
-      %% deferred-new marker that turns out to lie inside this page's rows ships with
-      %% them (a zero-size whatsit); its band becomes overdue below.
-      \directlua{wbcc.stripmarks(\number\@leftcolumn, \number\@outputbox, \number\wbcc@m)}%
+      %% Markers are NOT stripped here. A placed band's marker sits at the top of the
+      %% segment below its band, i.e. inside a row box that ships with this page (a
+      %% zero-size whatsit, harmless) — it never reaches the overflow. A deferred-new
+      %% marker past the band-page budget lies in the OVERFLOW and rides to the next
+      %% page, where it is found again at its true position, so its band lands after its
+      %% text; one that turns out to lie inside this page's rows ships with them and its
+      %% band becomes overdue below. Leaving all markers in place also lets the attempt
+      %% loop shed a band after the fact without losing its marker.
       %% ---- in-run rebuild placing \wbcc@nb bands (overdue + newly-fitting) ----
       %% footnotes: pull each finished column's \@makecol footnote block out and
       %% hold it; one clean block goes at the true page bottom.
@@ -761,43 +880,8 @@
         wbcc.takebotfloats(\number\@outputbox, \number\wbcc@bfR)}%
       \wbcc@bottomdims      % \@tempdimc (notes) and \wbcc@bfh (floats) — the same values
                             % the fit descent already used, now from the real extraction
-      %% Order matters: budget first (auto-Y's clamp needs \wbcc@bud), then resolve any
-      %% auto (\maxdimen) split heights from the marker positions, THEN sort. \wbcc@autoY
-      %% keys markers to UNSORTED pool positions, so it MUST run before \wbcc@sortbands.
-      \wbcc@computebud      % real per-column budget (footnote/float heights now known)
-      \wbcc@autoY           % auto Y = marker's within-column height, clamped (Phase B)
-      %% sort the placed bands by Y so the segment split sees ascending split heights;
-      %% near-equal Y's then stack (see \wbcc@splitcol) instead of forcing a ~0pt segment.
-      \ifnum\wbcc@nb>\@ne \wbcc@sortbands \fi
-      %% recombine both finished columns (seam-correct join), then split per band.
-      \@tempdima\baselineskip \@tempdimb\lineskip
-      \directlua{wbcc.joincols(\number\wbcc@galley, \number\@leftcolumn,
-        \number\@outputbox, \number\@tempdima, \number\@tempdimb, \number\lineskiplimit)}%
-      %% \splitmaxdepth\maxdepth bounds each segment's last-line depth (matching the
-      %% (N+1)*\maxdepth budget reserve above). \vbadness is silenced (the trailing
-      %% \vfil makes every band page technically underfull, and a \flushbottom row
-      %% filled to its split height may be underfull too). \vfuzz stays at TeX's
-      %% default 0.1pt: every row is exactly its split height or shorter (see
-      %% \wbcc@fitseg), the budget is exact sp arithmetic, and the footnote/float
-      %% blocks are budgeted with their own slack, so any Overfull \vbox on a band
-      %% page is a genuine defect (content past the text area). Tests assert none.
-      %% (It used to be 2pt, which silently absorbed the shrink re-expansion that
-      %% \wbcc@fitseg now removes.)
-      %% \splittopskip\topskip: every segment after the first is the head of a
-      %% remainder, so \vsplit gives it \splittopskip glue. With \z@skip its first line
-      %% sat flush at its own height (~7pt) while the left column's top row keeps the
-      %% page's \topskip (10pt): the right column's first baseline was 3.1pt higher than
-      %% the left's on every band page, and rows after a band could misalign by their
-      %% first lines' height difference. \topskip puts every segment's first baseline
-      %% where a stock column puts it. Budget-neutral: the glue is inside the segment.
-      \splittopskip\topskip \splitmaxdepth\maxdepth \vbadness\maxdimen \vfuzz.1\p@
-      \wbcc@splitcol L
-      \wbcc@splitcol R
-      %% \wbcc@galley now holds the overflow for the next page; count the deferred-new
-      %% markers that ride in it (their bands stay pending WITH a marker, not overdue).
-      \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%
       %% the bottom block (re-set bottom floats, then the footnotes) boxed first, so
-      %% its exact height is known; rows 1..nb with their bands at natural size.
+      %% its exact height is known and the page can be measured.
       %% \boxmaxdepth\maxdepth (as in \@makecol): a re-set float row is a height-0
       %% \wbcc@vtop whose whole float is DEPTH; without the clamp that depth became the
       %% page box's depth and the float hung below the text area — invisible to the
@@ -816,6 +900,39 @@
         \ifvoid\wbcc@fn\else
           \vskip\skip\footins \footnoterule \unvbox\wbcc@fn
         \fi}%
+      %% recombine both finished columns (seam-correct join); keep a copy so the
+      %% placement can be run again if the measured page overshoots.
+      \@tempdima\baselineskip \@tempdimb\lineskip
+      \directlua{wbcc.joincols(\number\wbcc@galley, \number\@leftcolumn,
+        \number\@outputbox, \number\@tempdima, \number\@tempdimb, \number\lineskiplimit)}%
+      \setbox\wbcc@gcopy\copy\wbcc@galley
+      \wbcc@snapauto \wbcc@lastcut\z@ \wbcc@tries\z@
+      %% \splitmaxdepth\maxdepth bounds each segment's last-line depth (matching the
+      %% (N+1)*\maxdepth budget reserve above). \vbadness is silenced (the trailing
+      %% \vfil makes every band page technically underfull, and a \flushbottom row
+      %% filled to its split height may be underfull too). \vfuzz stays at TeX's
+      %% default 0.1pt: every row is exactly its split height or shorter (see
+      %% \wbcc@fitseg), the budget is exact sp arithmetic, and the footnote/float
+      %% blocks are budgeted with their own slack, so any Overfull \vbox on a band
+      %% page is a genuine defect (content past the text area). Tests assert none.
+      %% (It used to be 2pt, which silently absorbed the shrink re-expansion that
+      %% \wbcc@fitseg now removes.)
+      %% \splittopskip\topskip: every segment after the first is the head of a
+      %% remainder, so \vsplit gives it \splittopskip glue. With \z@skip its first line
+      %% sat flush at its own height (~7pt) while the left column's top row keeps the
+      %% page's \topskip (10pt): the right column's first baseline was 3.1pt higher than
+      %% the left's on every band page, and rows after a band could misalign by their
+      %% first lines' height difference. \topskip puts every segment's first baseline
+      %% where a stock column puts it. Budget-neutral: the glue is inside the segment.
+      \splittopskip\topskip \splitmaxdepth\maxdepth \vbadness\maxdimen \vfuzz.1\p@
+      %% Budget -> Y's -> order -> split -> MEASURE; correct and repeat if the stack would
+      %% overshoot (\wbcc@attempt). Order matters inside: \wbcc@autoY keys markers to
+      %% pool positions and must run after \wbcc@computebud (its clamp needs \wbcc@bud)
+      %% and before \wbcc@sortidx.
+      \wbcc@attempt
+      %% \wbcc@galley now holds the overflow for the next page; count the deferred-new
+      %% markers that ride in it (their bands stay pending WITH a marker, not overdue).
+      \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%
       \setbox\wbcc@top\vbox{\wbcc@assemble}%
       \edef\wbcc@lr{\the\numexpr\wbcc@nb+\@ne\relax}%   the last row's segment index
       %% \flushbottom: the budget's reserve ((N+1)\maxdepth + N\lineskip) is rarely used
@@ -862,7 +979,11 @@
       \wbcc@emitfullpages           % any overdue full-page band at the pool front: its page now
       \unvbox\wbcc@galley           % overflow becomes the next page
       \unskip\unpenalty\unskip      % drop \@makecol's column-bottom glue
-      \penalty\outputpenalty        % re-assert the break that fired us, so the overflow
+      \ifnum\outputpenalty<\@M      % (10000 means "fired at glue, no penalty": re-inserting
+        \penalty\outputpenalty      %  THAT would weld the overflow's last line to the text
+      \fi                           %  after it — a later \vsplit then cannot break there
+                                    %  and takes two lines: measured 14pt overfull)
+                                    % re-assert the break that fired us, so the overflow
                                     % ships even when it is the document's last content:
                                     % on a \clearpage-forced flush (\outputpenalty=-\@Mi)
                                     % this re-forces a page for the trailing galley; on a
