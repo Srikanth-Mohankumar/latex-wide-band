@@ -44,6 +44,7 @@
 \newcount\wbcc@m                             % new markers that fit this page (descent result)
 \newcount\wbcc@i \newcount\wbcc@j            % \wbcc@j: inner counter for the band sort
 \newcount\wbcc@cap                           % this page's placement cap (see \wbcc@duecount)
+\newcount\wbcc@serial \global\wbcc@serial\z@ % bands captured so far: "band #n" in log lines
 \newif\ifwbcc@more                           % descent loop continuation flag
 \chardef\wbcc@MAX=4                          % up to 4 bands / 5 segments per page
 
@@ -94,6 +95,8 @@
 %% Store the captured band as pool entry #2 (box register #1): framed for an in-flow
 %% band, raw for a full-page one; record which in \wbcc@fp@<#2>.
 \def\wbcc@capture#1#2{%
+  \global\advance\wbcc@serial\@ne
+  \expandafter\xdef\csname wbcc@id@#2\endcsname{\the\wbcc@serial}%
   \wbcc@fptest
   \ifwbcc@fp
     \global\setbox#1\box\wbcc@band
@@ -110,6 +113,51 @@
   \ifwbcc@fp \global\setbox\@tempboxa\box\wbcc@band \else \wbcc@frame\@tempboxa \fi
   \par\vskip\wbcc@sep \box\@tempboxa \vskip\wbcc@sep}
 
+%% Placement trace. Every decision about a band is logged with its serial number (#n in
+%% document order) and the page it was decided on: a WARNING when a band cannot go where
+%% it was written (deferred to the top of the next page, held back by the per-page limit
+%% or a full-page band ahead of it), an INFO line when it is placed, moves to the next
+%% page together with its text, or is set on a page of its own. Grep the log for
+%% "wideband-cc" to audit a document's bands.
+\def\wbcc@logW#1#2{\PackageWarningNoLine{wideband-cc}{band \string##\csname wbcc@id@#1\endcsname\space
+  (page \the\c@page): #2}}
+\def\wbcc@logI#1#2{\PackageInfo{wideband-cc}{band \string##\csname wbcc@id@#1\endcsname\space
+  (page \the\c@page): #2}}
+%% Everything decided on this page, from the pool state after \wbcc@duecount:
+%% placed 1..nb; leftover overdue nb+1..overdue (only when m=0); deferred-new
+%% overdue+m+1..overdue+found, of which the first #1 shipped their marker here and the
+%% rest ride the overflow. A deferred-new band beyond \wbcc@cap was held back (limit /
+%% full-page band ahead), one within it was shed for room.
+\def\wbcc@logpage#1{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \wbcc@logI{\the\wbcc@i}{placed, Y=\the\csname wbcc@Yd@\the\wbcc@i\endcsname}%
+    \advance\wbcc@i\@ne}%
+  \wbcc@i\numexpr\wbcc@nb+\@ne\relax
+  \@whilenum\wbcc@i<\numexpr\wbcc@overdue+\@ne\relax\do{%
+    \ifnum\csname wbcc@fp@\the\wbcc@i\endcsname=\@ne
+      \wbcc@logI{\the\wbcc@i}{full-page band, set on a page of its own after this page}%
+    \else
+      \wbcc@logW{\the\wbcc@i}{held back (per-page limit, or a full-page band precedes
+        it); placed at the top of a following page}%
+    \fi
+    \advance\wbcc@i\@ne}%
+  \wbcc@i\numexpr\wbcc@overdue+\wbcc@m+\@ne\relax
+  \@whilenum\wbcc@i<\numexpr\wbcc@overdue+\wbcc@found+\@ne\relax\do{%
+    \ifnum\csname wbcc@fp@\the\wbcc@i\endcsname=\@ne
+      \wbcc@logI{\the\wbcc@i}{full-page band; set on a page of its own once the text it
+        follows has shipped}%
+    \else\ifnum\wbcc@i>\numexpr\wbcc@overdue+\wbcc@m+#1\relax
+      \wbcc@logI{\the\wbcc@i}{moves to the next page together with the text it follows}%
+    \else\ifnum\wbcc@i>\wbcc@cap
+      \wbcc@logW{\the\wbcc@i}{held back (per-page limit, or a full-page band precedes
+        it); placed at the top of a following page}%
+    \else
+      \wbcc@logW{\the\wbcc@i}{deferred - no room for it on this page (a band page holds
+        less text than a plain one); placed at the top of the next page}%
+    \fi\fi\fi
+    \advance\wbcc@i\@ne}}
+
 %% Emit every full-page band at the FRONT of the pool whose text has shipped (it is
 %% overdue) as a page of its own: the band centred on an otherwise empty page, no rows,
 %% no rules. Called right after the text page is shipped (both output branches) and
@@ -120,6 +168,7 @@
   \wbcc@morefalse
   \ifnum\wbcc@overdue>\z@ \ifnum\csname wbcc@fp@1\endcsname=\@ne \wbcc@moretrue \fi\fi
   \ifwbcc@more
+    \wbcc@logI{1}{set on a page of its own}%
     \setbox\@outputbox\vbox to\textheight{%
       \vskip\z@\@plus\@ne fil
       \hb@xt@\textwidth{\hss\box\csname wbcc@b@1\endcsname\hss}%
@@ -442,6 +491,8 @@
     \global\csname wbcc@Yd@\the\wbcc@i\endcsname\csname wbcc@Yd@\wbcc@src\endcsname
     \global\expandafter\let\csname wbcc@fp@\the\wbcc@i\expandafter\endcsname
       \csname wbcc@fp@\wbcc@src\endcsname
+    \global\expandafter\let\csname wbcc@id@\the\wbcc@i\expandafter\endcsname
+      \csname wbcc@id@\wbcc@src\endcsname
     \advance\wbcc@i\@ne}%
   \global\advance\wbcc@np-\wbcc@nb
 }
@@ -557,6 +608,7 @@
       %% \wbcc@overdue-\wbcc@nb+\wbcc@found-\wbcc@ride. Galley order = source order, so
       %% the shipped ones precede the riding ones in the pool and the overdue prefix stays
       %% contiguous. Drop the placed prefix and slide the pending tail down to the front.
+      \wbcc@logpage{\numexpr\wbcc@found-\wbcc@m-\wbcc@ride\relax}%
       \global\wbcc@overdue\numexpr\wbcc@overdue-\wbcc@nb+\wbcc@found-\wbcc@ride\relax
       \wbcc@shiftpool
       \global\wbcc@nb\z@
@@ -584,6 +636,7 @@
       %% A pending band with no marker here is left untouched — it is placed on the page
       %% its marker lands on.
       \directlua{wbcc.stripmarks(\number\@leftcolumn, \number\@outputbox, \number\wbcc@found)}%
+      \wbcc@logpage{\wbcc@found}%  (nb = m = 0: every found marker shipped here)
       \global\wbcc@overdue\numexpr\wbcc@overdue+\wbcc@found\relax
       \setbox\@outputbox\vbox{%
         \hb@xt@\textwidth{%

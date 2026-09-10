@@ -50,6 +50,11 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Placement trace.** `\wbcc@logpage` (called once per page in both output branches) and
+`\wbcc@emitfullpages` log every decision as `band #n (page p): …` — Info for placed /
+moves-with-its-text / full-page, Warning for deferred-to-top and held-back — so an
+operator can audit a document's bands from the log alone.
+
 **Full-page bands (user request).** Flowing a few stray lines around a band that takes
 most of the page is worse than giving it the page. `\wbcc@fptest` marks a band *full-page*
 at capture when its height plus gaps reaches `\wbccfullpagefraction × \textheight` (default

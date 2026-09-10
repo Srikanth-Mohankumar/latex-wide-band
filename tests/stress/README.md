@@ -140,6 +140,14 @@ page's (137.70pt from the top in these tests) and post-band rows align. Each spl
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
 
+**Placement trace in the log.** Every band decision is logged as `band #n (page p): …`,
+where `#n` is the band's serial number in document order. Placed bands, bands that move to
+the next page together with their text, and full-page bands are `Package wideband-cc Info`
+lines; a band that cannot go where it was written — deferred to the top of the next page
+because a band page holds less text than a plain one, or held back by the per-page limit
+or a full-page band ahead of it — is a `Package wideband-cc Warning`. Grep the log for
+`wideband-cc` to audit a document.
+
 **Full-page bands.** A band whose height (with its gaps) reaches `\wbccfullpagefraction`
 of `\textheight` (default `.75`; `\renewcommand\wbccfullpagefraction{.6}` to change), or
 that would leave less than two lines for text, is a *full-page* band: stored unframed and
