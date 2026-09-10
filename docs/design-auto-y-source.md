@@ -50,6 +50,11 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Per-band options.** `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…,
+rulewidth=…, fullpage]` via `keyval`; `\wbcc@setopts` keeps a bare dimension meaning `y`.
+Values are set locally in the environment group, so `\wbcc@capture` records them per band
+and `[fullpage]` forces `\wbcc@fptest` true for that band only.
+
 **Spacing controls (user request).** `\wbccskipabove`, `\wbccskipbelow`, `\wbccframesep`,
 `\wbccrulewidth` replace the hard-wired 6pt/6pt/3pt/1pt. The frame is baked at capture;
 the two skips are stored per pool slot (`\wbcc@ab@i`, `\wbcc@bl@i`), swapped by the sort

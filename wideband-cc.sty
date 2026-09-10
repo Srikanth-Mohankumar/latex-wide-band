@@ -30,6 +30,7 @@
 %% marker CC; col-2 foreknowledge detach-up) are superseded by this single
 %% in-run rebuild and preserved only in git history.
 \RequirePackage{iftex}\RequireLuaTeX
+\RequirePackage{keyval}
 \directlua{wbcc = dofile("wideband-cc.lua")}
 
 \newbox\wbcc@band                          % scratch capture box
@@ -100,8 +101,10 @@
 %% pointless and the last row could not hold a line).
 \newcommand\wbccfullpagefraction{.75}
 \newif\ifwbcc@fp
+\newif\ifwbcc@fpforce                          % [fullpage] option: own page regardless of size
 \def\wbcc@fptest{%
   \wbcc@fpfalse
+  \ifwbcc@fpforce \wbcc@fptrue \fi
   \@tempdima\dimexpr\ht\wbcc@band+\dp\wbcc@band+\wbccskipabove+\wbccskipbelow\relax
   \ifdim\@tempdima>\wbccfullpagefraction\textheight \wbcc@fptrue \fi
   \ifdim\dimexpr\textheight-\@tempdima-\tw@\maxdepth-\lineskip\relax<\tw@\baselineskip
@@ -196,8 +199,32 @@
     \expandafter\wbcc@emitfullpages
   \fi}
 
+%% Per-band options: \begin{wideband}[<keys>]. Keys: y=<dimen> (explicit split height),
+%% skipabove=, skipbelow=, framesep=, rulewidth= (this band's spacing), fullpage (a page
+%% of its own regardless of size). A bare dimension, [300pt], still means y=300pt. The
+%% settings are local to the environment, which is exactly the scope \wbcc@capture reads
+%% at \end{wideband}.
+\define@key{wbcc}{y}{\def\wbcc@curY{#1}}
+\define@key{wbcc}{skipabove}{\setlength\wbccskipabove{#1}}
+\define@key{wbcc}{skipbelow}{\setlength\wbccskipbelow{#1}}
+\define@key{wbcc}{framesep}{\setlength\wbccframesep{#1}}
+\define@key{wbcc}{rulewidth}{\setlength\wbccrulewidth{#1}}
+\define@key{wbcc}{fullpage}[true]{\csname wbcc@fpforce#1\endcsname}
+\def\wbcc@fullpagekey{fullpage}
+\def\wbcc@setopts#1{%
+  \def\wbcc@tmp{#1}%
+  \ifx\wbcc@tmp\@empty \else
+    \ifx\wbcc@tmp\wbcc@fullpagekey \setkeys{wbcc}{#1}%
+    \else
+      \in@{=}{#1}%
+      \ifin@ \setkeys{wbcc}{#1}\else \def\wbcc@curY{#1}\fi   % no "=": a bare Y
+    \fi
+  \fi}
+
 \newenvironment{wideband}[1][\wbcc@detachY]{%
-  \def\wbcc@curY{#1}%              % capture Y here — #1 is not visible in \end
+  \wbcc@fpforcefalse
+  \def\wbcc@curY{\wbcc@detachY}%   % Y and the spacing for THIS band; #1 is not visible
+  \wbcc@setopts{#1}%               % in \end, so resolve the options here (locally)
   \par
   \setbox\wbcc@band\vbox\bgroup
     \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth

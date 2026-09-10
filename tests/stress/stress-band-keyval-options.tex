@@ -1,0 +1,37 @@
+%% =====================================================================
+%% STRESS TEST: per-band key=value options in the optional argument.
+%%   [y=<dimen>]                          explicit split height (same as the bare [<dimen>])
+%%   [skipabove=,skipbelow=,framesep=,rulewidth=]  this band's spacing only
+%%   [fullpage]                           a page of its own regardless of size
+%% Band A: bare [140pt] (backward compatible). Band B: [y=220pt]. Band C: spacing keys
+%% (18pt above, 2pt below, no padding, no rules), automatic Y after [09]. Band D: a small
+%% equation forced onto its own page with [fullpage]. Band E after D: default, automatic,
+%% must follow D's page.
+%%
+%% ASSERTION: A above B above C on page 1 (Y 140pt < 220pt < auto); C's gap above is ~8pt wider and its
+%% gap below ~8pt narrower than A's (18-6-4 and 2-6-4); D alone on a page with no body
+%% text, after the page carrying [10]; E on a later page than D; no "Overfull \vbox"; no
+%% TeX errors; paras 01-16 each once; "minim" 32 times.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}
+\begin{wideband}[140pt]\[ E=mc^2 \quad[\text{KEY-A}] \]\end{wideband}
+\Par{03}\Par{04}
+\begin{wideband}[y=220pt]\[ E=mc^2 \quad[\text{KEY-B}] \]\end{wideband}
+\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}
+\begin{wideband}[skipabove=18pt,skipbelow=2pt,framesep=0pt,rulewidth=0pt]\[ E=mc^2 \quad[\text{KEY-C}] \]\end{wideband}
+\Par{10}
+\begin{wideband}[fullpage]\[ E=mc^2 \quad[\text{KEY-D}] \]\end{wideband}
+\Par{11}\Par{12}
+\begin{wideband}\[ E=mc^2 \quad[\text{KEY-E}] \]\end{wideband}
+\Par{13}\Par{14}\Par{15}\Par{16}
+\end{document}

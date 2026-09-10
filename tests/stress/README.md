@@ -63,6 +63,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-band-keyval-options` | `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…, rulewidth=…, fullpage]` per band; a bare `[140pt]` still means `y=140pt`; `[fullpage]` forces a small band onto its own page. |
 | `stress-band-spacing-controls` | **User request.** `\wbccskipabove`/`\wbccskipbelow`/`\wbccframesep`/`\wbccrulewidth`, recorded per band: one default band and one with 18pt above, 2pt below, no padding, no rules — budget and clamp follow the per-band values. |
 | `stress-fullpage-band-own-page` | **User request.** A 0.9`\textheight` band gets a page of its own (no rows, no rules) after the page carrying its text, instead of a few stray lines flowed around it. |
 | `stress-fullpage-band-exact-textheight` | A band exactly `\textheight` tall fits its own page with no overflow (unframed; it used to be 41pt too high from the frame and gaps). |
@@ -140,6 +141,12 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**Per-band options.** The optional argument takes key=value pairs (`keyval`):
+`y=<dimen>` (explicit split height; a bare `[<dimen>]` still works), `skipabove=`,
+`skipbelow=`, `framesep=`, `rulewidth=` (this band's spacing), and `fullpage` (a page of
+its own regardless of size). They are set locally inside the environment, which is the
+scope the band's capture reads.
 
 **Spacing controls.** Four lengths, set with `\setlength`: `\wbccskipabove` (6pt, text →
 band frame), `\wbccskipbelow` (6pt, frame → text), `\wbccframesep` (3pt, padding inside
