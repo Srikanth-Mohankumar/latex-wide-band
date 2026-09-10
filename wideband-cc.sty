@@ -23,9 +23,10 @@
 %% Spacing (\setlength; each band records the values current at its \end{wideband}):
 %%   \wbccskipabove  6pt   text -> band                \wbccskipbelow  6pt  band -> text
 %%   \wbccframesep   3pt   padding cue rule -> content \wbccrulewidth  .4pt cue rule thickness
-%%   \wbccruletick   6pt   tick at a cue rule's inner end (0pt: none)
-%% \wbccrulestyle{revtex|mirror|column|none} and \renewcommand\wbccrulefraction{.5}: the
-%% reading-order cue rules' arrangement and length (see "READING-ORDER CUE RULES").
+%%   \wbccruletick   0pt   RevTeX-style tick at a cue rule's inner end (6pt for RevTeX's look)
+%% \wbccrulesleft / \wbccrulesright {revtex|mirror|none}, \wbccrulestyle{column|revtex|
+%% mirror|none}, \renewcommand\wbccrulefraction{.5}: the reading-order cue rules'
+%% arrangement per reading column and their length (see "READING-ORDER CUE RULES").
 %% \renewcommand\wbccfullpagefraction{.75}: a band this tall (fraction of \textheight)
 %% gets a page of its own instead of text flowed around it.
 %%
@@ -98,28 +99,36 @@
 %% are added at assembly, when the band's column is known — see \wbcc@cue).
 \def\wbcc@frame#1{\global\setbox#1\vbox{\kern\wbccframesep \box\wbcc@band \kern\wbccframesep}}
 
-%% READING-ORDER CUE RULES, RevTeX widetext style: one half-width rule ABOVE the band on
-%% one side and one BELOW it on the other side, each \wbccrulefraction of \textwidth long
-%% (0.5, like RevTeX), \wbccrulewidth thick, with a \wbccruletick tick at the inner end
-%% (RevTeX's 6pt; 0pt for none). Which side is above is the house style:
-%%   \wbccrulestyle{revtex}  above LEFT,  below RIGHT   (RevTeX's own arrangement; default)
-%%   \wbccrulestyle{mirror}  above RIGHT, below LEFT    (the opposite, as some customers ask)
-%%   \wbccrulestyle{column}  revtex for a band read in the left column, mirror for one read
-%%                           in the right column (flips with the band's reading column)
-%%   \wbccrulestyle{none}    no rules
-%% Also per band: \begin{wideband}[rules=mirror]. A band at the top of a page (both
-%% columns read it first) and a full-page band get no rules. There is no full-width frame.
+%% READING-ORDER CUE RULES (RevTeX widetext geometry): one half-width rule ABOVE the band
+%% on one side and one BELOW it on the other side, each \wbccrulefraction of \textwidth
+%% long (0.5), \wbccrulewidth thick, plain (\wbccruletick = 0pt; RevTeX's 6pt end tick is
+%% available). The two arrangements:
+%%   revtex   above LEFT,  below RIGHT     mirror   above RIGHT, below LEFT
+%% Which one a band gets follows its READING column (the column its marker sits in — the
+%% other column runs straight past the band), so a left band and a right band come out
+%% opposite. Defaults: a band read in the LEFT column gets `mirror` (the rule above sits
+%% over the right column, whose reader must skip the band), a band read in the RIGHT
+%% column gets `revtex`. Everything is a setting:
+%%   \wbccrulesleft{revtex|mirror|none}    arrangement for bands read in the left column
+%%   \wbccrulesright{revtex|mirror|none}   ... in the right column
+%%   \wbccrulestyle{column}                use those (default)
+%%   \wbccrulestyle{revtex|mirror|none}    one fixed arrangement for every band
+%%   \begin{wideband}[rules=revtex|mirror|column|none]   this band only
+%% A band at the top of a page (both columns read it first) and a full-page band get no
+%% rules. There is no full-width frame.
 \newcommand\wbccrulefraction{.5}
-\newdimen\wbccruletick \wbccruletick=6\p@
+\newdimen\wbccruletick \wbccruletick=\z@
 \newcommand\wbccrulestyle[1]{\def\wbcc@rulestyle{#1}}
-\wbccrulestyle{revtex}
+\newcommand\wbccrulesleft[1]{\def\wbcc@rulesL{#1}}
+\newcommand\wbccrulesright[1]{\def\wbcc@rulesR{#1}}
+\wbccrulestyle{column}\wbccrulesleft{mirror}\wbccrulesright{revtex}
 %% Resolve style #1 (revtex|mirror|column|none) for a band read in column #2 (L|R|T) into
 %% \wbcc@above / \wbcc@below (L|R|N: the half the rule occupies, N = no rule).
 \def\wbcc@rulesides#1#2{%
   \def\wbcc@above{N}\def\wbcc@below{N}%
   \if T#2\else
     \def\wbcc@tmp{#1}\def\wbcc@tmpb{column}%
-    \ifx\wbcc@tmp\wbcc@tmpb \if R#2\def\wbcc@tmp{mirror}\else\def\wbcc@tmp{revtex}\fi\fi
+    \ifx\wbcc@tmp\wbcc@tmpb \if R#2\let\wbcc@tmp\wbcc@rulesR\else\let\wbcc@tmp\wbcc@rulesL\fi\fi
     \def\wbcc@tmpb{revtex}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{L}\def\wbcc@below{R}\fi
     \def\wbcc@tmpb{mirror}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{R}\def\wbcc@below{L}\fi
   \fi}

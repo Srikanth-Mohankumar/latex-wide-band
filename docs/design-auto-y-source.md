@@ -55,11 +55,14 @@ reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regressi
 galley position is within the left column's budget, R beyond it, T for a top-of-page band);
 `\wbcc@capture` records the band's rule style (`\wbcc@rs@i`, from `\wbccrulestyle` or
 `[rules=…]`); `\wbcc@rulesides` resolves both into the half each rule occupies, and
-`\wbcc@assemble` sets `\wbcc@cueabove`/`\wbcc@cuebelow`: half-width (`\wbccrulefraction`,
-0.5) rules with RevTeX's inner-end ticks (`\wbccruletick`). Styles: `revtex` above-left /
-below-right, `mirror` the opposite, `column` flips with the reading column, `none`. Every
-piece in the stack is separated by `\nointerlineskip`, so the budget no longer reserves
-`N·\lineskip`; it adds `2·\wbccrulewidth + 2·\wbccruletick` per band instead.
+`\wbcc@assemble` sets `\wbcc@cueabove`/`\wbcc@cuebelow`: plain half-width
+(`\wbccrulefraction`, 0.5) rules (RevTeX's inner-end tick available via `\wbccruletick`,
+default 0pt). Arrangements: `revtex` above-left / below-right, `mirror` the opposite. The
+default style `column` picks `\wbccrulesleft` (default `mirror`) for a band read in the
+left column and `\wbccrulesright` (default `revtex`) for one read in the right column, so
+the two come out opposite; `revtex|mirror|none` force one arrangement. Every piece in the
+stack is separated by `\nointerlineskip`, so the budget no longer reserves `N·\lineskip`;
+it adds `2·\wbccrulewidth + 2·\wbccruletick` per band instead.
 
 **Overlay on the host output routine (from the first production article).** The
 `acs-fla` template loads `flushend` and `stfloats`, which install their own

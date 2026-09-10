@@ -66,7 +66,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-overlay-host-routine-flushend` | `flushend` loaded before `wideband-cc`: the last page's columns are still balanced (the host output routine produces every band-free page; it used to be replaced wholesale). |
 | `stress-flushbottom-band-page` | In a `\flushbottom` document the band page ends flush: its lowest baseline equals a plain page's (675.64pt here; it was 7.9pt short — the budget's unused reserve sat in a `\vfil`). |
 | `stress-fullpage-band-running-head` | `\pagestyle{headings}` with a section change on page 1 and a full-page band on page 2: the band page's head reads `2 BETA` (the section current when it begins), the next page `3 BETA`. A stock `figure*` float page shows the stale `1 ALPHA` here. |
-| `stress-band-cue-rules` | **House style.** RevTeX-style cue rules replace the full-width frame: one 0.5`\textwidth` rule above on one side and one below on the other (with RevTeX's end ticks); `\wbccrulestyle{revtex\|mirror\|column\|none}` or `[rules=…]` per band; a top-of-page band gets none. |
+| `stress-band-cue-rules` | **House style.** Plain half-width cue rules replace the full-width frame, one above on one side and one below on the other; the arrangement follows the band's reading column (left band: above-right/below-left; right band: the opposite), all configurable; a top-of-page band gets none. |
 | `stress-band-keyval-options` | `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…, rulewidth=…, fullpage]` per band; a bare `[140pt]` still means `y=140pt`; `[fullpage]` forces a small band onto its own page. |
 | `stress-band-spacing-controls` | **User request.** `\wbccskipabove`/`\wbccskipbelow`/`\wbccframesep`/`\wbccrulewidth`, recorded per band: one default band and one with 18pt above, 2pt below, no padding, no rules — budget and clamp follow the per-band values. |
 | `stress-fullpage-band-own-page` | **User request.** A 0.9`\textheight` band gets a page of its own (no rows, no rules) after the page carrying its text, instead of a few stray lines flowed around it. |
@@ -146,17 +146,20 @@ page's (137.70pt from the top in these tests) and post-band rows align. Each spl
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
 
-**Reading-order cue rules (house style, RevTeX geometry).** One half-width rule **above**
-the band on one side and one **below** it on the other, each `\wbccrulefraction` (0.5) of
-`\textwidth`, `\wbccrulewidth` (0.4pt) thick, with a `\wbccruletick` (6pt) tick at the inner
-end — up on the rule above, down on the rule below — exactly RevTeX's `widetext`. The
-arrangement is a customer setting: `\wbccrulestyle{revtex}` (above left, below right —
-RevTeX's own, the default), `{mirror}` (the opposite), `{column}` (revtex for a band read in
-the left column, mirror for one read in the right column), `{none}`; per band via
-`[rules=…]`. The full-width frame is gone (`\wbccframesep` is the padding between rule and
-content). A band at the top of a page (both columns read it first) and a full-page band get
-no rules. The band's reading column is known at assembly (`\wbcc@sd@i` = L/R/T from its
-marker's galley position); rules and ticks are budgeted per band.
+**Reading-order cue rules (house style, RevTeX geometry, arrangement by reading
+column).** One plain half-width rule **above** the band on one side and one **below** it on
+the other, each `\wbccrulefraction` (0.5) of `\textwidth`, `\wbccrulewidth` (0.4pt) thick
+(RevTeX's 6pt end tick is available as `\wbccruletick`, default 0pt). Two arrangements:
+`revtex` = above left / below right, `mirror` = above right / below left. Which one a band
+gets follows the column that *reads* it (the column its marker sits in; the other column
+runs straight past), so a left band and a right band come out opposite: defaults
+`\wbccrulesleft{mirror}` (the rule above a left band sits over the right column, whose
+reader must skip it) and `\wbccrulesright{revtex}`. `\wbccrulestyle{column}` (default) uses
+those; `\wbccrulestyle{revtex|mirror|none}` forces one arrangement for every band;
+`[rules=…]` overrides per band. The full-width frame is gone (`\wbccframesep` is the padding
+between rule and content). A band at the top of a page (both columns read it first) and a
+full-page band get no rules. The band's reading column is known at assembly (`\wbcc@sd@i` =
+L/R/T from its marker's galley position); rules and ticks are budgeted per band.
 
 **An overlay, not a replacement (found on a production article).** The production
 template loads `flushend` (balances the last page's columns) and `stfloats`, both of which
