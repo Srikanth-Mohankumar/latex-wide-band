@@ -203,10 +203,12 @@ persistent pending total (`\wbcc@np`) and a per-page place count (`\wbcc@nb =` o
 fitting-new). Because deferring a band while building the page at the larger `bud`
 would let its marker *stay* on the page (the "ride" hole), **all** of this page's markers
 are stripped, and deferred bands are tracked by `\wbcc@overdue` and force-placed first on
-the next page — one mechanism, no riding. Note the fit descent budgets footnotes/floats
-as zero (optimistic): it can place a boundary band one page early on a page that also
-carries footnotes or bottom floats, but never overflows, since the final `\vbox to\@colht`
-still clips. Regression: `tests/test-bandpage.tex` (a band after [08], which falls on
+the next page — one mechanism, no riding. The fit descent budgets the page's footnotes
+and bottom floats exactly: before deciding, `wbcc.measurebottom` runs the real footnote/
+float extraction on *copies* of the finished columns (only when a band is pending) so the
+descent sees the same budget the split will use; a band whose text would be pushed off a
+page carrying notes or floats is deferred with its text, never placed a page ahead of it
+(`stress-band-fit-decision-with-footnotes`). Regression: `tests/test-bandpage.tex` (a band after [08], which falls on
 page 2, must not render on page 1). Phase A keeps **manual Y** — a deferred (overdue) band
 has no marker position, so Phase B will give it `Y = Ymin`; today it lands at its manual Y
 on the next page.
@@ -244,9 +246,6 @@ column, right column, explicit+auto mix, two auto bands, overdue→top).
 
 Still to do:
 
-- **Exact fit decision with footnotes/floats**: `\wbcc@duecount` budgets them as zero
-  (optimistic), so a boundary band can be placed one page early on a page that also
-  carries notes or bottom floats — measure them non-destructively before the descent.
 - **Tier 3, external production source** — feed `\wbcc@Yd@<i>` from the pgc-editor /
   `satellite.json` layer, on top of the automatic default.
 - **The optional forward page-offset override** (`[<Y>][+1]`) for manual page control.

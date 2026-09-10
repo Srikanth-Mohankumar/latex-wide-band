@@ -264,4 +264,25 @@ function M.takebotfloats(colnum, holdnum)
   return cnt
 end
 
+-- Non-destructive measurement for the fit decision. Before the output routine
+-- decides which bands fit this page it needs the footnote and bottom-float heights
+-- that the real split will subtract from the budget — but it must not touch the
+-- columns yet (if no band is placed they ship untouched). So: deep-copy each
+-- finished column into a scratch box and run the REAL extraction on the copy, so
+-- the hold boxes come out exactly as they will later. The caller reads their
+-- dimensions and voids them; the copy is freed here.
+function M.measurebottom(c1num, c2num, tmpnum, fnnum, bfLnum, bfRnum)
+  local function probe(colnum, bfnum)
+    local b = tex.box[colnum]
+    if not (b and b.list) then return end
+    tex.box[tmpnum] = nil
+    tex.setbox("global", tmpnum, N.copy(b))       -- node.copy is deep (copies the list)
+    M.takefootnotes(tmpnum, fnnum)
+    M.takebotfloats(tmpnum, bfnum)
+    tex.box[tmpnum] = nil                          -- free the copy
+  end
+  probe(c1num, bfLnum)
+  probe(c2num, bfRnum)
+end
+
 return M

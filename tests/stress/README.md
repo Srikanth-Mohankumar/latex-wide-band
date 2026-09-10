@@ -63,6 +63,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-band-fit-decision-with-footnotes` | A page with six footnotes and a band whose marker fits only if the notes are ignored: the fit decision now budgets the notes, so the band defers with its text instead of landing a page **before** it (found by sweeping band position × footnote count). |
 | `stress-explicit-Y-too-low-clamped` | An explicit `[492pt]` that leaves no room for a line under the band is clamped to Ymax with a `wideband-cc` warning (unclamped it forced a one-line overfull last row). |
 | `stress-shrunk-split-row-no-overflow` | A bare **right**-column band (detach-up, Y=P−bud) whose split lands where `\vsplit` had to **shrink glue** — the regression for the row re-expansion bug below (once overflowed 4.56pt). |
 
@@ -123,5 +124,6 @@ the whole suite (every other test's output is byte-identical; only this file cha
 survives even when its body is dropped. Verify conservation at the body-word level (e.g.
 count `minim`: it must equal `2 ×` the paragraph count).
 
-Still open (a separate rung): `\wbcc@duecount` budgets footnotes/bottom floats as zero
-when deciding which bands fit a page.
+Known limit (shared with stock two-column LaTeX): an unbreakable item taller than the
+room left at a split point — a large display or an in-column figure sitting exactly where
+a row ends — is taken by `\vsplit` regardless and protrudes; nothing here can split it.

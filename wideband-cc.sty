@@ -277,6 +277,23 @@
   \ifdim\@tempdimb<\baselineskip \@tempdimb\baselineskip \fi
   \ifdim\@tempdimb>\wbcc@ymax \@tempdimb\wbcc@ymax \fi}
 
+%% Budget heights of the extracted footnote block (\wbcc@fn -> \@tempdimc: \skip\footins
+%% + block + \footnoterule slack) and bottom floats (\wbcc@bfL/R -> \wbcc@bfh: the
+%% taller side + \textfloatsep). Used twice per band page: once on the measurement
+%% copies before the fit descent, once after the real extraction.
+\def\wbcc@bottomdims{%
+  \@tempdimc\z@
+  \ifvoid\wbcc@fn\else
+    \@tempdimc\dimexpr\skip\footins + \ht\wbcc@fn + \dp\wbcc@fn + 4\p@\relax
+  \fi
+  \wbcc@bfh\z@
+  \ifvoid\wbcc@bfL\else \wbcc@bfh\dimexpr\ht\wbcc@bfL+\dp\wbcc@bfL\relax \fi
+  \ifvoid\wbcc@bfR\else
+    \@tempdimd\dimexpr\ht\wbcc@bfR+\dp\wbcc@bfR\relax
+    \ifdim\@tempdimd>\wbcc@bfh \wbcc@bfh\@tempdimd \fi
+  \fi
+  \ifdim\wbcc@bfh>\z@ \advance\wbcc@bfh\textfloatsep \fi}
+
 %% How many bands to place on this page. The overdue prefix (bands deferred from an
 %% earlier page) is always placed; the descent decides how many of THIS page's new
 %% markers also fit. Bands are laid on the recombined galley [col1|col2], so a marker
@@ -284,11 +301,12 @@
 %% \wbcc@bud simply becomes the top of the rebuilt right column — still on the page).
 %% Galley order is document order, so the deepest fitting marker is the last one;
 %% shrink \wbcc@m (fitting new markers) until marker \wbcc@m fits, then \wbcc@nb =
-%% overdue + \wbcc@m. Notes/floats are treated as 0 here (optimistic — it can place a
-%% boundary band one page early but never overflows, as the final \vbox to\@colht
-%% still clips; a page with footnotes/floats AND a marginal band is the only gap).
+%% overdue + \wbcc@m. The caller has already set \@tempdimc / \wbcc@bfh to this page's
+%% footnote and bottom-float heights (measured on COPIES of the columns, see
+%% wbcc.measurebottom), so the descent uses the same budget the real split will: a
+%% band whose text would be pushed off a page that also carries notes or floats is
+%% deferred together with its text, never placed a page ahead of it.
 \def\wbcc@duecount{%
-  \@tempdimc\z@ \wbcc@bfh\z@
   \wbcc@m\wbcc@found
   \loop
     \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
@@ -333,6 +351,19 @@
         \the\wbcc@j\space marked bands pending; clamping}%
       \global\wbcc@found\wbcc@j
     \fi
+    %% Budget this page's footnotes and bottom floats BEFORE deciding what fits: run the
+    %% real extraction on copies of the columns, read the hold boxes, void them again.
+    %% Only when a band is pending — an ordinary page is not even copied.
+    \@tempdimc\z@ \wbcc@bfh\z@
+    \ifnum\wbcc@np>\z@
+      \global\setbox\wbcc@fn\box\voidb@x
+      \global\setbox\wbcc@bfL\box\voidb@x \global\setbox\wbcc@bfR\box\voidb@x
+      \directlua{wbcc.measurebottom(\number\@leftcolumn, \number\@outputbox,
+        \number\wbcc@galley, \number\wbcc@fn, \number\wbcc@bfL, \number\wbcc@bfR)}%
+      \wbcc@bottomdims
+      \global\setbox\wbcc@fn\box\voidb@x
+      \global\setbox\wbcc@bfL\box\voidb@x \global\setbox\wbcc@bfR\box\voidb@x
+    \fi
     \wbcc@duecount        % -> \wbcc@m fitting new markers; \wbcc@nb = \wbcc@overdue + \wbcc@m
     %% strip THIS page's markers (all found) before any node surgery: placed bands must
     %% leave no marker behind, and a deferred-new band is re-placed from the pool next
@@ -345,10 +376,6 @@
       \global\setbox\wbcc@fn\box\voidb@x
       \directlua{wbcc.takefootnotes(\number\@leftcolumn, \number\wbcc@fn)
         wbcc.takefootnotes(\number\@outputbox, \number\wbcc@fn)}%
-      \@tempdimc\z@
-      \ifvoid\wbcc@fn\else
-        \@tempdimc\dimexpr\skip\footins + \ht\wbcc@fn + \dp\wbcc@fn + 4\p@\relax
-      \fi
       %% bottom floats: \@makecol put each column's [b] floats at its bottom; the
       %% reduced budget would carry them into the overflow (they would defer). Pull
       %% them out per column and re-set them at the band page's bottom; shrink the
@@ -356,13 +383,8 @@
       \global\setbox\wbcc@bfL\box\voidb@x \global\setbox\wbcc@bfR\box\voidb@x
       \directlua{wbcc.takebotfloats(\number\@leftcolumn, \number\wbcc@bfL)
         wbcc.takebotfloats(\number\@outputbox, \number\wbcc@bfR)}%
-      \wbcc@bfh\z@
-      \ifvoid\wbcc@bfL\else \wbcc@bfh\dimexpr\ht\wbcc@bfL+\dp\wbcc@bfL\relax \fi
-      \ifvoid\wbcc@bfR\else
-        \@tempdimd\dimexpr\ht\wbcc@bfR+\dp\wbcc@bfR\relax
-        \ifdim\@tempdimd>\wbcc@bfh \wbcc@bfh\@tempdimd \fi
-      \fi
-      \ifdim\wbcc@bfh>\z@ \advance\wbcc@bfh\textfloatsep \fi
+      \wbcc@bottomdims      % \@tempdimc (notes) and \wbcc@bfh (floats) — the same values
+                            % the fit descent already used, now from the real extraction
       %% Order matters: budget first (auto-Y's clamp needs \wbcc@bud), then resolve any
       %% auto (\maxdimen) split heights from the marker positions, THEN sort. \wbcc@autoY
       %% keys markers to UNSORTED pool positions, so it MUST run before \wbcc@sortbands.
