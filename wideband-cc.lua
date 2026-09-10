@@ -63,28 +63,36 @@ end
 -- accumulated height — because joincols lays column 2 directly below column 1. The
 -- i-th marker corresponds to the i-th pending band with a marker on this page (they
 -- are emitted in document order). Non-destructive. `base` is \wbcc@mh@1's register.
-function M.markpos(a, b, kreg, base)
-  base = tonumber(base)
+-- Positions are stored in the dimen registers base .. base+maxn-1 only (the TeX side
+-- allocates exactly maxn of them); every marker is still COUNTED. Without the bound a
+-- page with more markers than registers wrote past the pool into whatever register was
+-- allocated next (it clobbered a user setting once the pool stopped being the last
+-- allocation).
+function M.markpos(a, b, kreg, base, maxn)
+  base = tonumber(base); maxn = tonumber(maxn) or math.huge
   local k = 0
+  local function store(pos)
+    if k < maxn then tex.setdimen("global", base + k, pos) end
+    k = k + 1
+  end
   local ba = tex.box[tonumber(a)]
   local aend = (ba and ba.list) and vscan(ba.list, function(n, total)
-    if is_marker(n) then tex.setdimen("global", base + k, total); k = k + 1 end
+    if is_marker(n) then store(total) end
   end) or 0
   local bb = tex.box[tonumber(b)]
   if bb and bb.list then
     vscan(bb.list, function(n, total)
-      if is_marker(n) then tex.setdimen("global", base + k, aend + total); k = k + 1 end
+      if is_marker(n) then store(aend + total) end
     end)
   end
   tex.setcount("global", tonumber(kreg), k)
 end
 
 -- Remove the first `n` markers (reading order: column a then b) from the two
--- finished columns. The caller passes n = every marker found on this page, so no
--- marker survives into the assembled page or the overflow: a band deferred off this
--- page is tracked by the output routine (\wbcc@overdue) and force-placed next page
--- from the pool, not by letting a marker ride forward. Call before joincols (which
--- would otherwise free a marker sitting at the column seam).
+-- finished columns: the markers of the bands PLACED on this page (n = m) when the page
+-- is rebuilt — the later markers lie in the overflow and ride to the next page — or
+-- every marker found (n = found) when the page ships as it is. Call before joincols
+-- (which would otherwise free a marker sitting at the column seam).
 function M.stripmarks(a, b, n)
   n = tonumber(n)
   local removed = 0

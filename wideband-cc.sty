@@ -22,9 +22,10 @@
 %%
 %% Spacing (\setlength; each band records the values current at its \end{wideband}):
 %%   \wbccskipabove  6pt   text -> band                \wbccskipbelow  6pt  band -> text
-%%   \wbccframesep   3pt   padding cue rule -> content \wbccrulewidth  1pt  cue rules (0pt: none)
-%% \renewcommand\wbccrulefraction{.75}: length of the reading-order cue rules as a
-%% fraction of \textwidth (see \wbcc@cue).
+%%   \wbccframesep   3pt   padding cue rule -> content \wbccrulewidth  .4pt cue rule thickness
+%%   \wbccruletick   6pt   tick at a cue rule's inner end (0pt: none)
+%% \wbccrulestyle{revtex|mirror|column|none} and \renewcommand\wbccrulefraction{.5}: the
+%% reading-order cue rules' arrangement and length (see "READING-ORDER CUE RULES").
 %% \renewcommand\wbccfullpagefraction{.75}: a band this tall (fraction of \textheight)
 %% gets a page of its own instead of text flowed around it.
 %%
@@ -48,7 +49,7 @@
 \newdimen\wbccskipabove  \wbccskipabove=6\p@  % text -> band frame (above the band)
 \newdimen\wbccskipbelow  \wbccskipbelow=6\p@  % band frame -> text (below the band)
 \newdimen\wbccframesep   \wbccframesep=3\p@   % padding between the rules and the content
-\newdimen\wbccrulewidth  \wbccrulewidth=\p@   % thickness of the rules above/below (0pt: none)
+\newdimen\wbccrulewidth  \wbccrulewidth=.4\p@ % thickness of the cue rules (RevTeX's 0.4pt)
 \newdimen\wbcc@bud                          % per-column text budget on a band page
 \newdimen\wbcc@ymax                         % lowest a band may be auto-placed (Phase B clamp)
 \newdimen\wbcc@prevY
@@ -97,20 +98,45 @@
 %% are added at assembly, when the band's column is known — see \wbcc@cue).
 \def\wbcc@frame#1{\global\setbox#1\vbox{\kern\wbccframesep \box\wbcc@band \kern\wbccframesep}}
 
-%% READING-ORDER CUE RULES. A band is read as part of ONE column — the one its marker sits
-%% in. The other column runs straight past it, so at both of that column's junctions with
-%% the band (its text above -> band, band -> its text below) the far side is NOT next in
-%% reading order; a rule marks each such junction (the convention RevTeX's widetext uses
-%% for its own reading order). So: a LEFT band gets a rule above and a rule below, both on
-%% the RIGHT side, anchored at the right margin; a RIGHT band the mirror image. The rule is
-%% \wbccrulefraction of \textwidth long (house style: 0.75) and \wbccrulewidth thick. A
-%% band at the top of a page (nothing above it: both columns read it first) and a
-%% full-page band get no rules. There is no full-width frame.
-\newcommand\wbccrulefraction{.75}
-%% \wbcc@cue{L|R|T}: one cue rule as a full-width hbox (T: nothing).
-\def\wbcc@cue#1{%
-  \if L#1\hb@xt@\textwidth{\hfil\vrule\@height\wbccrulewidth\@width\wbccrulefraction\textwidth}\fi
-  \if R#1\hb@xt@\textwidth{\vrule\@height\wbccrulewidth\@width\wbccrulefraction\textwidth\hfil}\fi}
+%% READING-ORDER CUE RULES, RevTeX widetext style: one half-width rule ABOVE the band on
+%% one side and one BELOW it on the other side, each \wbccrulefraction of \textwidth long
+%% (0.5, like RevTeX), \wbccrulewidth thick, with a \wbccruletick tick at the inner end
+%% (RevTeX's 6pt; 0pt for none). Which side is above is the house style:
+%%   \wbccrulestyle{revtex}  above LEFT,  below RIGHT   (RevTeX's own arrangement; default)
+%%   \wbccrulestyle{mirror}  above RIGHT, below LEFT    (the opposite, as some customers ask)
+%%   \wbccrulestyle{column}  revtex for a band read in the left column, mirror for one read
+%%                           in the right column (flips with the band's reading column)
+%%   \wbccrulestyle{none}    no rules
+%% Also per band: \begin{wideband}[rules=mirror]. A band at the top of a page (both
+%% columns read it first) and a full-page band get no rules. There is no full-width frame.
+\newcommand\wbccrulefraction{.5}
+\newdimen\wbccruletick \wbccruletick=6\p@
+\newcommand\wbccrulestyle[1]{\def\wbcc@rulestyle{#1}}
+\wbccrulestyle{revtex}
+%% Resolve style #1 (revtex|mirror|column|none) for a band read in column #2 (L|R|T) into
+%% \wbcc@above / \wbcc@below (L|R|N: the half the rule occupies, N = no rule).
+\def\wbcc@rulesides#1#2{%
+  \def\wbcc@above{N}\def\wbcc@below{N}%
+  \if T#2\else
+    \def\wbcc@tmp{#1}\def\wbcc@tmpb{column}%
+    \ifx\wbcc@tmp\wbcc@tmpb \if R#2\def\wbcc@tmp{mirror}\else\def\wbcc@tmp{revtex}\fi\fi
+    \def\wbcc@tmpb{revtex}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{L}\def\wbcc@below{R}\fi
+    \def\wbcc@tmpb{mirror}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{R}\def\wbcc@below{L}\fi
+  \fi}
+%% The two rule boxes (full-width hboxes). The tick sits at the rule's inner end: up on
+%% the rule above the band, down on the rule below it.
+%% Every \vrule gets BOTH \@height and \@depth: a dimension left out "runs" to the
+%% enclosing hbox's, so the half rule would inherit the 6pt tick depth and be drawn as a
+%% 6pt bar (it was).
+\def\wbcc@rulehalf{\vrule\@height\wbccrulewidth\@depth\z@\@width\wbccrulefraction\textwidth}
+\def\wbcc@tickup{\vrule\@height\wbccruletick\@depth\z@\@width\wbccrulewidth}
+\def\wbcc@tickdown{\vrule\@height\wbccrulewidth\@depth\wbccruletick\@width\wbccrulewidth}
+\def\wbcc@cueabove#1{%
+  \if L#1\hb@xt@\textwidth{\wbcc@rulehalf\wbcc@tickup\hfil}\fi
+  \if R#1\hb@xt@\textwidth{\hfil\wbcc@tickup\wbcc@rulehalf}\fi}
+\def\wbcc@cuebelow#1{%
+  \if L#1\hb@xt@\textwidth{\wbcc@rulehalf\wbcc@tickdown\hfil}\fi
+  \if R#1\hb@xt@\textwidth{\hfil\wbcc@tickdown\wbcc@rulehalf}\fi}
 
 %% FULL-PAGE bands. A band that would take most of a page is not flowed around: it
 %% gets a page of its own (like a float page), unframed, after the page that carries
@@ -135,6 +161,7 @@
   \expandafter\xdef\csname wbcc@id@#2\endcsname{\the\wbcc@serial}%
   \global\csname wbcc@ab@#2\endcsname\wbccskipabove
   \global\csname wbcc@bl@#2\endcsname\wbccskipbelow
+  \expandafter\global\expandafter\let\csname wbcc@rs@#2\endcsname\wbcc@rulestyle
   \wbcc@fptest
   \ifwbcc@fp
     \global\setbox#1\box\wbcc@band
@@ -240,6 +267,7 @@
 \define@key{wbcc}{framesep}{\setlength\wbccframesep{#1}}
 \define@key{wbcc}{rulewidth}{\setlength\wbccrulewidth{#1}}
 \define@key{wbcc}{fullpage}[true]{\csname wbcc@fpforce#1\endcsname}
+\define@key{wbcc}{rules}{\wbccrulestyle{#1}}      % revtex | mirror | column | none, this band
 \def\wbcc@fullpagekey{fullpage}
 \def\wbcc@setopts#1{%
   \def\wbcc@tmp{#1}%
@@ -363,6 +391,10 @@
         \global\expandafter\let\csname wbcc@sd@\the\wbcc@j\expandafter\endcsname
           \csname wbcc@sd@\wbcc@next\endcsname
         \global\expandafter\let\csname wbcc@sd@\wbcc@next\endcsname\wbcc@tmp
+        \expandafter\let\expandafter\wbcc@tmp\csname wbcc@rs@\the\wbcc@j\endcsname
+        \global\expandafter\let\csname wbcc@rs@\the\wbcc@j\expandafter\endcsname
+          \csname wbcc@rs@\wbcc@next\endcsname
+        \global\expandafter\let\csname wbcc@rs@\wbcc@next\endcsname\wbcc@tmp
       \fi
       \advance\wbcc@j\@ne}%
     \advance\wbcc@i\@ne}%
@@ -415,11 +447,13 @@
       \vskip\csname wbcc@ab@\the\wbcc@i\endcsname
     \fi
     \nointerlineskip
-    \wbcc@cue{\csname wbcc@sd@\the\wbcc@i\endcsname}%   rule at the column that skips the band
+    \edef\wbcc@tmp{\csname wbcc@rs@\the\wbcc@i\endcsname}%  this band's rule style / column
+    \expandafter\wbcc@rulesides\expandafter{\wbcc@tmp}{\csname wbcc@sd@\the\wbcc@i\endcsname}%
+    \wbcc@cueabove\wbcc@above
     \nointerlineskip
     \hb@xt@\textwidth{\box\csname wbcc@b@\the\wbcc@i\endcsname\hss}%
     \nointerlineskip
-    \wbcc@cue{\csname wbcc@sd@\the\wbcc@i\endcsname}%
+    \wbcc@cuebelow\wbcc@below
     \vskip\csname wbcc@bl@\the\wbcc@i\endcsname
     \nointerlineskip
     \advance\wbcc@i\@ne}%
@@ -453,7 +487,7 @@
     \advance\@tempdima\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
       +\dp\csname wbcc@b@\the\wbcc@i\endcsname
       +\csname wbcc@ab@\the\wbcc@i\endcsname+\csname wbcc@bl@\the\wbcc@i\endcsname
-      +\tw@\wbccrulewidth\relax                           % its two cue rules (0 for a top band: slack)
+      +\tw@\wbccrulewidth+\tw@\wbccruletick\relax        % its two cue rules + ticks (slack for a top band)
     \advance\wbcc@i\@ne}%
   \wbcc@i\numexpr\wbcc@nb+\@ne\relax
   \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
@@ -613,6 +647,8 @@
     \global\csname wbcc@Yd@\the\wbcc@i\endcsname\csname wbcc@Yd@\wbcc@src\endcsname
     \global\csname wbcc@ab@\the\wbcc@i\endcsname\csname wbcc@ab@\wbcc@src\endcsname
     \global\csname wbcc@bl@\the\wbcc@i\endcsname\csname wbcc@bl@\wbcc@src\endcsname
+    \global\expandafter\let\csname wbcc@rs@\the\wbcc@i\expandafter\endcsname
+      \csname wbcc@rs@\wbcc@src\endcsname
     \global\expandafter\let\csname wbcc@fp@\the\wbcc@i\expandafter\endcsname
       \csname wbcc@fp@\wbcc@src\endcsname
     \global\expandafter\let\csname wbcc@id@\the\wbcc@i\expandafter\endcsname
@@ -638,7 +674,7 @@
     %% A band is placed on the page its authored marker falls on — not the page where
     %% \begin{wideband} happened to be read.
     \directlua{wbcc.markpos(\number\@leftcolumn, \number\@outputbox,
-      \wbcc@found@n, \wbcc@mh@base)}%
+      \wbcc@found@n, \wbcc@mh@base, \number\wbcc@MAX)}%   positions: at most MAX registers
     \wbcc@j\numexpr\wbcc@np-\wbcc@overdue\relax     % pending bands still carrying a marker
     \ifnum\wbcc@found>\wbcc@j
       \PackageWarning{wideband-cc}{markpos found \the\wbcc@found\space markers but

@@ -1,20 +1,21 @@
 %% =====================================================================
-%% STRESS TEST (house style): reading-order CUE RULES instead of a full-width frame.
+%% STRESS TEST (house style): RevTeX-style reading-order CUE RULES instead of a full-width
+%% frame. One half-width rule ABOVE the band on one side and one BELOW it on the other,
+%% each \wbccrulefraction (0.5) of \textwidth, \wbccrulewidth (0.4pt) thick, with a
+%% \wbccruletick (6pt) tick at the inner end — up on the rule above, down on the rule
+%% below — exactly RevTeX's widetext arrangement. The arrangement is configurable:
+%%   \wbccrulestyle{revtex}  above LEFT,  below RIGHT   (default; band A here)
+%%   \wbccrulestyle{mirror}  above RIGHT, below LEFT    (the opposite; band B here, per band
+%%                                                       via [rules=mirror])
+%%   \wbccrulestyle{column}  revtex for a band read in the left column, mirror for the right
+%%   \wbccrulestyle{none}
+%% A band at the top of a page and a full-page band get no rules; there is no full-width rule.
 %%
-%% A band is read as part of the column its marker sits in; the other column runs past
-%% it. At both of that column's junctions with the band the far side is not next in
-%% reading order, so a rule marks each: a LEFT band (after [03], left column) gets a rule
-%% above and below on the RIGHT, anchored at the right margin; a RIGHT band (after [11],
-%% right column) the mirror image on the LEFT. Rules are \wbccrulefraction (0.75) of
-%% \textwidth long and \wbccrulewidth thick; there is no full-width rule. A band at the
-%% top of a page and a full-page band get no rules.
-%%
-%% ASSERTION: LEFT-BAND on page 1 with two horizontal rules of 0.75\textwidth ending at
-%% the RIGHT text margin, one just above and one just below the band, and no other
-%% horizontal rule; RIGHT-BAND on page 1 with two such rules starting at the LEFT
-%% margin; no "Overfull \vbox"; paras 01-16 once; "minim" 32 times (16 x 2).
-%% (Rules are not text: verify by rendering, or with `pdftocairo -svg` and reading the
-%% rule rectangles' x-extents.)
+%% ASSERTION: CUE-A (default) on page 1 with a rule above it starting at the LEFT margin
+%% and a rule below it ending at the RIGHT margin, each 0.5\textwidth (234.5pt) long; CUE-B
+%% ([rules=mirror]) on page 1 with the rule above ending at the RIGHT margin and the rule
+%% below starting at the LEFT margin; no other horizontal rules; no "Overfull \vbox";
+%% paras 01-16 once; "minim" 32 times (16 x 2). (Rules are not text: verify by rendering.)
 %% =====================================================================
 \documentclass[twocolumn]{article}
 \usepackage{amsmath}
@@ -27,8 +28,8 @@ eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
 \newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
 \begin{document}
 \Par{01}\Par{02}\Par{03}
-\begin{wideband}\[ E=mc^2 \quad[\text{LEFT-BAND}] \]\end{wideband}
+\begin{wideband}\[ E=mc^2 \quad[\text{CUE-A}] \]\end{wideband}
 \Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}
-\begin{wideband}\[ E=mc^2 \quad[\text{RIGHT-BAND}] \]\end{wideband}
+\begin{wideband}[rules=mirror]\[ E=mc^2 \quad[\text{CUE-B}] \]\end{wideband}
 \Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
 \end{document}
