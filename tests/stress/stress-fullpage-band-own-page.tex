@@ -1,0 +1,32 @@
+%% =====================================================================
+%% STRESS TEST (from a user request): a band that would take most of a page is NOT
+%% flowed around — it gets a page of its own, unframed, like a float page.
+%%
+%% The band is an image 0.9\textheight tall, authored after [06]. Flowing text around it
+%% would leave a few stray lines above/below (that is what happened: page 2 = the band
+%% plus a handful of lines of [15]). A band whose height reaches \wbccfullpagefraction
+%% (default .75) of \textheight is a FULL-PAGE band: it never places in-flow; the page
+%% carrying its text ships normally, then the band page follows on its own.
+%%
+%% ASSERTION: 3 pages; page 2 contains the band and NO body text (no [NN], no "minim");
+%% pages 1 and 3 carry all of [01]-[20] with reading order intact ([06] before the band
+%% page, [07] after it — [07] may still be on page 1: the band page follows the page that
+%% carries its text, like a float page); no "Overfull \vbox"; "minim" 40 times (20 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,graphicx}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}
+\begin{wideband}
+  \centering\includegraphics[height=.9\textheight,width=\textwidth]{example-image}
+\end{wideband}
+\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}

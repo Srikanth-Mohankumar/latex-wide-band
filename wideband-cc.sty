@@ -43,6 +43,7 @@
 \newcount\wbcc@nb       \global\wbcc@nb\z@   % bands PLACED on the current page (overdue + fit)
 \newcount\wbcc@m                             % new markers that fit this page (descent result)
 \newcount\wbcc@i \newcount\wbcc@j            % \wbcc@j: inner counter for the band sort
+\newcount\wbcc@cap                           % this page's placement cap (see \wbcc@duecount)
 \newif\ifwbcc@more                           % descent loop continuation flag
 \chardef\wbcc@MAX=4                          % up to 4 bands / 5 segments per page
 
@@ -75,10 +76,60 @@
 %% Frame the captured band (a rule above and below) into box register #1.
 \def\wbcc@frame#1{\global\setbox#1\vbox{\hrule\@height\p@ \kern3\p@
      \box\wbcc@band \kern3\p@ \hrule\@height\p@}}
+
+%% FULL-PAGE bands. A band that would take most of a page is not flowed around: it
+%% gets a page of its own (like a float page), unframed, after the page that carries
+%% the text it follows. \ifwbcc@fp <- the band in \wbcc@band is full-page when its
+%% height (plus the gaps) reaches \wbccfullpagefraction of \textheight, or when what
+%% would remain for text on a fresh page is less than two lines (then flowing is
+%% pointless and the last row could not hold a line).
+\newcommand\wbccfullpagefraction{.75}
+\newif\ifwbcc@fp
+\def\wbcc@fptest{%
+  \wbcc@fpfalse
+  \@tempdima\dimexpr\ht\wbcc@band+\dp\wbcc@band+\tw@\wbcc@sep\relax
+  \ifdim\@tempdima>\wbccfullpagefraction\textheight \wbcc@fptrue \fi
+  \ifdim\dimexpr\textheight-\@tempdima-\tw@\maxdepth-\lineskip\relax<\tw@\baselineskip
+    \wbcc@fptrue \fi}
+%% Store the captured band as pool entry #2 (box register #1): framed for an in-flow
+%% band, raw for a full-page one; record which in \wbcc@fp@<#2>.
+\def\wbcc@capture#1#2{%
+  \wbcc@fptest
+  \ifwbcc@fp
+    \global\setbox#1\box\wbcc@band
+    \expandafter\gdef\csname wbcc@fp@#2\endcsname{1}%
+  \else
+    \wbcc@frame#1%
+    \expandafter\gdef\csname wbcc@fp@#2\endcsname{0}%
+  \fi}
 %% Typeset the captured band in the flow, as a full-width display: the one-column
 %% fallback (there a "band" is just a display), and the never-lose-content fallback
-%% when the pending pool is full.
-\def\wbcc@inline{\wbcc@frame\@tempboxa \par\vskip\wbcc@sep \box\@tempboxa \vskip\wbcc@sep}
+%% when the pending pool is full. A full-page-sized band goes in unframed.
+\def\wbcc@inline{%
+  \wbcc@fptest
+  \ifwbcc@fp \global\setbox\@tempboxa\box\wbcc@band \else \wbcc@frame\@tempboxa \fi
+  \par\vskip\wbcc@sep \box\@tempboxa \vskip\wbcc@sep}
+
+%% Emit every full-page band at the FRONT of the pool whose text has shipped (it is
+%% overdue) as a page of its own: the band centred on an otherwise empty page, no rows,
+%% no rules. Called right after the text page is shipped (both output branches) and
+%% at the end of the document. A full-page band further back in the pool waits until
+%% the bands before it are placed, so bands never change order; a full-page band whose
+%% marker rides in the overflow is not overdue yet and waits for its text.
+\def\wbcc@emitfullpages{%
+  \wbcc@morefalse
+  \ifnum\wbcc@overdue>\z@ \ifnum\csname wbcc@fp@1\endcsname=\@ne \wbcc@moretrue \fi\fi
+  \ifwbcc@more
+    \setbox\@outputbox\vbox to\textheight{%
+      \vskip\z@\@plus\@ne fil
+      \hb@xt@\textwidth{\hss\box\csname wbcc@b@1\endcsname\hss}%
+      \vskip\z@\@plus\@ne fil}%
+    \@outputpage
+    \global\@colht\textheight
+    \wbcc@nb\@ne \wbcc@shiftpool \global\wbcc@nb\z@
+    \global\advance\wbcc@overdue\m@ne
+    \expandafter\wbcc@emitfullpages
+  \fi}
 
 \newenvironment{wideband}[1][\wbcc@detachY]{%
   \def\wbcc@curY{#1}%              % capture Y here — #1 is not visible in \end
@@ -90,7 +141,7 @@
   \if@twocolumn
     \ifnum\wbcc@np<\numexpr\wbcc@MAX+\@ne\relax   % pool holds MAX+1 (placement caps at MAX/page)
       \global\advance\wbcc@np\@ne
-      \expandafter\wbcc@frame\csname wbcc@b@\the\wbcc@np\endcsname
+      \expandafter\wbcc@capture\csname wbcc@b@\the\wbcc@np\endcsname{\the\wbcc@np}%
       \global\csname wbcc@Yd@\the\wbcc@np\endcsname=\wbcc@curY\relax
       \directlua{wbcc.mark()}%   % leave a marker at the authored position (page assignment)
     \else
@@ -111,6 +162,7 @@
 %% a box) — say so rather than drop it silently.
 \AtEndDocument{%
   \clearpage
+  \wbcc@emitfullpages
   \ifnum\wbcc@overdue>\z@ \null\clearpage \fi
   \ifnum\wbcc@np>\z@
     \PackageWarningNoLine{wideband-cc}{\the\wbcc@np\space band(s) were captured but never
@@ -344,22 +396,36 @@
 %% band whose text would be pushed off a page that also carries notes or floats is
 %% deferred together with its text, never placed a page ahead of it.
 \def\wbcc@duecount{%
+  %% in-flow placements stop before the first FULL-PAGE band among the candidates
+  %% (overdue + found): it gets its own page after this one, and bands after it must
+  %% not overtake it. \wbcc@cap := min(MAX, that position - 1) is this page's cap.
+  \wbcc@cap\wbcc@MAX
+  \wbcc@i\numexpr\wbcc@overdue+\wbcc@found\relax
+  \@whilenum\wbcc@i>\z@\do{%
+    \ifnum\csname wbcc@fp@\the\wbcc@i\endcsname=\@ne
+      \ifnum\wbcc@i>\wbcc@cap \else \wbcc@cap\numexpr\wbcc@i-\@ne\relax \fi
+    \fi
+    \advance\wbcc@i\m@ne}%
   \wbcc@m\wbcc@found
   \loop
     \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
     \wbcc@morefalse
-    \ifnum\wbcc@nb>\wbcc@MAX                 % at most MAX bands (MAX+1 rows) per page:
+    \ifnum\wbcc@nb>\wbcc@cap                 % over the cap (MAX per page / full-page ahead):
       \ifnum\wbcc@m>\z@                      % shed this page's new markers first ...
         \advance\wbcc@m\m@ne \wbcc@moretrue
-      \else                                  % ... then place MAX of the overdue ones;
-        \wbcc@nb\wbcc@MAX                    % the rest stay overdue for the next page
+      \else                                  % ... then place only up to the cap of the
+        \wbcc@nb\wbcc@cap                    % overdue ones; the rest stay overdue
       \fi
     \else
       \ifnum\wbcc@m>\z@
         \wbcc@computebud
-        \@tempdima\csname wbcc@mh@\the\wbcc@m\endcsname
-        \@tempdimb\tw@\wbcc@bud
-        \ifdim\@tempdima>\@tempdimb \advance\wbcc@m\m@ne \wbcc@moretrue \fi
+        \ifdim\wbcc@bud<\tw@\baselineskip    % not even a line above and below: shed
+          \advance\wbcc@m\m@ne \wbcc@moretrue
+        \else
+          \@tempdima\csname wbcc@mh@\the\wbcc@m\endcsname
+          \@tempdimb\tw@\wbcc@bud
+          \ifdim\@tempdima>\@tempdimb \advance\wbcc@m\m@ne \wbcc@moretrue \fi
+        \fi
       \fi
     \fi
   \ifwbcc@more\repeat
@@ -374,6 +440,8 @@
     \edef\wbcc@src{\the\numexpr\wbcc@i+\wbcc@nb\relax}%
     \global\setbox\csname wbcc@b@\the\wbcc@i\endcsname\box\csname wbcc@b@\wbcc@src\endcsname
     \global\csname wbcc@Yd@\the\wbcc@i\endcsname\csname wbcc@Yd@\wbcc@src\endcsname
+    \global\expandafter\let\csname wbcc@fp@\the\wbcc@i\expandafter\endcsname
+      \csname wbcc@fp@\wbcc@src\endcsname
     \advance\wbcc@i\@ne}%
   \global\advance\wbcc@np-\wbcc@nb
 }
@@ -495,6 +563,7 @@
       \@combinedblfloats
       \@outputpage
       \global\@colht\textheight
+      \wbcc@emitfullpages           % any overdue full-page band at the pool front: its page now
       \unvbox\wbcc@galley           % overflow becomes the next page
       \unskip\unpenalty\unskip      % drop \@makecol's column-bottom glue
       \penalty\outputpenalty        % re-assert the break that fired us, so the overflow
@@ -508,13 +577,14 @@
                                     % the second (overflow) firing would re-force again and
                                     % emit a blank page. Do not "symmetrise" the two.
     \else
-      %% nothing to place this page (no overdue band, and no new marker fit): the two
-      %% finished columns ship as a normal two-column page, so every marker found here
-      %% ships with it — strip them and defer their bands to the next page as overdue.
+      %% nothing to place this page (no new marker fit, and either no overdue band or a
+      %% full-page band at the front of the pool): the two finished columns ship as a
+      %% normal two-column page, so every marker found here ships with it — strip them
+      %% and defer their bands to the next page as overdue, behind any already overdue.
       %% A pending band with no marker here is left untouched — it is placed on the page
       %% its marker lands on.
       \directlua{wbcc.stripmarks(\number\@leftcolumn, \number\@outputbox, \number\wbcc@found)}%
-      \global\wbcc@overdue\wbcc@found
+      \global\wbcc@overdue\numexpr\wbcc@overdue+\wbcc@found\relax
       \setbox\@outputbox\vbox{%
         \hb@xt@\textwidth{%
           \hb@xt@\columnwidth{\box\@leftcolumn\hss}%
@@ -523,6 +593,7 @@
       \@combinedblfloats
       \@outputpage
       \global\@colht\textheight
+      \wbcc@emitfullpages           % any overdue full-page band at the pool front: its page now
     \fi
     \begingroup
       \@dblfloatplacement

@@ -1,0 +1,25 @@
+%% =====================================================================
+%% STRESS TEST: a band exactly \textheight tall (a full-page image) fits its own page
+%% with NO overflow — a full-page band is stored UNFRAMED (no rules, no gaps), so the
+%% 8pt of frame that used to push a \textheight image 41pt past the page are gone.
+%%
+%% ASSERTION: 3 pages; page 2 = the image only (no body text); no "Overfull \vbox"
+%% (it used to be 41pt too high); paras 01-20 each once; "minim" 40 times (20 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,graphicx}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}
+\begin{wideband}
+  \centering\includegraphics[height=\textheight,width=\textwidth]{example-image}
+\end{wideband}
+\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}

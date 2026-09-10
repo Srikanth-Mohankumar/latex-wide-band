@@ -50,6 +50,17 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Full-page bands (user request).** Flowing a few stray lines around a band that takes
+most of the page is worse than giving it the page. `\wbcc@fptest` marks a band *full-page*
+at capture when its height plus gaps reaches `\wbccfullpagefraction × \textheight` (default
+.75) or would leave under two lines of text; such a band is stored **unframed** (a
+`\textheight` image then fits exactly) and never placed in-flow: `\wbcc@duecount` caps the
+page's placements before the first full-page band among the candidates, so bands after it
+cannot overtake it. Once its text has shipped (it is overdue and at the pool front),
+`\wbcc@emitfullpages` — run after `\@outputpage` in both output branches and at the end of
+the document — ships it centred on a page of its own and pops it from the pool; remaining
+overdue bands land at the top of the following page. Tests: `stress-fullpage-band-*`.
+
 **Robustness guards.** (1) One-column mode: `\@outputdblcol` never runs, so the
 environment typesets the framed band in the flow when `\if@twocolumn` is false (it used to
 be captured and never placed). (2) A band deferred on the document's last page has no next

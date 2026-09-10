@@ -1,0 +1,29 @@
+%% =====================================================================
+%% STRESS TEST: a FULL-PAGE band followed shortly by an ordinary band — bands must keep
+%% their source order. The small band (after [08]) is authored in the same page's text
+%% as the full-page one (after [06]); it must not be placed on that page ahead of the
+%% full-page band's own page. It waits: the text page ships, then the full-page band's
+%% page, then the small band lands at the top of the following page.
+%%
+%% ASSERTION: FULL-PAGE band page (no body text) comes BEFORE the page carrying the
+%% SMALL-BAND; SMALL-BAND appears exactly once; no "Overfull \vbox"; paras 01-20 each
+%% once; "minim" 40 times (20 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,graphicx}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}
+\begin{wideband}
+  \centering\includegraphics[height=.85\textheight,width=\textwidth]{example-image}
+\end{wideband}
+\Par{07}\Par{08}
+\begin{wideband}\[ E=mc^2 \quad[\text{SMALL-BAND}] \]\end{wideband}
+\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}
+\end{document}

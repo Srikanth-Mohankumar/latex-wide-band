@@ -63,6 +63,9 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-fullpage-band-own-page` | **User request.** A 0.9`\textheight` band gets a page of its own (no rows, no rules) after the page carrying its text, instead of a few stray lines flowed around it. |
+| `stress-fullpage-band-exact-textheight` | A band exactly `\textheight` tall fits its own page with no overflow (unframed; it used to be 41pt too high from the frame and gaps). |
+| `stress-fullpage-band-then-small-band` | A full-page band followed by an ordinary band in the same page's text: the small band waits until after the full-page band's page — bands never change order. |
 | `stress-band-after-overflowed-paragraph` | **User-reported.** A band deferred from a page whose other bands push its paragraph to the next page: its marker now *rides* in the overflow and the band lands after `[20]` there (it used to be stripped and force-placed one line from the top, *above* its own paragraph); an overdue band whose text ended on the previous page sits at the very top, Y=0, with no orphaned line. Mirrors `to-check/wideband-cc/example.tex` (incl. `stfloats`). |
 | `stress-band-deferred-at-document-end` | A band deferred on the document's **last** page (nothing follows it) gets a final page instead of being silently dropped (it was: 1 page, band absent, no warning). |
 | `stress-onecolumn-band-inline` | In one-column mode (no `\@outputdblcol`) the band is typeset in the flow as a full-width display where written (it was captured and never placed). |
@@ -136,6 +139,16 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**Full-page bands.** A band whose height (with its gaps) reaches `\wbccfullpagefraction`
+of `\textheight` (default `.75`; `\renewcommand\wbccfullpagefraction{.6}` to change), or
+that would leave less than two lines for text, is a *full-page* band: stored unframed and
+never placed in-flow. The page carrying its text ships as usual, then the band is emitted
+centred on a page of its own (like a float page), and later bands are held back until it
+is out so source order is kept. A full-page band whose marker rides in the overflow waits
+for its text. In one-column mode it is set inline unframed. At the end of the document any
+remaining full-page band is emitted before the pending-band check. Limitation: a running
+header on the band page shows the marks of the preceding text page.
 
 **Deferred markers ride; Ymin is 0.** When a band page is rebuilt, only the *placed*
 bands' markers are stripped. A deferred band's marker that lies in the overflow rides to
