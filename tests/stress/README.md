@@ -63,6 +63,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-fullpage-band-running-head` | `\pagestyle{headings}` with a section change on page 1 and a full-page band on page 2: the band page's head reads `2 BETA` (the section current when it begins), the next page `3 BETA`. A stock `figure*` float page shows the stale `1 ALPHA` here. |
 | `stress-band-keyval-options` | `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…, rulewidth=…, fullpage]` per band; a bare `[140pt]` still means `y=140pt`; `[fullpage]` forces a small band onto its own page. |
 | `stress-band-spacing-controls` | **User request.** `\wbccskipabove`/`\wbccskipbelow`/`\wbccframesep`/`\wbccrulewidth`, recorded per band: one default band and one with 18pt above, 2pt below, no padding, no rules — budget and clamp follow the per-band values. |
 | `stress-fullpage-band-own-page` | **User request.** A 0.9`\textheight` band gets a page of its own (no rows, no rules) after the page carrying its text, instead of a few stray lines flowed around it. |
@@ -171,8 +172,12 @@ never placed in-flow. The page carrying its text ships as usual, then the band i
 centred on a page of its own (like a float page), and later bands are held back until it
 is out so source order is kept. A full-page band whose marker rides in the overflow waits
 for its text. In one-column mode it is set inline unframed. At the end of the document any
-remaining full-page band is emitted before the pending-band check. Limitation: a running
-header on the band page shows the marks of the preceding text page.
+remaining full-page band is emitted before the pending-band check. Running heads: the
+kernel's `page` mark structure is recomputed in `\@opcol` before `\@outputdblcol`, so a
+page shipped from inside the same call would inherit the text page's marks (`\rightmark`
+= that page's *first* mark, stale if a section began on it — stock `figure*` float pages
+show exactly that). The band page runs the kernel's single-column mark update on its own
+(mark-free) box first, so its head shows the section current when it begins.
 
 **Deferred markers ride; Ymin is 0.** When a band page is rebuilt, only the *placed*
 bands' markers are stripped. A deferred band's marker that lies in the overflow rides to

@@ -192,6 +192,17 @@
       \vskip\z@\@plus\@ne fil
       \hb@xt@\textwidth{\hss\box\csname wbcc@b@1\endcsname\hss}%
       \vskip\z@\@plus\@ne fil}%
+    %% Running heads: the kernel recomputes the "page" mark structure in \@opcol, BEFORE
+    %% \@outputdblcol, so a page shipped from inside the same call would reuse the text
+    %% page's marks (\rightmark = that page's FIRST mark — stale if a section began on
+    %% it; stock float pages show exactly that). Run the kernel's single-column update
+    %% on the band box: it has no marks, so top = first = last = the previous page's
+    %% last mark — the section current when the band page begins — and the next text
+    %% page's "previous-page" structure follows from it. Older kernels (no ltmarks)
+    %% re-derive legacy \firstmark from \botmark in \@outputpage themselves.
+    \ifdefined\@expl@@@mark@update@singlecol@structures@@
+      \@expl@@@mark@update@singlecol@structures@@
+    \fi
     \@outputpage
     \global\@colht\textheight
     \wbcc@nb\@ne \wbcc@shiftpool \global\wbcc@nb\z@

@@ -1,0 +1,34 @@
+%% =====================================================================
+%% STRESS TEST: running heads on a full-page band's page.
+%%
+%% \pagestyle{headings} in a one-sided article puts the current section (\rightmark, from
+%% \firstmark) and the page number in the head. The full-page band page is shipped from
+%% inside the output routine right after the text page, with \firstmark = the text page's
+%% \botmark, so it must carry the section that is current at the END of the preceding
+%% page — "BETA" here, since \section{Beta} starts on page 1 — and its own page number
+%% (2), and the following text page must continue with the right number (3) and marks.
+%%
+%% ASSERTION: 3 pages; page 2 has the band and no body text; page 2's head reads
+%% "2 BETA" (section current at the end of page 1); page 1's head "1 ALPHA"/"BETA"
+%% per the class rules; page 3's head "3 BETA"; no "Overfull \vbox"; paras 01-16 once;
+%% "minim" 32 times.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,graphicx}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{headings}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\section{Alpha}
+\Par{01}\Par{02}\Par{03}
+\section{Beta}
+\Par{04}\Par{05}\Par{06}
+\begin{wideband}
+  \centering\includegraphics[height=.9\textheight,width=\textwidth]{example-image}
+\end{wideband}
+\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\end{document}

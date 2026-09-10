@@ -75,7 +75,11 @@ page's placements before the first full-page band among the candidates, so bands
 cannot overtake it. Once its text has shipped (it is overdue and at the pool front),
 `\wbcc@emitfullpages` — run after `\@outputpage` in both output branches and at the end of
 the document — ships it centred on a page of its own and pops it from the pool; remaining
-overdue bands land at the top of the following page. Tests: `stress-fullpage-band-*`.
+overdue bands land at the top of the following page. Before shipping it runs the kernel's
+`\@expl@@@mark@update@singlecol@structures@@` on the (mark-free) band box, so the running
+head shows the section current when the page begins rather than the preceding page's
+first mark (which is what a stock `figure*` float page shows). Tests:
+`stress-fullpage-band-*`.
 
 **Robustness guards.** (1) One-column mode: `\@outputdblcol` never runs, so the
 environment typesets the framed band in the flow when `\if@twocolumn` is false (it used to
