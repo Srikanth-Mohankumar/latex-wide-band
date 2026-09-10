@@ -20,6 +20,12 @@
 %% from each band's marker; see \wbcc@detachY and \wbcc@autoY). The per-page text
 %% budget is computed in the output routine from \@colht and the band heights.
 %%
+%% Spacing (\setlength; each band records the values current at its \end{wideband}):
+%%   \wbccskipabove  6pt   text -> band frame          \wbccskipbelow  6pt  frame -> text
+%%   \wbccframesep   3pt   padding inside the rules    \wbccrulewidth  1pt  rules (0pt: none)
+%% \renewcommand\wbccfullpagefraction{.75}: a band this tall (fraction of \textheight)
+%% gets a page of its own instead of text flowed around it.
+%%
 %% NOTE: throwaway POC on the cc/poc branch. The earlier per-rung POCs (col-1
 %% marker CC; col-2 foreknowledge detach-up) are superseded by this single
 %% in-run rebuild and preserved only in git history.
@@ -32,7 +38,13 @@
 \newbox\wbcc@bfL \newbox\wbcc@bfR
 \newdimen\wbcc@bfh \newdimen\@tempdimd
 \newdimen\wbcc@detachY  \wbcc@detachY=\maxdimen% AUTO sentinel: derive Y from the marker
-\newdimen\wbcc@sep      \wbcc@sep=6\p@
+%% User spacing controls (\setlength). Recorded PER BAND when \end{wideband} is reached,
+%% so a \setlength before one \begin{wideband} affects that band only (a value set inside
+%% the environment body is local to the band's box and has no effect).
+\newdimen\wbccskipabove  \wbccskipabove=6\p@  % text -> band frame (above the band)
+\newdimen\wbccskipbelow  \wbccskipbelow=6\p@  % band frame -> text (below the band)
+\newdimen\wbccframesep   \wbccframesep=3\p@   % padding between the rules and the content
+\newdimen\wbccrulewidth  \wbccrulewidth=\p@   % thickness of the rules above/below (0pt: none)
 \newdimen\wbcc@bud                          % per-column text budget on a band page
 \newdimen\wbcc@ymax                         % lowest a band may be auto-placed (Phase B clamp)
 \newdimen\wbcc@prevY
@@ -53,6 +65,8 @@
 \loop
   \expandafter\newbox\csname wbcc@b@\the\wbcc@i\endcsname
   \expandafter\newdimen\csname wbcc@Yd@\the\wbcc@i\endcsname
+  \expandafter\newdimen\csname wbcc@ab@\the\wbcc@i\endcsname   % this band's skip above
+  \expandafter\newdimen\csname wbcc@bl@\the\wbcc@i\endcsname   % ... and below
   \expandafter\newbox\csname wbcc@L@\the\wbcc@i\endcsname
   \expandafter\newbox\csname wbcc@R@\the\wbcc@i\endcsname
   \advance\wbcc@i\@ne
@@ -75,8 +89,8 @@
 %% its own split height Y (optional arg, default \wbcc@detachY). Y is the amount of
 %% column text placed above the band, i.e. its galley-split position.
 %% Frame the captured band (a rule above and below) into box register #1.
-\def\wbcc@frame#1{\global\setbox#1\vbox{\hrule\@height\p@ \kern3\p@
-     \box\wbcc@band \kern3\p@ \hrule\@height\p@}}
+\def\wbcc@frame#1{\global\setbox#1\vbox{\hrule\@height\wbccrulewidth \kern\wbccframesep
+     \box\wbcc@band \kern\wbccframesep \hrule\@height\wbccrulewidth}}
 
 %% FULL-PAGE bands. A band that would take most of a page is not flowed around: it
 %% gets a page of its own (like a float page), unframed, after the page that carries
@@ -88,7 +102,7 @@
 \newif\ifwbcc@fp
 \def\wbcc@fptest{%
   \wbcc@fpfalse
-  \@tempdima\dimexpr\ht\wbcc@band+\dp\wbcc@band+\tw@\wbcc@sep\relax
+  \@tempdima\dimexpr\ht\wbcc@band+\dp\wbcc@band+\wbccskipabove+\wbccskipbelow\relax
   \ifdim\@tempdima>\wbccfullpagefraction\textheight \wbcc@fptrue \fi
   \ifdim\dimexpr\textheight-\@tempdima-\tw@\maxdepth-\lineskip\relax<\tw@\baselineskip
     \wbcc@fptrue \fi}
@@ -97,6 +111,8 @@
 \def\wbcc@capture#1#2{%
   \global\advance\wbcc@serial\@ne
   \expandafter\xdef\csname wbcc@id@#2\endcsname{\the\wbcc@serial}%
+  \global\csname wbcc@ab@#2\endcsname\wbccskipabove
+  \global\csname wbcc@bl@#2\endcsname\wbccskipbelow
   \wbcc@fptest
   \ifwbcc@fp
     \global\setbox#1\box\wbcc@band
@@ -111,7 +127,7 @@
 \def\wbcc@inline{%
   \wbcc@fptest
   \ifwbcc@fp \global\setbox\@tempboxa\box\wbcc@band \else \wbcc@frame\@tempboxa \fi
-  \par\vskip\wbcc@sep \box\@tempboxa \vskip\wbcc@sep}
+  \par\vskip\wbccskipabove \box\@tempboxa \vskip\wbccskipbelow}
 
 %% Placement trace. Every decision about a band is logged with its serial number (#n in
 %% document order) and the page it was decided on: a WARNING when a band cannot go where
@@ -273,6 +289,12 @@
         \global\setbox\csname wbcc@b@\wbcc@next\endcsname\box\@tempboxa
         \csname wbcc@Yd@\the\wbcc@j\endcsname\@tempdimb
         \csname wbcc@Yd@\wbcc@next\endcsname\@tempdima
+        \dimen@\csname wbcc@ab@\the\wbcc@j\endcsname          % the band's own spacing
+        \global\csname wbcc@ab@\the\wbcc@j\endcsname\csname wbcc@ab@\wbcc@next\endcsname
+        \global\csname wbcc@ab@\wbcc@next\endcsname\dimen@   % travels with it
+        \dimen@\csname wbcc@bl@\the\wbcc@j\endcsname
+        \global\csname wbcc@bl@\the\wbcc@j\endcsname\csname wbcc@bl@\wbcc@next\endcsname
+        \global\csname wbcc@bl@\wbcc@next\endcsname\dimen@
       \fi
       \advance\wbcc@j\@ne}%
     \advance\wbcc@i\@ne}%
@@ -315,17 +337,17 @@
 %% A band box has depth 0 and a \wbcc@row is a height-0 \vtop, so TeX would insert a
 %% full \baselineskip of interline glue before each post-band row — unbudgeted height
 %% that pushes the page past \@colht. \nointerlineskip after each band suppresses just
-%% that glue (the explicit \vskip\wbcc@sep still spaces the band from the row).
+%% that glue (the band's own \wbcc@ab@/\wbcc@bl@ skips still space it from the rows).
 \def\wbcc@assemble{%
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
     \ifvoid\csname wbcc@L@\the\wbcc@i\endcsname
     \else                                    % stacked band (voided segment): no row
       \wbcc@row{\the\wbcc@i}%
-      \vskip\wbcc@sep
+      \vskip\csname wbcc@ab@\the\wbcc@i\endcsname
     \fi
     \hb@xt@\textwidth{\box\csname wbcc@b@\the\wbcc@i\endcsname\hss}%
-    \vskip\wbcc@sep
+    \vskip\csname wbcc@bl@\the\wbcc@i\endcsname
     \nointerlineskip
     \advance\wbcc@i\@ne}%
   \wbcc@row{\the\wbcc@i}%
@@ -345,7 +367,8 @@
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
     \advance\@tempdima\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
-      +\dp\csname wbcc@b@\the\wbcc@i\endcsname+\tw@\wbcc@sep\relax
+      +\dp\csname wbcc@b@\the\wbcc@i\endcsname
+      +\csname wbcc@ab@\the\wbcc@i\endcsname+\csname wbcc@bl@\the\wbcc@i\endcsname\relax
     \advance\wbcc@i\@ne}%
   \wbcc@i\numexpr\wbcc@nb+\@ne\relax
   \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
@@ -373,14 +396,15 @@
 %% clamp is deliberately simple (one page-wide \wbcc@ymax from the tallest band); see
 %% docs/design-auto-y-source.md.
 \def\wbcc@autoY{%
-  \@tempdima\z@                                   % tallest placed band (ht+dp)
+  \@tempdima\z@                                   % tallest placed band (ht+dp+its skips)
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
     \@tempdimb\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
-      +\dp\csname wbcc@b@\the\wbcc@i\endcsname\relax
+      +\dp\csname wbcc@b@\the\wbcc@i\endcsname
+      +\csname wbcc@ab@\the\wbcc@i\endcsname+\csname wbcc@bl@\the\wbcc@i\endcsname\relax
     \ifdim\@tempdimb>\@tempdima \@tempdima\@tempdimb \fi
     \advance\wbcc@i\@ne}%
-  \wbcc@ymax\dimexpr\wbcc@bud-\@tempdima-\tw@\wbcc@sep-\baselineskip\relax
+  \wbcc@ymax\dimexpr\wbcc@bud-\@tempdima-\baselineskip\relax
   \ifdim\wbcc@ymax<\z@ \wbcc@ymax\z@ \fi                      % degenerate page: no inverted range
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
@@ -489,6 +513,8 @@
     \edef\wbcc@src{\the\numexpr\wbcc@i+\wbcc@nb\relax}%
     \global\setbox\csname wbcc@b@\the\wbcc@i\endcsname\box\csname wbcc@b@\wbcc@src\endcsname
     \global\csname wbcc@Yd@\the\wbcc@i\endcsname\csname wbcc@Yd@\wbcc@src\endcsname
+    \global\csname wbcc@ab@\the\wbcc@i\endcsname\csname wbcc@ab@\wbcc@src\endcsname
+    \global\csname wbcc@bl@\the\wbcc@i\endcsname\csname wbcc@bl@\wbcc@src\endcsname
     \global\expandafter\let\csname wbcc@fp@\the\wbcc@i\expandafter\endcsname
       \csname wbcc@fp@\wbcc@src\endcsname
     \global\expandafter\let\csname wbcc@id@\the\wbcc@i\expandafter\endcsname
