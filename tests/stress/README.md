@@ -144,6 +144,15 @@ page's (137.70pt from the top in these tests) and post-band rows align. Each spl
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
 
+**Bottom floats hung below the page (found while measuring flush pages).** A re-set
+bottom-float row is a height-0 `\wbcc@vtop` whose whole float is *depth*; the page box
+(`\vbox to\@colht`) constrains height only and its depth was not clamped, so a `[b]`
+float's caption sat **65pt below the text area** — with no overfull warning, since the
+check only sees height (`stress-band-with-bottom-float-same-page`, present since the
+bottom-float support landed). Fixed with `\boxmaxdepth\maxdepth` on the bottom block and
+the page box, as `\@makecol` does: the excess moves into the height, where the budget
+already accounts for it. Lesson: an "Overfull \vbox" count does not catch depth.
+
 **`\flushbottom` band pages.** Rows are filled exactly to their split heights, but the
 page budget keeps a reserve (`(N+1)·\maxdepth + N·\lineskip`) the rows rarely use in
 full, and the band page ended in `\vfil` — ragged by a few points in a flush document.

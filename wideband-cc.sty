@@ -666,7 +666,14 @@
       \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%
       %% the bottom block (re-set bottom floats, then the footnotes) boxed first, so
       %% its exact height is known; rows 1..nb with their bands at natural size.
+      %% \boxmaxdepth\maxdepth (as in \@makecol): a re-set float row is a height-0
+      %% \wbcc@vtop whose whole float is DEPTH; without the clamp that depth became the
+      %% page box's depth and the float hung below the text area — invisible to the
+      %% overfull check, which only sees height (measured: a [b] float's caption 65pt
+      %% below the text bottom). Clamped, the excess moves into the height, where the
+      %% budget (\wbcc@bfh) already accounts for it.
       \setbox\wbcc@bot\vbox{%
+        \boxmaxdepth\maxdepth
         \ifdim\wbcc@bfh>\z@
           \vskip\textfloatsep
           \hb@xt@\textwidth{%
@@ -698,6 +705,7 @@
         \fi
       \fi
       \setbox\@outputbox\vbox to\@colht{%
+        \boxmaxdepth\maxdepth
         \unvbox\wbcc@top
         \nointerlineskip
         \wbcc@row{\wbcc@lr}%

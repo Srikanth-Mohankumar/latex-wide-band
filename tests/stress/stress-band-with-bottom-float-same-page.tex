@@ -1,6 +1,11 @@
 %% =====================================================================
 %% STRESS TEST: A band on a page that also carries a [b] bottom float
-%% ASSERTION: BAND-WITH-BOTTOM-FLOAT and the float both on page 1; no overfull; paras 01-08 once.
+%% ASSERTION: BAND-WITH-BOTTOM-FLOAT and the float both on page 1; no overfull; paras 01-08
+%% once; the float's caption lies INSIDE the text area (its baseline no lower than a
+%% full page's last baseline, 675.64pt here). It used to sit 65pt below it: the re-set
+%% float row is a height-0 \vtop whose whole float is depth, and the page box's depth was
+%% not clamped, so the float hung below the page without any overfull warning (the
+%% overfull check only sees height). Fixed with \boxmaxdepth\maxdepth, as in \@makecol.
 %% =====================================================================
 \documentclass[twocolumn]{article}
 \usepackage{amsmath}
