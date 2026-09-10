@@ -63,6 +63,9 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-band-deferred-at-document-end` | A band deferred on the document's **last** page (nothing follows it) gets a final page instead of being silently dropped (it was: 1 page, band absent, no warning). |
+| `stress-onecolumn-band-inline` | In one-column mode (no `\@outputdblcol`) the band is typeset in the flow as a full-width display where written (it was captured and never placed). |
+| `stress-five-bands-overdue-cap` | Five bands deferred together from one page: four are placed on the next page (the per-page cap), the fifth waits for the page after — no errors (it used to run off the end of the segment pool). |
 | `stress-band-fit-decision-with-footnotes` | A page with six footnotes and a band whose marker fits only if the notes are ignored: the fit decision now budgets the notes, so the band defers with its text instead of landing a page **before** it (found by sweeping band position × footnote count). |
 | `stress-explicit-Y-too-low-clamped` | An explicit `[492pt]` that leaves no room for a line under the band is clamped to Ymax with a `wideband-cc` warning (unclamped it forced a one-line overfull last row). |
 | `stress-shrunk-split-row-no-overflow` | A bare **right**-column band (detach-up, Y=P−bud) whose split lands where `\vsplit` had to **shrink glue** — the regression for the row re-expansion bug below (once overflowed 4.56pt). |
@@ -132,6 +135,14 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**Never lose a band silently.** Three guards, each with its failure mode named: a band
+deferred on the document's last page gets a final page (`\AtEndDocument`, only when a
+deferred band exists — no blank page otherwise); a band whose marker never reaches a
+column's top level (authored inside a box or list) raises a `wideband-cc` warning at the
+end saying how many were never placed; a sixth pending band (the pool holds five; at most
+four are placed per page) raises a `PackageError` and is typeset in the flow so the content
+survives the error (probed manually with six back-to-back bands: all six present).
 
 Known limit (shared with stock two-column LaTeX): an unbreakable item taller than the
 room left at a split point — a large display or an in-column figure sitting exactly where

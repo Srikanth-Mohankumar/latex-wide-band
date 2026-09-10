@@ -1,0 +1,26 @@
+%% =====================================================================
+%% STRESS TEST: a band DEFERRED on the document's LAST page must still be placed.
+%%
+%% Fourteen paragraphs fill page 1 exactly; the band is the very last thing in the
+%% document. Its marker sits past the band page's budget (a band page holds less text
+%% than a plain one), so the band is deferred to "the next page" — which does not exist.
+%% Before the fix the document ended right there and the band was silently lost.
+%% Now \AtEndDocument gives a deferred band a final page.
+%%
+%% ASSERTION: 2 pages; LAST-BAND appears exactly once, on page 2; paras 01-14 each once;
+%% "minim" 28 times (14 x 2); no "Overfull \vbox"; no "never placed" warning.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\Par{11}\Par{12}\Par{13}\Par{14}
+\begin{wideband}\[ E=mc^2 \quad[\text{LAST-BAND}] \]\end{wideband}
+\end{document}

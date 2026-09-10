@@ -49,6 +49,16 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Robustness guards.** (1) One-column mode: `\@outputdblcol` never runs, so the
+environment typesets the framed band in the flow when `\if@twocolumn` is false (it used to
+be captured and never placed). (2) A band deferred on the document's last page has no next
+page: `\AtEndDocument` forces one when `\wbcc@overdue > 0` (it used to be dropped
+silently — a content loss). (3) Bands still pending at the end (marker never at a column's
+top level, e.g. inside a box) raise a warning naming the count. (4) The pending pool holds
+`MAX+1` bands and the fit descent caps placements at `MAX` per page; a further band raises a
+`PackageError` and is typeset in the flow so nothing is lost. Tests:
+`stress-onecolumn-band-inline`, `stress-band-deferred-at-document-end`.
+
 **Baseline alignment.** `\splittopskip` is `\topskip` (was `0pt`): a split-off segment now
 starts its first baseline where a stock column does, so the right column's top row no
 longer sits 3.1pt above the left's and rows after a band align across columns.

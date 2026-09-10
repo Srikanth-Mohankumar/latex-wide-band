@@ -1,0 +1,33 @@
+%% =====================================================================
+%% STRESS TEST: FIVE bands pending at once (the pool's capacity, one more than the
+%% per-page placement cap of four), all deferred from the same page.
+%%
+%% Fourteen paragraphs fill page 1; five bands follow back-to-back, so all five markers
+%% sit past page 1's band-page budget and all five become overdue together. On page 2
+%% the fit descent must place at most FOUR (rows are boxed for MAX+1 = 5 segments) and
+%% keep the fifth overdue for page 3. Before the cap the descent tried to place all five
+%% and ran off the end of the segment pool ("Missing number ... \wbcc@L@6").
+%%
+%% ASSERTION: FIVE-1 .. FIVE-4 on page 2 (in order, stacked at the top), FIVE-5 on
+%% page 3; each band exactly once; NO TeX errors; no "Overfull \vbox"; paras 01-22 each
+%% once; "minim" 44 times (22 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\Par{11}\Par{12}\Par{13}\Par{14}
+\begin{wideband}\[ a=1 \quad[\text{FIVE-1}] \]\end{wideband}%
+\begin{wideband}\[ a=2 \quad[\text{FIVE-2}] \]\end{wideband}%
+\begin{wideband}\[ a=3 \quad[\text{FIVE-3}] \]\end{wideband}%
+\begin{wideband}\[ a=4 \quad[\text{FIVE-4}] \]\end{wideband}%
+\begin{wideband}\[ a=5 \quad[\text{FIVE-5}] \]\end{wideband}%
+\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}\Par{21}\Par{22}
+\end{document}

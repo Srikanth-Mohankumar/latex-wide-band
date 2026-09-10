@@ -71,6 +71,14 @@
 %% Each band is captured OUT of the flow and pushed onto the page's band list with
 %% its own split height Y (optional arg, default \wbcc@detachY). Y is the amount of
 %% column text placed above the band, i.e. its galley-split position.
+%% Frame the captured band (a rule above and below) into box register #1.
+\def\wbcc@frame#1{\global\setbox#1\vbox{\hrule\@height\p@ \kern3\p@
+     \box\wbcc@band \kern3\p@ \hrule\@height\p@}}
+%% Typeset the captured band in the flow, as a full-width display: the one-column
+%% fallback (there a "band" is just a display), and the never-lose-content fallback
+%% when the pending pool is full.
+\def\wbcc@inline{\wbcc@frame\@tempboxa \par\vskip\wbcc@sep \box\@tempboxa \vskip\wbcc@sep}
+
 \newenvironment{wideband}[1][\wbcc@detachY]{%
   \def\wbcc@curY{#1}%              % capture Y here — #1 is not visible in \end
   \par
@@ -78,12 +86,36 @@
     \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
 }{%
   \egroup
-  \global\advance\wbcc@np\@ne
-  \global\setbox\csname wbcc@b@\the\wbcc@np\endcsname\vbox{\hrule\@height\p@ \kern3\p@
-     \box\wbcc@band \kern3\p@ \hrule\@height\p@}%
-  \global\csname wbcc@Yd@\the\wbcc@np\endcsname=\wbcc@curY\relax
-  \directlua{wbcc.mark()}%       % leave a marker at the authored position (page assignment)
+  \if@twocolumn
+    \ifnum\wbcc@np<\numexpr\wbcc@MAX+\@ne\relax   % pool holds MAX+1 (placement caps at MAX/page)
+      \global\advance\wbcc@np\@ne
+      \expandafter\wbcc@frame\csname wbcc@b@\the\wbcc@np\endcsname
+      \global\csname wbcc@Yd@\the\wbcc@np\endcsname=\wbcc@curY\relax
+      \directlua{wbcc.mark()}%   % leave a marker at the authored position (page assignment)
+    \else
+      \PackageError{wideband-cc}{too many bands waiting for placement (\the\wbcc@np\space
+        already pending)}{At most \the\wbcc@MAX\space bands are placed per page and a band
+        waits until the text it follows ships. Move this band further into the text.
+        It is typeset in the flow here so that nothing is lost.}%
+      \wbcc@inline
+    \fi
+  \else
+    \wbcc@inline                   % one column: no output routine of ours runs
+  \fi
 }
+
+%% A band deferred on the document's last page (its marker sat past the band page's
+%% budget) has no next page to land on: give it one instead of losing it. Then any band
+%% still pending never had its marker seen at a column's top level (e.g. authored inside
+%% a box) — say so rather than drop it silently.
+\AtEndDocument{%
+  \clearpage
+  \ifnum\wbcc@overdue>\z@ \null\clearpage \fi
+  \ifnum\wbcc@np>\z@
+    \PackageWarningNoLine{wideband-cc}{\the\wbcc@np\space band(s) were captured but never
+      placed: their markers never reached a column's top level (a band inside a box or
+      list cannot be placed)}%
+  \fi}
 
 %% A height-0 \vtop around box #1 (the leading \kern makes the height 0 so all of #1
 %% is depth; see \wbcc@assemble for why). #1 is \box'ed, NOT \unvbox'ed, so a segment
@@ -311,11 +343,19 @@
   \loop
     \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
     \wbcc@morefalse
-    \ifnum\wbcc@m>\z@
-      \wbcc@computebud
-      \@tempdima\csname wbcc@mh@\the\wbcc@m\endcsname
-      \@tempdimb\tw@\wbcc@bud
-      \ifdim\@tempdima>\@tempdimb \advance\wbcc@m\m@ne \wbcc@moretrue \fi
+    \ifnum\wbcc@nb>\wbcc@MAX                 % at most MAX bands (MAX+1 rows) per page:
+      \ifnum\wbcc@m>\z@                      % shed this page's new markers first ...
+        \advance\wbcc@m\m@ne \wbcc@moretrue
+      \else                                  % ... then place MAX of the overdue ones;
+        \wbcc@nb\wbcc@MAX                    % the rest stay overdue for the next page
+      \fi
+    \else
+      \ifnum\wbcc@m>\z@
+        \wbcc@computebud
+        \@tempdima\csname wbcc@mh@\the\wbcc@m\endcsname
+        \@tempdimb\tw@\wbcc@bud
+        \ifdim\@tempdima>\@tempdimb \advance\wbcc@m\m@ne \wbcc@moretrue \fi
+      \fi
     \fi
   \ifwbcc@more\repeat
 }
@@ -431,10 +471,12 @@
         \ifvoid\wbcc@fn\else
           \vskip\skip\footins \footnoterule \unvbox\wbcc@fn
         \fi}%
-      %% pool bookkeeping: deferred-new bands (\wbcc@found - \wbcc@m) become overdue and
-      %% are forced onto the next page; drop the placed prefix and slide the pending
-      %% tail down to the front.
-      \global\wbcc@overdue\numexpr\wbcc@found-\wbcc@m\relax
+      %% pool bookkeeping: the placed prefix is 1..\wbcc@nb = (\wbcc@nb-\wbcc@m) overdue
+      %% bands + \wbcc@m new ones. Still overdue for the next page: the overdue bands
+      %% not placed (the per-page cap) plus this page's deferred-new markers
+      %% (\wbcc@found-\wbcc@m) — together \wbcc@overdue-\wbcc@nb+\wbcc@found. Drop the
+      %% placed prefix and slide the pending tail down to the front.
+      \global\wbcc@overdue\numexpr\wbcc@overdue-\wbcc@nb+\wbcc@found\relax
       \wbcc@shiftpool
       \global\wbcc@nb\z@
       \@combinedblfloats

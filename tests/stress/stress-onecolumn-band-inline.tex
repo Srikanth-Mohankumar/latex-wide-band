@@ -1,0 +1,23 @@
+%% =====================================================================
+%% STRESS TEST: in ONE-column mode a band is simply typeset in the flow.
+%%
+%% \@outputdblcol never runs in one-column mode, so a captured band would otherwise
+%% never be placed. The environment now detects \if@twocolumn false and sets the framed
+%% band inline as a full-width display where it was written.
+%%
+%% ASSERTION: ONECOL-BAND appears exactly once, between [03] and [04]; paras 01-06 each
+%% once; "minim" 12 times (6 x 2); no "Overfull"; no wideband-cc warning.
+%% =====================================================================
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{wideband}\[ E=mc^2 \quad[\text{ONECOL-BAND}] \]\end{wideband}
+\Par{04}\Par{05}\Par{06}
+\end{document}
