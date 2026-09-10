@@ -1,0 +1,161 @@
+%% =====================================================================
+%% STRESS TEST (from a user report, to-check/wideband-cc/example.tex, 7 bands, band labels
+%% added): every band must sit right AFTER the paragraph it follows — never with that
+%% paragraph's last line below it.
+%%
+%% Segments used to be split to Y_i - Y_{i-1} from wherever the previous segment actually
+%% ended; \vsplit stops at line boundaries, so the reach of the second band's row on a page
+%% drifted up by the first row's residual (measured 8pt on page 2), and the band after [16]
+%% cut off its last line. Targets are now absolute (see \wbcc@splitcol).
+%%
+%% ASSERTION: for every band AFTER-nn, on the band's page the tag [nn] and ALL of that
+%% paragraph's lines (its last line ends "ad minim.") are above the band in the band's
+%% reading column, and the first line of the next paragraph is below it; no
+%% "Overfull \vbox"; paras 01-42 each once; "minim" 84 times (42 x 2).
+%% =====================================================================
+% wideband-cc — minimal example.
+% Compile TWICE with LuaLaTeX:   lualatex example.tex   (x2)
+% Both wideband-cc.sty and wideband-cc.lua must sit beside this file.
+\documentclass[twocolumn]{article}
+\usepackage{amsmath,amssymb,graphicx}
+\usepackage{wideband-cc}
+\usepackage{stfloats}
+\usepackage{tabularx,booktabs,multirow}
+% \wbccReserve{48pt}{180pt}   % default band height Y = 180pt (1st arg unused)
+
+\raggedbottom               % recommended for this POC
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% helpers just so the demo has labelled paragraphs
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+
+\begin{document}
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\columnwidth]{example-image}
+  \caption{sample figure}
+\end{figure*}
+
+\Par{01}\Par{02}\Par{03}\Par{04}
+
+
+\Par{05}\Par{06}
+
+% --- a full-width band across both columns -------------------------------
+\begin{wideband}
+\[
+  \nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0}
+  \qquad
+  \nabla\times\mathbf{B} = \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
+  \quad[\text{AFTER-06}]
+\]
+\end{wideband}
+% -------------------------------------------------------------------------
+
+\Par{07}\Par{08}
+
+
+\Par{09}
+
+% --- a full-width band across both columns -------------------------------
+\begin{wideband}
+\[
+  \nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0}
+  \qquad
+  \nabla\times\mathbf{B} = \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}\quad
+  \quad[\text{AFTER-09}]
+\]
+\end{wideband}
+
+\Par{10}\Par{11}\Par{12}%
+\Par{13}\Par{14}
+\vspace*{0pt}
+\Par{15}\Par{16}
+
+% --- a full-width band across both columns -------------------------------
+\begin{wideband}
+\[
+  \nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0}
+  \qquad
+  \nabla\times\mathbf{B} = \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
+  \quad[\text{AFTER-16}]
+\]
+\end{wideband}
+
+\Par{17}\Par{18}\Par{19}
+
+\Par{20}
+
+% --- a full-width band across both columns -------------------------------
+\begin{wideband}
+\[
+  \nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0}
+  \qquad
+  \nabla\times\mathbf{B} = \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
+  \quad[\text{AFTER-20}]
+\]
+\end{wideband}
+
+\Par{21}\Par{22}\Par{23}\Par{24}
+
+\Par{25}\Par{26}
+
+\Par{27}
+
+\Par{28}\Par{29}\Par{30}
+
+
+
+\Par{31}
+
+% --- a full-width band across both columns -------------------------------
+\begin{wideband}
+\[
+  \nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0}
+  \qquad
+  \nabla\times\mathbf{B} = \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
+  \quad[\text{AFTER-31}]
+\]
+\end{wideband}
+
+
+\Par{32}\Par{33}\Par{34}\Par{35}\Par{36}\Par{37}\Par{38}
+
+\begin{wideband}
+  \centering
+\includegraphics[height=0.5\textheight,width=0.75\textwidth]{example-image}\par
+\centering[\text{AFTER-IMG}]
+\end{wideband}
+
+\Par{39}\Par{40}\Par{41}\Par{42}\Par{43}\Par{44}\Par{45}\Par{46}\Par{47}\Par{48}
+
+
+\Par{49}
+\Par{50}
+
+\begin{wideband}
+\begin{tabularx}{\textwidth}{l c c X X}
+        \toprule
+        \multirow{2}{*}{\textbf{Model Framework}} & \multicolumn{2}{c}{\textbf{Metrics}} & \multirow{2}{*}{\textbf{Primary Advantages}} & \multirow{2}{*}{\textbf{Key Limitations}} \\
+        \cmidrule(r){2-3}
+        & \textbf{Accuracy} & \textbf{Latency} & & \\
+        \midrule
+        \multirow{2}{*}{CNN Variants} & 92.4\% & 14ms & High spatial feature extraction efficiency. & Computationally heavy on massive resolutions. \\
+        & 89.1\% & 8ms & Optimized for edge devices. & Lower accuracy on long-range dependencies. \\
+        \addlinespace
+        \multirow{2}{*}{Transformers} & 96.5\% & 42ms & Captures global context perfectly through self-attention. & High memory footprint; requires large pre-training datasets. \\
+        & 94.2\% & 28ms & Linear attention reduces scale bottlenecks. & Slight accuracy degradation on granular artifacts. \\
+        \midrule
+        \textbf{Baseline (MLP)} & 74.0\% & 2ms & Extremely fast inference time. & Poor handling of structured or sequence data. \\
+        \bottomrule
+\end{tabularx}
+\par\centering[\text{AFTER-TAB}]
+\end{wideband}
+
+\Par{51}\Par{52}\Par{53}\Par{54}\Par{55}\Par{56}\Par{57}\Par{58}\Par{59}\Par{60}
+
+\end{document}

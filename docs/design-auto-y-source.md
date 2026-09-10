@@ -50,6 +50,16 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Absolute split targets (user-reported).** With relative targets (`Y_i − Y_{i−1}` from
+the previous segment's actual end) the reach of a page's second band row drifted up by
+the earlier row's line-snapping residual, cutting off the last line of the paragraph the
+band follows. `\wbcc@splitcol` now tracks what each column has consumed (`\wbcc@used`,
+from the galley's height) and splits the segment of the column that reads band `i` to
+`Y_i − used` (right column: `+ \wbcc@rL`, the left column's leftover in the galley, i.e.
+where the right column really starts), the other column's segment to the plain gap, and
+the last segment to `bud − used`. `\wbcc@computebud` reserves `N·\baselineskip` for the
+possible catch-up. Regression: `stress-band-follows-paragraph-end` (the reported file).
+
 **Reading-order cue rules (house style, RevTeX geometry, replaces the frame).**
 `\wbcc@autoY` records each placed band's reading column (`\wbcc@sd@i`: L if its marker's
 galley position is within the left column's budget, R beyond it, T for a top-of-page band);

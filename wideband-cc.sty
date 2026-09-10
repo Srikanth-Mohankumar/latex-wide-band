@@ -54,6 +54,7 @@
 \newdimen\wbcc@bud                          % per-column text budget on a band page
 \newdimen\wbcc@ymax                         % lowest a band may be auto-placed (Phase B clamp)
 \newdimen\wbcc@prevY
+\newdimen\wbcc@used \newdimen\wbcc@gstart \newdimen\wbcc@rL  % \wbcc@splitcol: consumed, start, left residual
 \newcount\wbcc@np       \global\wbcc@np\z@   % bands captured but not yet placed (all pages)
 \newcount\wbcc@overdue  \global\wbcc@overdue\z@% front prefix of the pool forced onto THIS page
 \newcount\wbcc@found \edef\wbcc@found@n{\the\allocationnumber}% count-register index for Lua
@@ -410,17 +411,39 @@
 }
 
 %% Split one recombined column (already in \wbcc@galley) into up to \wbcc@nb+1 segments:
-%% segment i (i=1..nb) is the text row ABOVE band i, height Y_i - (last real split). If
-%% that gap is below one \baselineskip — two bands at equal or near-equal Y — no text
-%% fits between them, so the row is voided (segment i empty) and the bands stack; the
-%% split point does NOT advance, so band i+1 measures its gap from the same point. This
-%% keeps a degenerate \vsplit to ~0pt (which still takes a whole line) from overflowing
-%% the page. #1 is L or R; run \wbcc@sortbands first.
+%% segment i (i=1..nb) is the text row ABOVE band i. #1 is L or R; run \wbcc@sortbands
+%% first, and L before R.
+%%
+%% Split targets are ABSOLUTE. \vsplit stops at a line boundary, so a segment consumes
+%% less than its target; if segment i+1 were split to "Y_{i+1} - Y_i" from wherever
+%% segment i actually ended, its reach would drift up by the accumulated residual and a
+%% band's row could stop one line short of the paragraph the band follows (reported: the
+%% last line of the paragraph appeared below the band). So in the column that READS band
+%% i (\wbcc@sd@i), segment i is split to Y_i minus what this column has consumed so far
+%% (\wbcc@used), which lands exactly at the marker whatever earlier rows did; in the right
+%% column the target also carries \wbcc@rL, the residual the left column left in the
+%% galley (the right column starts there, r < one line, so a right band's marker sits at
+%% Y + r from its top). In the other column — its text just fills the row — the target is
+%% the plain gap Y_i - Y_{i-1}. The last segment is split to \wbcc@bud - used, so a
+%% column never exceeds its budget. A row may still be up to one line taller than its
+%% nominal share (the catch-up), which \wbcc@computebud reserves per band.
+%%
+%% A gap below one \baselineskip — two bands at equal or near-equal Y — holds no text: the
+%% row is voided (segment i empty) and the bands stack; the split point does NOT advance,
+%% so band i+1 measures its gap from the same point (a degenerate \vsplit to ~0pt would
+%% still take a whole line).
 \def\wbcc@splitcol#1{%
   \wbcc@prevY\z@
+  \wbcc@gstart\dimexpr\ht\wbcc@galley+\dp\wbcc@galley\relax   % galley height as this column starts
+  \if L#1\wbcc@rL\z@\fi                                    % no offset for the left column
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
-    \@tempdima\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname-\wbcc@prevY\relax
+    \wbcc@used\dimexpr\wbcc@gstart-\ht\wbcc@galley-\dp\wbcc@galley\relax
+    \if#1\csname wbcc@sd@\the\wbcc@i\endcsname            % this column reads band i
+      \@tempdima\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname+\wbcc@rL-\wbcc@used\relax
+    \else
+      \@tempdima\dimexpr\csname wbcc@Yd@\the\wbcc@i\endcsname-\wbcc@prevY\relax
+    \fi
     \ifdim\@tempdima<\baselineskip
       \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\box\voidb@x   % stacked band: no text row
     \else
@@ -429,9 +452,15 @@
       \wbcc@prevY\csname wbcc@Yd@\the\wbcc@i\endcsname
     \fi
     \advance\wbcc@i\@ne}%
-  \setbox\csname wbcc@#1@\the\wbcc@i\endcsname
-    \vsplit\wbcc@galley to\dimexpr\wbcc@bud-\wbcc@prevY\relax
+  \wbcc@used\dimexpr\wbcc@gstart-\ht\wbcc@galley-\dp\wbcc@galley\relax
+  \@tempdima\dimexpr\wbcc@bud-\wbcc@used\relax
+  \ifdim\@tempdima<\z@ \@tempdima\z@ \fi
+  \setbox\csname wbcc@#1@\the\wbcc@i\endcsname\vsplit\wbcc@galley to\@tempdima
   \expandafter\wbcc@fitseg\csname wbcc@#1@\the\wbcc@i\endcsname
+  \if L#1% the residual the left column leaves: where the right column really starts
+    \wbcc@rL\dimexpr\wbcc@bud-\wbcc@gstart+\ht\wbcc@galley+\dp\wbcc@galley\relax
+    \ifdim\wbcc@rL<\z@ \wbcc@rL\z@ \fi
+  \fi
 }
 
 %% One two-column row from segment #1.
@@ -487,8 +516,10 @@
 %% a \dbltop float the columns were built at the reduced \@colht and \@combinedblfloats
 %% adds the float back to reach \textheight, so budgeting on \textheight would
 %% double-count. Each of the N+1 rows can carry up to \maxdepth of last-line depth, so
-%% reserve (N+1)*\maxdepth (\wbcc@assemble suppresses every interline glue, so nothing
-%% else is unbudgeted). The caller sets \@tempdimc/\wbcc@bfh first.
+%% reserve (N+1)*\maxdepth, plus N*\baselineskip because a band row's segment in the
+%% column that reads the band is split to an ABSOLUTE target and may be up to a line
+%% taller than its nominal share (\wbcc@splitcol). \wbcc@assemble suppresses every
+%% interline glue, so nothing else is unbudgeted. The caller sets \@tempdimc/\wbcc@bfh.
 \def\wbcc@computebud{%
   \@tempdima\z@
   \wbcc@i\@ne
@@ -500,6 +531,9 @@
     \advance\wbcc@i\@ne}%
   \wbcc@i\numexpr\wbcc@nb+\@ne\relax
   \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
+  \@tempdimb\baselineskip \multiply\@tempdimb\wbcc@nb    % N*\baselineskip: a band row may be up
+  \advance\@tempdimd\@tempdimb                           % to a line taller than its nominal share
+                                                         % (absolute split targets, \wbcc@splitcol)
   \wbcc@bud\dimexpr\@colht-\@tempdima-\@tempdimc-\wbcc@bfh-\@tempdimd\relax
 }
 

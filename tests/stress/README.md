@@ -72,6 +72,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-fullpage-band-own-page` | **User request.** A 0.9`\textheight` band gets a page of its own (no rows, no rules) after the page carrying its text, instead of a few stray lines flowed around it. |
 | `stress-fullpage-band-exact-textheight` | A band exactly `\textheight` tall fits its own page with no overflow (unframed; it used to be 41pt too high from the frame and gaps). |
 | `stress-fullpage-band-then-small-band` | A full-page band followed by an ordinary band in the same page's text: the small band waits until after the full-page band's page — bands never change order. |
+| `stress-band-follows-paragraph-end` | **User-reported.** Seven bands (the current `to-check` example): every band sits right after the paragraph it follows. The second band on a page used to cut off the last line of its paragraph, because segments were split to `Y_i − Y_{i−1}` from where the previous segment actually ended — the reach drifted up by the earlier row's snapping residual (8pt measured). Split targets are now absolute. |
 | `stress-band-after-overflowed-paragraph` | **User-reported.** A band deferred from a page whose other bands push its paragraph to the next page: its marker now *rides* in the overflow and the band lands after `[20]` there (it used to be stripped and force-placed one line from the top, *above* its own paragraph); an overdue band whose text ended on the previous page sits at the very top, Y=0, with no orphaned line. Mirrors `to-check/wideband-cc/example.tex` (incl. `stfloats`). |
 | `stress-band-deferred-at-document-end` | A band deferred on the document's **last** page (nothing follows it) gets a final page instead of being silently dropped (it was: 1 page, band absent, no warning). |
 | `stress-onecolumn-band-inline` | In one-column mode (no `\@outputdblcol`) the band is typeset in the flow as a full-width display where written (it was captured and never placed). |
@@ -145,6 +146,18 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**Absolute split targets (user-reported: a band cut off its paragraph's last line).**
+`\vsplit` stops at a line boundary, so a segment consumes less than its target. Segment
+`i+1` used to be split to `Y_{i+1} − Y_i` from wherever segment `i` actually ended, so its
+absolute reach drifted up by the accumulated residual (8pt on the reported page) and the
+row above the second band on a page stopped one line short of the paragraph the band
+follows. Now, in the column that *reads* band `i`, its segment is split to `Y_i` minus what
+that column has consumed so far (plus, in the right column, the residual `r` the left column
+left in the galley — the right column starts there); in the other column the target is the
+plain gap `Y_i − Y_{i−1}`; the last segment is split to `bud − consumed`. A row may thus be
+up to one line taller than its nominal share, which the budget reserves (`N·\baselineskip`,
+one line of capacity per band on a band page).
 
 **Reading-order cue rules (house style, RevTeX geometry, arrangement by reading
 column).** One plain half-width rule **above** the band on one side and one **below** it on
