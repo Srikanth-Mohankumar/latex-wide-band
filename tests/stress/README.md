@@ -63,6 +63,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-auto-Y-explicit-and-auto-mix` | An explicit `[Y]` band and a bare (auto) band on the same page — precedence: the explicit one is untouched. |
 | `stress-two-auto-bands-same-page` | Two bare bands on one page — the N>1 clamp; both land at their authored positions in order. |
 | `stress-auto-Y-overdue-to-top` | A bare band authored past page 1 defers (overdue) and, having no marker on page 2, lands at Ymin (top of page 2). |
+| `stress-overlay-host-routine-flushend` | `flushend` loaded before `wideband-cc`: the last page's columns are still balanced (the host output routine produces every band-free page; it used to be replaced wholesale). |
 | `stress-flushbottom-band-page` | In a `\flushbottom` document the band page ends flush: its lowest baseline equals a plain page's (675.64pt here; it was 7.9pt short — the budget's unused reserve sat in a `\vfil`). |
 | `stress-fullpage-band-running-head` | `\pagestyle{headings}` with a section change on page 1 and a full-page band on page 2: the band page's head reads `2 BETA` (the section current when it begins), the next page `3 BETA`. A stock `figure*` float page shows the stale `1 ALPHA` here. |
 | `stress-band-keyval-options` | `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…, rulewidth=…, fullpage]` per band; a bare `[140pt]` still means `y=140pt`; `[fullpage]` forces a small band onto its own page. |
@@ -143,6 +144,16 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**An overlay, not a replacement (found on a production article).** The production
+template loads `flushend` (balances the last page's columns) and `stfloats`, both of which
+install their own `\@outputdblcol`; `wideband-cc` used to replace `\@outputdblcol`
+wholesale, silently discarding those on *every* page. Now the routine in force when the
+package is loaded (`\wbcc@orig@outputdblcol`) produces every page without a band — the
+first-column bookkeeping included — and only a page that places a band is rebuilt; a
+routine installed later (`\AtBeginDocument`) is overlaid the same way. **Load
+`wideband-cc` after packages that touch the output routine.** A band page itself is not
+balanced by `flushend` (it is built here). Test: `stress-overlay-host-routine-flushend`.
 
 **Bottom floats hung below the page (found while measuring flush pages).** A re-set
 bottom-float row is a height-0 `\wbcc@vtop` whose whole float is *depth*; the page box

@@ -264,8 +264,10 @@
 %% budget) has no next page to land on: give it one instead of losing it. Then any band
 %% still pending never had its marker seen at a column's top level (e.g. authored inside
 %% a box) — say so rather than drop it silently.
-\AtEndDocument{%
-  \clearpage
+%% Runs AFTER the kernel's own final \clearpage (enddocument/afterlastpage), not from
+%% \AtEndDocument: an \AtEndDocument \clearpage would ship the last page before
+%% flushend gets to balance it. Older kernels without that hook fall back.
+\def\wbcc@atveryend{%
   \wbcc@emitfullpages
   \ifnum\wbcc@overdue>\z@ \null\clearpage \fi
   \ifnum\wbcc@np>\z@
@@ -273,6 +275,11 @@
       placed: their markers never reached a column's top level (a band inside a box or
       list cannot be placed)}%
   \fi}
+\ifdefined\AddToHook
+  \AddToHook{enddocument/afterlastpage}{\wbcc@atveryend}
+\else
+  \AtEndDocument{\clearpage\wbcc@atveryend}
+\fi
 
 %% A height-0 \vtop around box #1 (the leading \kern makes the height 0 so all of #1
 %% is depth; see \wbcc@assemble for why). #1 is \box'ed, NOT \unvbox'ed, so a segment
@@ -574,10 +581,16 @@
   \global\advance\wbcc@np-\wbcc@nb
 }
 
-\def\@outputdblcol{%
+%% wideband-cc is an OVERLAY on the two-column output routine, not a replacement: the
+%% routine in force when the package is loaded (\wbcc@orig@outputdblcol — the kernel's,
+%% or the one flushend/stfloats/a class installed) produces every page that carries no
+%% band, including the first-column bookkeeping; only a page that places a band is
+%% rebuilt here. So load wideband-cc AFTER packages that touch \@outputdblcol; if one
+%% redefines it later (\AtBeginDocument), ours is re-installed on top of the new one.
+\let\wbcc@orig@outputdblcol\@outputdblcol
+\def\wbcc@outputdblcol{%
   \if@firstcolumn
-    \global\@firstcolumnfalse
-    \global\setbox\@leftcolumn\box\@outputbox
+    \wbcc@orig@outputdblcol          % store the left column exactly as the host routine does
   \else
     \global\@firstcolumntrue
     %% Page assignment (marker-driven): scan both finished columns non-destructively.
@@ -740,6 +753,13 @@
                                     % branch ships a whole page and must NOT add this, or
                                     % the second (overflow) firing would re-force again and
                                     % emit a blank page. Do not "symmetrise" the two.
+      %% double-float pages queued for after this page (stock \@outputdblcol tail; the
+      %% delegated branch below lets the host routine do its own)
+      \begingroup
+        \@dblfloatplacement
+        \@startdblcolumn
+        \@whilesw\if@fcolmade\fi{\@outputpage\@startdblcolumn}%
+      \endgroup
     \else
       %% nothing to place this page (no new marker fit, and either no overdue band or a
       %% full-page band at the front of the pool): the two finished columns ship as a
@@ -750,21 +770,29 @@
       \directlua{wbcc.stripmarks(\number\@leftcolumn, \number\@outputbox, \number\wbcc@found)}%
       \wbcc@logpage{\wbcc@found}%  (nb = m = 0: every found marker shipped here)
       \global\wbcc@overdue\numexpr\wbcc@overdue+\wbcc@found\relax
-      \setbox\@outputbox\vbox{%
-        \hb@xt@\textwidth{%
-          \hb@xt@\columnwidth{\box\@leftcolumn\hss}%
-          \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
-          \hb@xt@\columnwidth{\box\@outputbox\hss}}}%
-      \@combinedblfloats
-      \@outputpage
-      \global\@colht\textheight
+      %% no band on this page: let the host routine combine, ship and place double
+      %% floats exactly as it always does (flushend's last-page balancing, stfloats, ...).
+      %% It expects to be entered in its second-column state.
+      \global\@firstcolumnfalse
+      \wbcc@orig@outputdblcol
       \wbcc@emitfullpages           % any overdue full-page band at the pool front: its page now
     \fi
-    \begingroup
-      \@dblfloatplacement
-      \@startdblcolumn
-      \@whilesw\if@fcolmade\fi{\@outputpage\@startdblcolumn}%
-    \endgroup
+  \fi}
+\let\@outputdblcol\wbcc@outputdblcol
+%% Re-overlay whatever routine is in force now (a package may have installed its own).
+\def\wbcc@reoverlay{%
+  \ifx\@outputdblcol\wbcc@outputdblcol\else
+    \let\wbcc@orig@outputdblcol\@outputdblcol
+    \let\@outputdblcol\wbcc@outputdblcol
+  \fi}
+\AtBeginDocument{%
+  \wbcc@reoverlay
+  %% flushend swaps in its last-page balancing routine at \@kernel@after@enddocument
+  %% (registered from ITS \AtBeginDocument, which ran before this one); append the
+  %% re-overlay after it so the last page is balanced by flushend when it has no band
+  %% and rebuilt here when it has one.
+  \ifdefined\@kernel@after@enddocument
+    \g@addto@macro\@kernel@after@enddocument{\wbcc@reoverlay}%
   \fi}
 
 \endinput

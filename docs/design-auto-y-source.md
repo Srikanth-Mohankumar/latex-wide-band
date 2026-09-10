@@ -50,6 +50,15 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Overlay on the host output routine (from the first production article).** The
+`acs-fla` template loads `flushend` and `stfloats`, which install their own
+`\@outputdblcol`; replacing it wholesale discarded them on every page. `wideband-cc` now
+saves the routine in force at load time (`\wbcc@orig@outputdblcol`), calls it for the
+first-column invocation and for every page without a band (entered in the second-column
+state it expects), and rebuilds only band pages; `\AtBeginDocument` re-overlays a routine
+installed after ours. The double-float page loop after a band page is ours (stock tail);
+the delegated branch leaves it to the host.
+
 **`\flushbottom` band pages.** The assembly is now: bottom block (`\wbcc@bot`: floats,
 footnotes) boxed; rows 1..N with their bands boxed at natural size (`\wbcc@top`); under
 `\flushbottom` the leftover `\@colht − top − lastrow − bot` is measured and the last row's

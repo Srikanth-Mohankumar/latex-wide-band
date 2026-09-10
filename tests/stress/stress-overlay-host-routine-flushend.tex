@@ -1,0 +1,35 @@
+%% =====================================================================
+%% STRESS TEST (found on a production article): wideband-cc must be an OVERLAY on the
+%% two-column output routine, not a replacement.
+%%
+%% Production templates install their own \@outputdblcol (flushend balances the last
+%% page's columns; stfloats changes double-float placement). wideband-cc used to replace
+%% \@outputdblcol wholesale, so every such customisation vanished on EVERY page as soon
+%% as the package was loaded. Now the routine in force at load time handles every page
+%% without a band (and the first-column bookkeeping); only a page that places a band is
+%% rebuilt here. Load wideband-cc AFTER such packages.
+%%
+%% Here flushend is loaded before wideband-cc; page 1 carries a band, page 2 is the
+%% short last page. flushend must still balance page 2's two columns.
+%%
+%% ASSERTION: FLUSHEND-BAND on page 1; on page 2 (the last page) the two columns end
+%% within one line of each other (lowest baselines within 13pt) — before the fix the
+%% left column ran full and the right held only the remainder; no "Overfull \vbox";
+%% paras 01-24 each once; "minim" 48 times (24 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{flushend}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{wideband}\[ E=mc^2 \quad[\text{FLUSHEND-BAND}] \]\end{wideband}
+\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}
+\Par{15}\Par{16}\Par{17}\Par{18}\Par{19}\Par{20}\Par{21}\Par{22}\Par{23}\Par{24}
+\end{document}
