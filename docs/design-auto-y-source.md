@@ -50,6 +50,14 @@ band follows the taller column, as before). A row is therefore never taller than
 reserve bounds the page for **any** Y. `\vfuzz` is back to TeX's 0.1pt. Regression:
 `tests/stress/stress-shrunk-split-row-no-overflow.tex`.
 
+**Reading-order cue rules (house style, replaces the frame).** `\wbcc@autoY` records each
+placed band's reading column (`\wbcc@sd@i`: L if its marker's galley position is within
+the left column's budget, R beyond it, T for a top-of-page band) and `\wbcc@assemble` sets
+`\wbcc@cue` above and below the band: a 0.75`\textwidth` (`\wbccrulefraction`) rule anchored
+at the margin of the column that *skips* the band — right for a left band, left for a right
+band, none for T. Every piece in the stack is separated by `\nointerlineskip`, so the budget
+no longer reserves `N·\lineskip`; it adds `2·\wbccrulewidth` per band instead.
+
 **Overlay on the host output routine (from the first production article).** The
 `acs-fla` template loads `flushend` and `stfloats`, which install their own
 `\@outputdblcol`; replacing it wholesale discarded them on every page. `wideband-cc` now

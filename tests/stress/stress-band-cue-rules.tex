@@ -1,0 +1,34 @@
+%% =====================================================================
+%% STRESS TEST (house style): reading-order CUE RULES instead of a full-width frame.
+%%
+%% A band is read as part of the column its marker sits in; the other column runs past
+%% it. At both of that column's junctions with the band the far side is not next in
+%% reading order, so a rule marks each: a LEFT band (after [03], left column) gets a rule
+%% above and below on the RIGHT, anchored at the right margin; a RIGHT band (after [11],
+%% right column) the mirror image on the LEFT. Rules are \wbccrulefraction (0.75) of
+%% \textwidth long and \wbccrulewidth thick; there is no full-width rule. A band at the
+%% top of a page and a full-page band get no rules.
+%%
+%% ASSERTION: LEFT-BAND on page 1 with two horizontal rules of 0.75\textwidth ending at
+%% the RIGHT text margin, one just above and one just below the band, and no other
+%% horizontal rule; RIGHT-BAND on page 1 with two such rules starting at the LEFT
+%% margin; no "Overfull \vbox"; paras 01-16 once; "minim" 32 times (16 x 2).
+%% (Rules are not text: verify by rendering, or with `pdftocairo -svg` and reading the
+%% rule rectangles' x-extents.)
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{wideband}\[ E=mc^2 \quad[\text{LEFT-BAND}] \]\end{wideband}
+\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}
+\begin{wideband}\[ E=mc^2 \quad[\text{RIGHT-BAND}] \]\end{wideband}
+\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\end{document}

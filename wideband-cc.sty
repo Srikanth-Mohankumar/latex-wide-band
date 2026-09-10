@@ -21,8 +21,10 @@
 %% budget is computed in the output routine from \@colht and the band heights.
 %%
 %% Spacing (\setlength; each band records the values current at its \end{wideband}):
-%%   \wbccskipabove  6pt   text -> band frame          \wbccskipbelow  6pt  frame -> text
-%%   \wbccframesep   3pt   padding inside the rules    \wbccrulewidth  1pt  rules (0pt: none)
+%%   \wbccskipabove  6pt   text -> band                \wbccskipbelow  6pt  band -> text
+%%   \wbccframesep   3pt   padding cue rule -> content \wbccrulewidth  1pt  cue rules (0pt: none)
+%% \renewcommand\wbccrulefraction{.75}: length of the reading-order cue rules as a
+%% fraction of \textwidth (see \wbcc@cue).
 %% \renewcommand\wbccfullpagefraction{.75}: a band this tall (fraction of \textheight)
 %% gets a page of its own instead of text flowed around it.
 %%
@@ -90,9 +92,25 @@
 %% Each band is captured OUT of the flow and pushed onto the page's band list with
 %% its own split height Y (optional arg, default \wbcc@detachY). Y is the amount of
 %% column text placed above the band, i.e. its galley-split position.
-%% Frame the captured band (a rule above and below) into box register #1.
-\def\wbcc@frame#1{\global\setbox#1\vbox{\hrule\@height\wbccrulewidth \kern\wbccframesep
-     \box\wbcc@band \kern\wbccframesep \hrule\@height\wbccrulewidth}}
+%% Box the captured band into register #1 with \wbccframesep of padding above and below
+%% (the padding between the reading-order cue rules and the content; the rules themselves
+%% are added at assembly, when the band's column is known — see \wbcc@cue).
+\def\wbcc@frame#1{\global\setbox#1\vbox{\kern\wbccframesep \box\wbcc@band \kern\wbccframesep}}
+
+%% READING-ORDER CUE RULES. A band is read as part of ONE column — the one its marker sits
+%% in. The other column runs straight past it, so at both of that column's junctions with
+%% the band (its text above -> band, band -> its text below) the far side is NOT next in
+%% reading order; a rule marks each such junction (the convention RevTeX's widetext uses
+%% for its own reading order). So: a LEFT band gets a rule above and a rule below, both on
+%% the RIGHT side, anchored at the right margin; a RIGHT band the mirror image. The rule is
+%% \wbccrulefraction of \textwidth long (house style: 0.75) and \wbccrulewidth thick. A
+%% band at the top of a page (nothing above it: both columns read it first) and a
+%% full-page band get no rules. There is no full-width frame.
+\newcommand\wbccrulefraction{.75}
+%% \wbcc@cue{L|R|T}: one cue rule as a full-width hbox (T: nothing).
+\def\wbcc@cue#1{%
+  \if L#1\hb@xt@\textwidth{\hfil\vrule\@height\wbccrulewidth\@width\wbccrulefraction\textwidth}\fi
+  \if R#1\hb@xt@\textwidth{\vrule\@height\wbccrulewidth\@width\wbccrulefraction\textwidth\hfil}\fi}
 
 %% FULL-PAGE bands. A band that would take most of a page is not flowed around: it
 %% gets a page of its own (like a float page), unframed, after the page that carries
@@ -341,6 +359,10 @@
         \dimen@\csname wbcc@bl@\the\wbcc@j\endcsname
         \global\csname wbcc@bl@\the\wbcc@j\endcsname\csname wbcc@bl@\wbcc@next\endcsname
         \global\csname wbcc@bl@\wbcc@next\endcsname\dimen@
+        \expandafter\let\expandafter\wbcc@tmp\csname wbcc@sd@\the\wbcc@j\endcsname
+        \global\expandafter\let\csname wbcc@sd@\the\wbcc@j\expandafter\endcsname
+          \csname wbcc@sd@\wbcc@next\endcsname
+        \global\expandafter\let\csname wbcc@sd@\wbcc@next\endcsname\wbcc@tmp
       \fi
       \advance\wbcc@j\@ne}%
     \advance\wbcc@i\@ne}%
@@ -379,11 +401,11 @@
     \hb@xt@\columnwidth{\wbcc@vtop{\csname wbcc@R@#1\endcsname}\hss}}%
 }
 
-%% Interleave segments and bands: row1, band1, row2, band2, ..., row(nb+1).
-%% A band box has depth 0 and a \wbcc@row is a height-0 \vtop, so TeX would insert a
-%% full \baselineskip of interline glue before each post-band row — unbudgeted height
-%% that pushes the page past \@colht. \nointerlineskip after each band suppresses just
-%% that glue (the band's own \wbcc@ab@/\wbcc@bl@ skips still space it from the rows).
+%% Interleave segments and bands: row1, [cue] band1 [cue], row2, band2, ..., row(nb+1).
+%% Every piece is a box, so TeX would insert interline glue between them (a full
+%% \baselineskip before a post-band row, since a \wbcc@row is a height-0 \vtop) —
+%% unbudgeted height. \nointerlineskip before every piece keeps the stack exact: the
+%% only vertical space is the band's own \wbcc@ab@/\wbcc@bl@ skips.
 \def\wbcc@assemble{%
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
@@ -392,7 +414,12 @@
       \wbcc@row{\the\wbcc@i}%
       \vskip\csname wbcc@ab@\the\wbcc@i\endcsname
     \fi
+    \nointerlineskip
+    \wbcc@cue{\csname wbcc@sd@\the\wbcc@i\endcsname}%   rule at the column that skips the band
+    \nointerlineskip
     \hb@xt@\textwidth{\box\csname wbcc@b@\the\wbcc@i\endcsname\hss}%
+    \nointerlineskip
+    \wbcc@cue{\csname wbcc@sd@\the\wbcc@i\endcsname}%
     \vskip\csname wbcc@bl@\the\wbcc@i\endcsname
     \nointerlineskip
     \advance\wbcc@i\@ne}%
@@ -412,26 +439,24 @@
   \fi}
 
 %% Per-column text budget for placing \wbcc@nb bands: \@colht minus the band heights
-%% (+gaps), minus footnotes (\@tempdimc) and bottom floats (\wbcc@bfh), minus a
-%% per-row depth/interline reserve. Use \@colht (NOT \textheight): on a page carrying
+%% (+ their skips and cue rules), minus footnotes (\@tempdimc) and bottom floats
+%% (\wbcc@bfh), minus a per-row depth reserve. Use \@colht (NOT \textheight): on a page carrying
 %% a \dbltop float the columns were built at the reduced \@colht and \@combinedblfloats
 %% adds the float back to reach \textheight, so budgeting on \textheight would
 %% double-count. Each of the N+1 rows can carry up to \maxdepth of last-line depth, so
-%% reserve (N+1)*\maxdepth; the band sits a \lineskip below each row, so reserve
-%% N*\lineskip too. The caller sets \@tempdimc/\wbcc@bfh first (0 during the fit
-%% descent, real values for the actual split).
+%% reserve (N+1)*\maxdepth (\wbcc@assemble suppresses every interline glue, so nothing
+%% else is unbudgeted). The caller sets \@tempdimc/\wbcc@bfh first.
 \def\wbcc@computebud{%
   \@tempdima\z@
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
     \advance\@tempdima\dimexpr\ht\csname wbcc@b@\the\wbcc@i\endcsname
       +\dp\csname wbcc@b@\the\wbcc@i\endcsname
-      +\csname wbcc@ab@\the\wbcc@i\endcsname+\csname wbcc@bl@\the\wbcc@i\endcsname\relax
+      +\csname wbcc@ab@\the\wbcc@i\endcsname+\csname wbcc@bl@\the\wbcc@i\endcsname
+      +\tw@\wbccrulewidth\relax                           % its two cue rules (0 for a top band: slack)
     \advance\wbcc@i\@ne}%
   \wbcc@i\numexpr\wbcc@nb+\@ne\relax
   \@tempdimd\maxdepth \multiply\@tempdimd\wbcc@i         % (N+1)*\maxdepth: row last-line depths
-  \@tempdimb\lineskip \multiply\@tempdimb\wbcc@nb        % N*\lineskip: row->band interline glue
-  \advance\@tempdimd\@tempdimb
   \wbcc@bud\dimexpr\@colht-\@tempdima-\@tempdimc-\wbcc@bfh-\@tempdimd\relax
 }
 
@@ -466,10 +491,22 @@
   \ifdim\wbcc@ymax<\z@ \wbcc@ymax\z@ \fi                      % degenerate page: no inverted range
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    %% which column reads this band (for the cue rules): its marker's column — L if the
+    %% galley position P is within the left column's budget, R beyond it; an overdue band
+    %% has no marker here and lands at the top: T (no rules).
+    \ifnum\wbcc@i>\wbcc@overdue
+      \edef\wbcc@mk{\the\numexpr\wbcc@i-\wbcc@overdue\relax}%   marker index (unsorted order)
+      \ifdim\csname wbcc@mh@\wbcc@mk\endcsname>\wbcc@bud
+        \expandafter\gdef\csname wbcc@sd@\the\wbcc@i\endcsname{R}%
+      \else
+        \expandafter\gdef\csname wbcc@sd@\the\wbcc@i\endcsname{L}%
+      \fi
+    \else
+      \expandafter\gdef\csname wbcc@sd@\the\wbcc@i\endcsname{T}%
+    \fi
     \@tempdimb\csname wbcc@Yd@\the\wbcc@i\endcsname
     \ifdim\@tempdimb=\maxdimen                     % auto sentinel -> derive from marker
       \ifnum\wbcc@i>\wbcc@overdue
-        \edef\wbcc@mk{\the\numexpr\wbcc@i-\wbcc@overdue\relax}%   marker index (unsorted order)
         \@tempdimb\csname wbcc@mh@\wbcc@mk\endcsname             % galley position P
         \ifdim\@tempdimb>\wbcc@bud \advance\@tempdimb-\wbcc@bud \fi  % right column: P-\wbcc@bud
       \else
@@ -483,6 +520,9 @@
         \PackageWarning{wideband-cc}{split height \the\dimen@\space leaves no room for the
           band and a line below it on this page; clamped to \the\@tempdimb}%
       \fi
+    \fi
+    \ifdim\@tempdimb=\z@                           % nothing above it: no cue rules
+      \expandafter\gdef\csname wbcc@sd@\the\wbcc@i\endcsname{T}%
     \fi
     \csname wbcc@Yd@\the\wbcc@i\endcsname\@tempdimb
     \advance\wbcc@i\@ne}%

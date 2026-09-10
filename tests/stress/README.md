@@ -66,6 +66,7 @@ body level; the first four build with no `Overfull \vbox`):
 | `stress-overlay-host-routine-flushend` | `flushend` loaded before `wideband-cc`: the last page's columns are still balanced (the host output routine produces every band-free page; it used to be replaced wholesale). |
 | `stress-flushbottom-band-page` | In a `\flushbottom` document the band page ends flush: its lowest baseline equals a plain page's (675.64pt here; it was 7.9pt short — the budget's unused reserve sat in a `\vfil`). |
 | `stress-fullpage-band-running-head` | `\pagestyle{headings}` with a section change on page 1 and a full-page band on page 2: the band page's head reads `2 BETA` (the section current when it begins), the next page `3 BETA`. A stock `figure*` float page shows the stale `1 ALPHA` here. |
+| `stress-band-cue-rules` | **House style.** Reading-order cue rules replace the full-width frame: a left band gets two 0.75`\textwidth` rules (above and below) anchored at the right margin, a right band the mirror image, a top-of-page band none. |
 | `stress-band-keyval-options` | `\begin{wideband}[y=…, skipabove=…, skipbelow=…, framesep=…, rulewidth=…, fullpage]` per band; a bare `[140pt]` still means `y=140pt`; `[fullpage]` forces a small band onto its own page. |
 | `stress-band-spacing-controls` | **User request.** `\wbccskipabove`/`\wbccskipbelow`/`\wbccframesep`/`\wbccrulewidth`, recorded per band: one default band and one with 18pt above, 2pt below, no padding, no rules — budget and clamp follow the per-band values. |
 | `stress-fullpage-band-own-page` | **User request.** A 0.9`\textheight` band gets a page of its own (no rows, no rules) after the page carrying its text, instead of a few stray lines flowed around it. |
@@ -144,6 +145,19 @@ first lines' height difference; now both columns' first baselines coincide with 
 page's (137.70pt from the top in these tests) and post-band rows align. Each split segment
 holds ~3pt less text, so a paragraph opening can spill to the next page (it did in three
 files, e.g. `stress-bands-spread-across-three-pages`); bands stay on their pages.
+
+**Reading-order cue rules (house style).** A band is read as part of the column its marker
+sits in; the other column runs straight past it, so at both of that column's junctions with
+the band the far side is *not* next in reading order — a rule marks each (the same logic
+RevTeX's `widetext` applies to its own top-block/bottom-block order, where the rules land
+above-left and below-right). Here a **left band** gets a rule above and a rule below on the
+**right**, anchored at the right margin; a **right band** the mirror image. Rules are
+`\wbccrulefraction` (0.75) of `\textwidth` long and `\wbccrulewidth` thick; the full-width
+frame is gone (`\wbccframesep` is now the padding between rule and content). A band at the
+top of a page (both columns read it first) and a full-page band get no rules. The column is
+known per band at assembly (`\wbcc@sd@i` = L/R/T from the marker's galley position), and the
+two rules are budgeted per band. Two stacked bands show a double rule between them (A's lower
+and B's upper) — collapsing that is a possible refinement.
 
 **An overlay, not a replacement (found on a production article).** The production
 template loads `flushend` (balances the last page's columns) and `stfloats`, both of which
