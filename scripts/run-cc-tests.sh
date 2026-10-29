@@ -39,6 +39,12 @@ for source in stress-*.tex; do
         exit 1
       }
       ;;
+    stress-band-page-enlarged.tex)
+      grep -q 'band #1 (page 1): placed' "$job.log" || {
+        echo "ERROR: the band on an enlarged page was not placed on it in $source" >&2
+        exit 1
+      }
+      ;;
     stress-elsevier-adapter-fullpage-safe-top.tex)
       grep -q 'fullpage band.*reduced to a' "$job.log" || {
         echo "ERROR: Elsevier fullpage safety degradation was not logged for $source" >&2

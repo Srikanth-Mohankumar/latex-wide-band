@@ -121,6 +121,53 @@ function M.balancelinks(...)
   end
 end
 
+-- A column built after \enlargethispage: \@makecol's special column box is
+--   \vbox to\@colht{ \vbox to H{content} \vss }      (H = \@colht + the enlargement)
+-- one level deeper than a normal column, so every reader below would miss the
+-- content (a band's marker was never found and the band never placed). Return the
+-- box that holds the content -- the inner vlist for that exact two-node shape, else
+-- the column itself.
+local function colcontent(box)
+  if not (box and box.list) then return box end
+  local a = box.list
+  local b = a.next
+  if a.id == VLIST and b and b.id == GLUE and not b.next
+     and b.width == 0 and b.stretch_order > 0 and b.shrink_order > 0 then
+    return a
+  end
+  return box
+end
+
+-- The enlargement of column box `num` (inner height minus the column's), or nil for
+-- a normal column.
+local function colextra(num)
+  local box = tex.box[tonumber(num)]
+  local c = colcontent(box)
+  if c == box then return nil end
+  return c.height - box.height
+end
+
+-- \wbcc@enl := the page's enlargement for a rebuild: the larger of the two columns'
+-- (\enlargethispage is per column in two-column mode; the operator asked for a taller
+-- page, and a rebuilt page has one height for both columns). 0 when neither has one.
+function M.enlargement(a, b, dreg)
+  local ea, eb = colextra(a), colextra(b)
+  local e = 0
+  if ea and eb then e = math.max(ea, eb) else e = ea or eb or 0 end
+  tex.setdimen("global", tonumber(dreg), e)
+end
+
+
+-- Replace a special column box by its content box, for a page that is rebuilt.
+function M.unwrapcol(num)
+  num = tonumber(num)
+  local box = tex.box[num]
+  local c = colcontent(box)
+  if c == box then return end
+  box.list = c.list; c.list = nil      -- the content moves up one level; the shell keeps
+  box.height = c.height                -- the inner height, and is otherwise unchanged
+end
+
 -- vertical walk: total at a node = TeX's \pagetotal there. Returns the list's full
 -- accumulated height (total + trailing depth) so the caller can offset a second
 -- column onto the same galley coordinate.
@@ -160,11 +207,11 @@ function M.markpos(a, b, kreg, base, maxn)
     if k < maxn then tex.setdimen("global", base + k, pos) end
     k = k + 1
   end
-  local ba = tex.box[tonumber(a)]
+  local ba = colcontent(tex.box[tonumber(a)])
   local aend = (ba and ba.list) and vscan(ba.list, function(n, total)
     if is_marker(n) then store(total) end
   end) or 0
-  local bb = tex.box[tonumber(b)]
+  local bb = colcontent(tex.box[tonumber(b)])
   if bb and bb.list then
     vscan(bb.list, function(n, total)
       if is_marker(n) then store(aend + total) end
@@ -182,7 +229,7 @@ function M.stripmarks(a, b, n)
   n = tonumber(n)
   local removed = 0
   local function strip(num)
-    local box = tex.box[tonumber(num)]
+    local box = colcontent(tex.box[tonumber(num)])
     if not (box and box.list) then return end
     local x = box.list
     while x and removed < n do
@@ -380,7 +427,7 @@ function M.measurebottom(c1num, c2num, tmpnum, fnnum, bfLnum, bfRnum)
     local b = tex.box[colnum]
     if not (b and b.list) then return end
     tex.box[tmpnum] = nil
-    tex.setbox("global", tmpnum, N.copy(b))       -- node.copy is deep (copies the list)
+    tex.setbox("global", tmpnum, N.copy(colcontent(b)))  -- deep copy of the content
     M.takefootnotes(tmpnum, fnnum)
     M.takebotfloats(tmpnum, bfnum)
     tex.box[tmpnum] = nil                          -- free the copy

@@ -1,0 +1,26 @@
+%% =====================================================================
+%% STRESS TEST: \enlargethispage on a band page (an mr-bean PI tag)
+%% \enlargethispage makes \@makecol wrap the column one box level deeper
+%% (\vbox to\@colht{\vbox to H{...}\vss}); the band's marker inside was never
+%% found, so the band was never placed and ended on a page of its own at the end
+%% of the document. The operator's tool for "make room on this page" must work on
+%% a band page: the marker is found, the band placed where it is written, and the
+%% rebuilt page is as tall as the operator asked (20pt more text on page 1).
+%% ASSERTION: ENL-BAND begins page 1 (placed on page 1, checked from the log by
+%% scripts/run-cc-tests.sh); no TeX errors; no Overfull \vbox; paras P-01..Q-20 once;
+%% 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{P-01}\Par{P-02}\Par{P-03}\enlargethispage{20pt}\Par{P-04}\Par{P-05}\Par{P-06}
+\begin{wideband}\centering\rule{2pt}{40pt} ENL-BAND\end{wideband}
+\Par{Q-01}\Par{Q-02}\Par{Q-03}\Par{Q-04}\Par{Q-05}\Par{Q-06}\Par{Q-07}\Par{Q-08}
+\Par{Q-09}\Par{Q-10}\Par{Q-11}\Par{Q-12}\Par{Q-13}\Par{Q-14}\Par{Q-15}\Par{Q-16}
+\Par{Q-17}\Par{Q-18}\Par{Q-19}\Par{Q-20}
+\end{document}
