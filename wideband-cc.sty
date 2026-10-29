@@ -759,7 +759,15 @@
       \else\ifnum\wbcc@nb>\@ne
         \advance\wbcc@nb\m@ne \wbcc@lastcut\z@ \wbcc@moretrue
       \fi\fi\fi
-    \fi
+    \else\ifnum\wbcc@m>\z@
+      %% Out of tries and still over: cutting the last row did not shorten the page
+      %% (NeoPage YJEMA_126557: each cut moved the left column's tail into a right
+      %% segment that cannot split, which grew by the same amount). Keeping the band
+      %% skips the check below, and its text may already ride in the overflow (the next
+      %% page read pool slot 0). Shed the last new band, with fresh tries for the rest.
+      \advance\wbcc@m\m@ne \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
+      \wbcc@lastcut\z@ \wbcc@tries\z@ \wbcc@moretrue
+    \fi\fi
   \else\ifnum\wbcc@m>\z@
     %% It fits, but did every new band keep its text? Only this page's unplaced markers
     %% (\wbcc@found-\wbcc@m) may be left in the overflow. One more means the cut that
