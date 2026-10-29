@@ -1,4 +1,97 @@
-# wideband v0.5 — stratum model
+# wideband
+
+This repository contains two LuaLaTeX implementations of mid-page full-width
+bands in two-column documents:
+
+- **`wideband-cc` v0.10** is the current production candidate. It preserves
+  continuous column reading order, derives placement from an in-flow marker,
+  supports bands originating in either column, and rebuilds only pages that
+  actually contain a band.
+- **`wideband` v0.5** is the earlier stratum implementation. It remains covered
+  by its original regression suite and is kept for comparison and fallback.
+
+## Production-candidate usage (`wideband-cc`)
+
+Install both `wideband-cc.sty` and `wideband-cc.lua` in the same searchable
+TEXMF directory. The Lua companion is resolved through kpathsea, so the source
+document does not need to be compiled from the package directory.
+
+```tex
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+
+\begin{document}
+Two-column text before the band.
+
+\begin{wideband}
+  \begin{equation}
+    E = mc^2
+  \end{equation}
+\end{wideband}
+
+Two-column text after the band.
+\end{document}
+```
+
+A bare environment uses automatic Y placement. Per-band controls are accepted
+in the optional argument:
+
+```tex
+\begin{wideband}[y=180pt,skipabove=8pt,skipbelow=4pt,rules=column]
+  ...
+\end{wideband}
+```
+
+Supported keys are `y`, `skipabove`, `skipbelow`, `framesep`, `rulewidth`,
+`rules`, and `fullpage`. Large bands automatically receive their own page;
+`fullpage` forces that policy for one band.
+
+The package option defaults to `auto` (same as `generic`): a band is placed on
+the page where it is written, mid-column, on every host including Elsevier
+NeoPage. This is the manual-placement mode used from mr-bean: one LuaLaTeX run,
+no `.aux` state. The operator puts a band where there is room; when a band does
+not end up where it is written, the package raises a LaTeX error, which mr-bean
+lists in its Errors tab while still showing the PDF:
+
+- the band does not fit on its page (it is set at the top of the next page, after
+  the text that follows it), or is held back (more than four bands on a page, or
+  a full-page band ahead of it);
+- the band comes after the host replaced the two-column page routine (NeoPage's
+  `\lastpagebalance`): it is set at the top of the next page;
+- the band could not be placed at all (its page was built by another routine):
+  it is set on a page of its own at the end;
+- a page prints past its text area: a band page whose row holds unsplittable
+  material, or, after any band, a page whose planned figures no longer fit with
+  the text the bands moved forward (more than `\wbccoverflowlimit`, 30pt).
+
+Each message names the band, the input line of its `\end{wideband}` and the
+page, and says what to do. The usual fixes are mr-bean's own: an
+`\enlargethispage` on the band's page, moving the band, or moving a figure or
+table with the float panel. `\enlargethispage` on a band page is honoured.
+To nudge a placed band up or down on its page, give it `y=<dim>` (the column
+text above it; the automatic value is in the log, `placed, Y=...`).
+
+A `y` the page cannot honour is moved up, with an error.
+
+On NeoPage, a band set on a page of its own takes a page number NeoPage's float
+plan uses; if floats are planned for it, the operator gets an error naming
+them. The fix: move every float planned on or after the band page one page
+later in the float panel.
+
+`elsevier` forces the page-top placement instead, for workflows with no
+operator: an active band ends the current page and uses the next page's
+full-width top area, keeping source order at the cost of a short page before
+each band.
+
+```tex
+\usepackage{wideband-cc}            % same-page, operator errors (default)
+\usepackage[elsevier]{wideband-cc}  % page-top, no operator
+```
+
+The supported production scope and remaining exclusions are recorded in
+[`docs/PRODUCTION-READINESS.md`](docs/PRODUCTION-READINESS.md).
+
+## Legacy implementation (`wideband` v0.5 — stratum model)
 
 `wideband` is a LuaLaTeX two-column layout package for full-width equation bands without balancing the material above the band.
 
@@ -93,8 +186,9 @@ A right-column request can produce a visibly ragged preceding page. That is the 
 All sample prose is editable technical content; no `lipsum` filler is used.
 
 ```bash
-make test
-# or: ./scripts/run-tests.sh
+make test          # stratum + Continuous-Column gates
+make test-stratum  # legacy wideband only
+make test-cc       # 55 wideband-cc stress + 3 expected-error documents, install-path check
 ```
 
 The test runner builds in `build/tests`, keeping generated LaTeX files out of
@@ -103,7 +197,8 @@ Python 3, and Pillow.
 
 Important files:
 
-- `wideband.sty` and `wideband.lua` — distributable package sources
+- `wideband-cc.sty` and `wideband-cc.lua` — production-candidate sources
+- `wideband.sty` and `wideband.lua` — legacy stratum package sources
 - `tests/` — regression documents and shared test content
 - `scripts/` — the test runner and PDF validation utilities
 - `docs/TEST-RESULTS.md` — verification scope and current expectations
@@ -113,8 +208,10 @@ Important files:
 
 ```text
 .
-├── wideband.sty          # LaTeX package
-├── wideband.lua          # LuaTeX node-list support
+├── wideband-cc.sty       # Continuous-Column release candidate
+├── wideband-cc.lua       # Continuous-Column node-list support
+├── wideband.sty          # legacy stratum package
+├── wideband.lua          # legacy stratum node-list support
 ├── tests/                # regression inputs
 │   └── reference/        # checked-in sample output
 ├── scripts/              # build and verification tools
