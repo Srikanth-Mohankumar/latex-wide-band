@@ -70,6 +70,57 @@ function M.putinserts()
   if held then N.write(held); held = nil end
 end
 
+-- A band page ships its row segments in VISUAL order (row 1 left, row 1 right, band,
+-- row 2 left, ...) but the text runs in READING order (every left segment, then every
+-- right one). A hyperlink broken across two segments would therefore be interleaved
+-- with another segment's links, and the PDF backend's link stack unbalances ("endlink
+-- used without startlink"). Kernel columns never meet this: they ship in reading order.
+-- Make every segment self-contained: walk the segments (box registers, reading order),
+-- close each link still open at a segment's last line and reopen a copy at the next
+-- segment's first line. A link open from the previous page stays open into the first
+-- segment, and one open at the end of the last segment runs on to the next page, as on
+-- a kernel page. Only links at line level are tracked (an \href in running text).
+local WHATSIT_ST = N.subtype and N.subtype("pdf_start_link")
+local WHATSIT_EN = N.subtype and N.subtype("pdf_end_link")
+local function lines_of(box)
+  local first, last
+  for x in N.traverse(box.list) do
+    if x.id == HLIST and x.list then first = first or x; last = x end
+  end
+  return first, last
+end
+function M.balancelinks(...)
+  if not (WHATSIT_ST and WHATSIT_EN) then return end
+  local segs = {}
+  for _, n in ipairs({...}) do
+    local b = tex.box[n]
+    if b and b.list then segs[#segs + 1] = b end
+  end
+  local open = {}                                   -- start-link nodes still open, outermost first
+  for k, seg in ipairs(segs) do
+    local first, last = lines_of(seg)
+    if first and k > 1 and #open > 0 then           -- reopen what the previous segment carried;
+      for i = #open, 1, -1 do                       -- the scan below pushes the copies again
+        first.list = N.insert_before(first.list, first.list, N.copy(open[i]))
+      end
+      open = {}
+    end
+    for x in N.traverse(seg.list) do
+      if x.id == HLIST and x.list then
+        for y in N.traverse(x.list) do
+          if y.id == WHATSIT and y.subtype == WHATSIT_ST then open[#open + 1] = y
+          elseif y.id == WHATSIT and y.subtype == WHATSIT_EN and #open > 0 then open[#open] = nil end
+        end
+      end
+    end
+    if last and k < #segs and #open > 0 then        -- close them at this segment's last line
+      for _ = 1, #open do
+        N.insert_after(last.list, N.tail(last.list), N.new(WHATSIT, WHATSIT_EN))
+      end
+    end
+  end
+end
+
 -- vertical walk: total at a node = TeX's \pagetotal there. Returns the list's full
 -- accumulated height (total + trailing depth) so the caller can offset a second
 -- column onto the same galley coordinate.

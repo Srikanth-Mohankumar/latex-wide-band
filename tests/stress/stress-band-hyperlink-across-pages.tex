@@ -1,0 +1,25 @@
+%% =====================================================================
+%% HYPERLINKS BROKEN ACROSS LINES AND PAGES AROUND A BAND PAGE (hyperref)
+%% A link may start on one page and end on the next. LuaTeX requires its start
+%% and end at the same box-nesting depth; band-page rows used to sit two boxes
+%% deeper than a kernel column, so any link crossing into or out of a band page
+%% stopped the run ("'endlink' ended up in different nesting level").
+%% ASSERTION: LINK-BAND rendered once; paras 01-40 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\usepackage{hyperref}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \href{https://example.org}{a long
+  hyperlink that runs across several lines of the column text here and there and
+  onwards} \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}\Par{09}\Par{10}
+\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}\Par{17}\Par{18}
+\begin{wideband}\centering LINK-BAND\end{wideband}
+\Par{19}\Par{20}\Par{21}\Par{22}\Par{23}\Par{24}\Par{25}\Par{26}\Par{27}\Par{28}
+\Par{29}\Par{30}\Par{31}\Par{32}\Par{33}\Par{34}\Par{35}\Par{36}\Par{37}\Par{38}
+\Par{39}\Par{40}
+\end{document}

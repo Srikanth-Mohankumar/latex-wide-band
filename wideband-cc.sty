@@ -639,10 +639,19 @@
 %% One two-column row from segment #1.
 \def\wbcc@row#1{%
   \hb@xt@\textwidth{%
-    \hb@xt@\columnwidth{\wbcc@vtop{\csname wbcc@L@#1\endcsname}\hss}%
+    \hb@xt@\columnwidth{\expandafter\wbcc@segtop\csname wbcc@L@#1\endcsname\hss}%
     \hfil{\normalcolor\vrule\@width\columnseprule}\hfil
-    \hb@xt@\columnwidth{\wbcc@vtop{\csname wbcc@R@#1\endcsname}\hss}}%
+    \hb@xt@\columnwidth{\expandafter\wbcc@segtop\csname wbcc@R@#1\endcsname\hss}}%
 }
+%% A row segment as a \vtop holding the segment's LINES directly, so a text line sits
+%% exactly as deep in the page as in a kernel column (measured: row hbox > column hbox
+%% > \vtop > line mirrors \@outputbox > column hbox > column vbox > line). LuaTeX
+%% requires a hyperlink's start and end at the same nesting depth, and a link may run
+%% from a normal page onto a band page or back; the former \vtop{\box seg} put the
+%% lines one level deeper and stopped such runs. `to \ht' re-sets the glue exactly as
+%% the segment was set; \boxmaxdepth\maxdimen keeps its depth.
+\def\wbcc@segtop#1{%
+  \vtop to\ht#1{\boxmaxdepth\maxdimen \kern\z@ \unvbox#1}}
 
 %% Interleave segments and bands: row1, [cue] band1 [cue], row2, band2, ..., row(nb+1).
 %% Every piece is a box, so TeX would insert interline glue between them (a full
@@ -1013,6 +1022,17 @@
       %% \wbcc@galley now holds the overflow for the next page; count the deferred-new
       %% markers that ride in it (their bands stay pending WITH a marker, not overdue).
       \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%
+      %% hyperlinks broken across segments: make each segment self-contained, since the
+      %% page ships segments in visual order, not reading order (see wbcc.balancelinks)
+      \def\wbcc@segs{}\wbcc@i\@ne
+      \@whilenum\wbcc@i<\numexpr\wbcc@nb+\tw@\relax\do{%
+        \edef\wbcc@segs{\wbcc@segs\number\csname wbcc@L@\the\wbcc@i\endcsname,}%
+        \advance\wbcc@i\@ne}%
+      \wbcc@i\@ne
+      \@whilenum\wbcc@i<\numexpr\wbcc@nb+\tw@\relax\do{%
+        \edef\wbcc@segs{\wbcc@segs\number\csname wbcc@R@\the\wbcc@i\endcsname,}%
+        \advance\wbcc@i\@ne}%
+      \directlua{wbcc.balancelinks(\wbcc@segs nil)}%
       \setbox\wbcc@top\vbox{\wbcc@assemble}%
       \edef\wbcc@lr{\the\numexpr\wbcc@nb+\@ne\relax}%   the last row's segment index
       %% \flushbottom: the budget's reserve ((N+1)\maxdepth + N\lineskip) is rarely used
