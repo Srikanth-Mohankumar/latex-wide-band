@@ -714,7 +714,19 @@
         \advance\wbcc@nb\m@ne \wbcc@lastcut\z@ \wbcc@moretrue
       \fi\fi\fi
     \fi
-  \fi
+  \else\ifnum\wbcc@m>\z@
+    %% It fits, but did every new band keep its text? Only this page's unplaced markers
+    %% (\wbcc@found-\wbcc@m) may be left in the overflow. One more means the cut that
+    %% fixed an overshoot also took the text a placed band follows — the band would
+    %% print ahead of it (NeoPage EJMFLU_204268: a 91pt overshoot; its marker was then
+    %% counted both placed and pending, and the next page read pool slot 0). Shed the
+    %% last new band instead: it moves to the next page together with its text.
+    \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%
+    \ifnum\wbcc@ride>\numexpr\wbcc@found-\wbcc@m\relax
+      \advance\wbcc@m\m@ne \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
+      \wbcc@lastcut\z@ \wbcc@moretrue
+    \fi
+  \fi\fi
   \ifwbcc@more \expandafter\wbcc@attempt \fi}
 
 %% One two-column row from segment #1.
