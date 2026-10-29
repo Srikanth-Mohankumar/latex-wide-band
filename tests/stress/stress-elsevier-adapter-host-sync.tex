@@ -1,0 +1,36 @@
+%% =====================================================================
+%% ELSEVIER ADAPTER — HOST RESERVATION SYNC AFTER THE BAND'S TOP AREA
+%% The adapter's \twocolumn[...] resets \@colroom to \@colht. NeoPage's contract
+%% for column-mode switches is to call \spacereserve@syncaftermodeswitch next, so
+%% reserved float space is re-applied; without it, AA_9001 overflowed 454pt.
+%% The stand-in records that the hook ran on the band page, after the top area.
+%% ASSERTION: the host sync runs once, on page 2, after the band's top area;
+%% ASSERTION: HOST-SYNC-BAND begins page 2; paras PRE-01..POST-02 once; 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\makeatletter
+\newcount\spacereserve@widegatetransaction
+\newcount\fixture@syncs
+\newcommand\spacereserve@syncaftermodeswitch{%
+  \global\advance\fixture@syncs\@ne
+  \ifnum\c@page=\tw@\else
+    \PackageError{fixture}{host sync ran on page \the\c@page, not the band page}{}\fi
+  \ifx\@dbltoplist\@empty
+    \PackageError{fixture}{host sync ran before the band's top area existed}{}\fi}
+\makeatother
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{PRE-01}\Par{PRE-02}
+\begin{wideband}[rules=none]
+  \centering\fbox{\parbox{.9\textwidth}{\centering HOST-SYNC-BAND}}
+\end{wideband}
+\makeatletter
+\ifnum\fixture@syncs=\@ne\else
+  \PackageError{fixture}{host sync ran \the\fixture@syncs\space times, expected once}{}\fi
+\makeatother
+\Par{POST-01}\Par{POST-02}
+\end{document}

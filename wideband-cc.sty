@@ -266,6 +266,10 @@
     \vskip\wbccskipabove
     \hb@xt@\textwidth{\hss\box\wbcc@hostband\hss}%
     \vskip\wbccskipbelow}}]%
+  %% \twocolumn resets \@colroom to \@colht. NeoPage's contract for column-mode
+  %% switches is to re-apply its float reservations right after; without this a
+  %% reserved float lands in a full-height column (AA_9001 overflowed 454pt).
+  \@ifundefined{spacereserve@syncaftermodeswitch}{}{\spacereserve@syncaftermodeswitch}%
   \directlua{wbcc.putinserts()}}% the band's footnotes go on the band's page
 
 %% Placement trace. Every decision about a band is logged with its serial number (#n in
