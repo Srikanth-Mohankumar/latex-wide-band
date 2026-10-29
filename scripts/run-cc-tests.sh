@@ -23,11 +23,36 @@ cd "$build/stress"
 for source in stress-*.tex; do
   job=${source%.tex}
   echo "[CC] $source"
-  lualatex -interaction=nonstopmode -halt-on-error "$source" >/dev/null
-  lualatex -interaction=nonstopmode -halt-on-error "$source" >/dev/null
-  if grep -E 'Overfull \\vbox|^! |Undefined control sequence|Fatal error' "$job.log"; then
-    echo "ERROR: vertical overflow or TeX failure in $source" >&2
-    exit 1
+  # A fixture may declare the operator errors it must raise (`%% EXPECT-ERROR: text`,
+  # one per line). It is then compiled without -halt-on-error, every declared text
+  # must be in the log, and every `!' line must be one of them; anything else fails.
+  expected_errors=$(sed -n 's/^%% EXPECT-ERROR: //p' "$source")
+  if [ -n "$expected_errors" ]; then
+    lualatex -interaction=nonstopmode "$source" >/dev/null || true
+    lualatex -interaction=nonstopmode "$source" >/dev/null || true
+    while IFS= read -r text; do
+      grep -qF "$text" "$job.log" || {
+        echo "ERROR: $source did not raise the expected error: $text" >&2
+        exit 1
+      }
+    done <<< "$expected_errors"
+    unexpected=$(grep '^! ' "$job.log" | grep -vF -f <(printf '%s\n' "$expected_errors") || true)
+    if [ -n "$unexpected" ]; then
+      echo "$unexpected"
+      echo "ERROR: unexpected TeX error in $source" >&2
+      exit 1
+    fi
+    if grep -E 'Overfull \\vbox|Undefined control sequence|Fatal error' "$job.log"; then
+      echo "ERROR: vertical overflow or TeX failure in $source" >&2
+      exit 1
+    fi
+  else
+    lualatex -interaction=nonstopmode -halt-on-error "$source" >/dev/null
+    lualatex -interaction=nonstopmode -halt-on-error "$source" >/dev/null
+    if grep -E 'Overfull \\vbox|^! |Undefined control sequence|Fatal error' "$job.log"; then
+      echo "ERROR: vertical overflow or TeX failure in $source" >&2
+      exit 1
+    fi
   fi
   "$root/scripts/check-cc-stress.py" "$source" "$job.pdf"
   case "$source" in

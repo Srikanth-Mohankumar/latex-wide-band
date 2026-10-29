@@ -5,8 +5,9 @@
 %% the row: the rebuilt page measured within \@colht but protruded 117pt below
 %% the text area (NeoPage APR_321: 366pt). The band is now taken off that page
 %% in the same run: page 1 is built normally, the band is set at the top of
-%% page 2. The second band is placed
+%% page 2 and the operator gets an error naming it. The second band is placed
 %% where it is written.
+%% EXPECT-ERROR: band 1 (input line 24) does not fit on page 1 where it is written
 %% ASSERTION: no Overfull \vbox; ROW-BAND-A begins page 2; ROW-BAND-B begins page 2;
 %% paras ROW-P-01..ROW-R-10 once.
 %% =====================================================================

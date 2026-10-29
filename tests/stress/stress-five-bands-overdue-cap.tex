@@ -8,8 +8,14 @@
 %% keep the fifth overdue for page 3. Before the cap the descent tried to place all five
 %% and ran off the end of the segment pool ("Missing number ... \wbcc@L@6").
 %%
+%% EXPECT-ERROR: band 1 (input line 33) does not fit on page 1 where it is written
+%% EXPECT-ERROR: band 2 (input line 34) does not fit on page 1 where it is written
+%% EXPECT-ERROR: band 3 (input line 35) does not fit on page 1 where it is written
+%% EXPECT-ERROR: band 4 (input line 36) does not fit on page 1 where it is written
+%% EXPECT-ERROR: band 5 (input line 37) cannot be placed on page 1: at most 4 bands fit a page
 %% ASSERTION: FIVE-1 .. FIVE-4 on page 2 (in order, stacked at the top), FIVE-5 on
-%% page 3; each band exactly once; NO TeX errors; no "Overfull \vbox"; paras 01-22 each
+%% page 3; each band exactly once; no TeX errors other than the five declared operator
+%% errors (four deferred, one held back); no "Overfull \vbox"; paras 01-22 each
 %% once; "minim" 44 times (22 x 2).
 %% =====================================================================
 \documentclass[twocolumn]{article}

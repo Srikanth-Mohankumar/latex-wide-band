@@ -212,6 +212,7 @@
 \def\wbcc@capture#1#2{%
   \global\advance\wbcc@serial\@ne
   \expandafter\xdef\csname wbcc@id@#2\endcsname{\the\wbcc@serial}%
+  \expandafter\xdef\csname wbcc@ln@#2\endcsname{\the\inputlineno}%
   \global\csname wbcc@ab@#2\endcsname\wbccskipabove
   \global\csname wbcc@bl@#2\endcsname\wbccskipbelow
   \expandafter\global\expandafter\let\csname wbcc@rs@#2\endcsname\wbcc@rulestyle
@@ -315,6 +316,21 @@
   \ifdim\pagegoal=\maxdimen\else\newpage\fi
   \if@firstcolumn\else\null\newpage\fi}
 
+%% OPERATOR ERRORS. Bands are placed by hand (mr-bean), in one compile. When a band
+%% does not end up where it was written, the operator must hear about it, and an
+%% editor that lists only `!' lines from the log never shows a warning. So each such
+%% case is a LaTeX error naming the band (#n in document order), the input line of
+%% its \end{wideband} and the page; the run continues. Each kind of problem is
+%% reported once per band.
+\def\wbcc@operror#1#2#3#4{% #1 pool slot, #2 kind, #3 what happened, #4 what to do
+  \edef\wbcc@tmp{\csname wbcc@id@#1\endcsname}%
+  \@ifundefined{wbcc@rep@#2@\wbcc@tmp}{%
+    \expandafter\gdef\csname wbcc@rep@#2@\wbcc@tmp\endcsname{}%
+    \PackageError{wideband-cc}{band \wbcc@tmp\space (input line
+      \csname wbcc@ln@#1\endcsname) #3}{#4}}{}}
+\def\wbcc@movehelp{Make room on that page below the band's position (move or resize
+  a figure or table there) or move the band, then compile again.}
+
 %% Placement trace. Every decision about a band is logged with its serial number (#n in
 %% document order) and the page it was decided on: a WARNING when a band cannot go where
 %% it was written (deferred to the top of the next page, held back by the per-page limit
@@ -342,6 +358,9 @@
     \else
       \wbcc@logW{\the\wbcc@i}{held back (per-page limit, or a full-page band precedes
         it); placed at the top of a following page}%
+      \wbcc@operror{\the\wbcc@i}{held}{cannot be placed on page \the\c@page: at most
+        \the\wbcc@MAX\space bands fit a page, or a full-page band comes first. It is
+        set at the top of a following page}{\wbcc@movehelp}%
     \fi
     \advance\wbcc@i\@ne}%
   \wbcc@i\numexpr\wbcc@overdue+\wbcc@m+\@ne\relax
@@ -354,9 +373,15 @@
     \else\ifnum\wbcc@i>\wbcc@cap
       \wbcc@logW{\the\wbcc@i}{held back (per-page limit, or a full-page band precedes
         it); placed at the top of a following page}%
+      \wbcc@operror{\the\wbcc@i}{held}{cannot be placed on page \the\c@page: at most
+        \the\wbcc@MAX\space bands fit a page, or a full-page band comes first. It is
+        set at the top of a following page}{\wbcc@movehelp}%
     \else
       \wbcc@logW{\the\wbcc@i}{deferred - no room for it on this page (a band page holds
         less text than a plain one); placed at the top of the next page}%
+      \wbcc@operror{\the\wbcc@i}{defer}{does not fit on page \the\c@page\space where it is
+        written. It is set at the top of the next page, after the text that follows
+        it}{\wbcc@movehelp}%
     \fi\fi\fi
     \advance\wbcc@i\@ne}}
 
@@ -1018,6 +1043,8 @@
       \csname wbcc@fp@\wbcc@src\endcsname
     \global\expandafter\let\csname wbcc@id@\the\wbcc@i\expandafter\endcsname
       \csname wbcc@id@\wbcc@src\endcsname
+    \global\expandafter\let\csname wbcc@ln@\the\wbcc@i\expandafter\endcsname
+      \csname wbcc@ln@\wbcc@src\endcsname
     \advance\wbcc@i\@ne}%
   \global\advance\wbcc@np-\wbcc@nb
 }
@@ -1144,6 +1171,17 @@
       \vfuzz\maxdimen
       \wbcc@attempt
       \vfuzz.1\p@
+      %% Still printing past the text area after the attempts (a lone overdue band whose
+      %% page holds unsplittable material taller than a row, or a page over \@colht):
+      %% the operator must make room.
+      \wbcc@protrudes
+      \ifdim\wbcc@total>\dimexpr\@colht+\vfuzz\relax \wbcc@overtrue \fi
+      \ifwbcc@over
+        \wbcc@operror{1}{past}{is placed on page \the\c@page, but that page prints past the
+          bottom of its text area: material that cannot be split (a figure, table or
+          reserved float space) is taller than the room left beside the band}{Move that
+          material or the band to another page, then compile again.}%
+      \fi
       %% \wbcc@galley now holds the overflow for the next page; count the deferred-new
       %% markers that ride in it (their bands stay pending WITH a marker, not overdue).
       \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%

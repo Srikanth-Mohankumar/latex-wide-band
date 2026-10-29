@@ -1,5 +1,6 @@
 %% =====================================================================
 %% STRESS TEST: A band authored too low to fit is deferred (overdue) to the next page
+%% EXPECT-ERROR: band 1 (input line 18) does not fit on page 1 where it is written
 %% ASSERTION: DEFERRED-BAND appears exactly once (on a later page); no overfull; paras 01-22 once.
 %% =====================================================================
 \documentclass[twocolumn]{article}

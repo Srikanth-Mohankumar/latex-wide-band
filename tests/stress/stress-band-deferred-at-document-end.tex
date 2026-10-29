@@ -7,6 +7,7 @@
 %% Before the fix the document ended right there and the band was silently lost.
 %% Now \AtEndDocument gives a deferred band a final page.
 %%
+%% EXPECT-ERROR: band 1 (input line 26) does not fit on page 1 where it is written
 %% ASSERTION: 2 pages; LAST-BAND appears exactly once, on page 2; paras 01-14 each once;
 %% "minim" 28 times (14 x 2); no "Overfull \vbox"; no "never placed" warning.
 %% =====================================================================

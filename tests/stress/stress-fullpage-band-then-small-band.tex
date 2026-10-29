@@ -5,6 +5,7 @@
 %% full-page band's own page. It waits: the text page ships, then the full-page band's
 %% page, then the small band lands at the top of the following page.
 %%
+%% EXPECT-ERROR: band 2 (input line 28) cannot be placed on page 1: at most 4 bands fit a page
 %% ASSERTION: FULL-PAGE band page (no body text) comes BEFORE the page carrying the
 %% SMALL-BAND; SMALL-BAND appears exactly once; no "Overfull \vbox"; paras 01-20 each
 %% once; "minim" 40 times (20 x 2).

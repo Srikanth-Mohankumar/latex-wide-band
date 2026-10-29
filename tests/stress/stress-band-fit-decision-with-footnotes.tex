@@ -9,6 +9,7 @@
 %% sweeping the band position and footnote count; this pair reproduces it). Budgeting the
 %% footnotes defers the band to page 2, after [12].
 %%
+%% EXPECT-ERROR: band 1 (input line 30) does not fit on page 1 where it is written
 %% ASSERTION: FIT-FN-BAND is on the SAME page as [12] (or a later one — never earlier);
 %% no "Overfull \vbox"; paras 01-22 each once; "minim" 44 times (22 x 2); the six
 %% footnotes on page 1 once each.
