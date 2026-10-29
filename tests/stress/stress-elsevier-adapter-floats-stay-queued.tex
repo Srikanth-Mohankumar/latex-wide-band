@@ -1,0 +1,25 @@
+%% =====================================================================
+%% ELSEVIER ADAPTER — PENDING FLOATS ARE NOT FLUSHED AHEAD OF THE BAND
+%% The adapter ends the page and opens a full-width top area on the next one.
+%% Floats still waiting when the band arrives must stay in LaTeX's queue and be
+%% placed normally (on the band page, below the band); a \clearpage would flush
+%% them onto float-only pages and push the band back (NeoPage FLUID_114571).
+%% ASSERTION: QUEUE-BAND begins page 2; QUEUE-FIG-A..F each rendered once; paras
+%% PRE-01..POST-12 once; no float-only page before the band.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage[elsevier]{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\newcommand\Fig[1]{\begin{figure}[t]\centering\rule{3cm}{.38\textheight}\caption{#1}\end{figure}}
+\begin{document}
+\Par{PRE-01}\Fig{QUEUE-FIG-A}\Fig{QUEUE-FIG-B}\Fig{QUEUE-FIG-C}
+\Fig{QUEUE-FIG-D}\Fig{QUEUE-FIG-E}\Fig{QUEUE-FIG-F}\Par{PRE-02}
+\begin{wideband}[rules=none]
+  \centering\fbox{\parbox{.9\textwidth}{\centering QUEUE-BAND}}
+\end{wideband}
+\Par{POST-01}\Par{POST-02}\Par{POST-03}\Par{POST-04}\Par{POST-05}\Par{POST-06}
+\Par{POST-07}\Par{POST-08}\Par{POST-09}\Par{POST-10}\Par{POST-11}\Par{POST-12}
+\end{document}

@@ -267,18 +267,65 @@
   %% NeoPage's wide-float gate replays the tail of a page that ends early unless the
   %% forced break is announced first; its own column switches do exactly this.
   \@ifundefined{SpaceReserveMarkColumnSwitchPage}{}{\SpaceReserveMarkColumnSwitchPage}%
-  \clearpage
-  \PackageInfo{wideband-cc}{band \string##\the\wbcc@serial\space
-    (page \the\c@page): Elsevier adapter; moved to next-page full-width top}%
-  \twocolumn[{\vbox{%
-    \vskip\wbccskipabove
-    \hb@xt@\textwidth{\hss\box\wbcc@hostband\hss}%
-    \vskip\wbccskipbelow}}]%
-  %% \twocolumn resets \@colroom to \@colht. NeoPage's contract for column-mode
-  %% switches is to re-apply its float reservations right after; without this a
-  %% reserved float lands in a full-height column (AA_9001 overflowed 454pt).
-  \@ifundefined{spacereserve@syncaftermodeswitch}{}{\spacereserve@syncaftermodeswitch}%
+  \wbcc@endpage
+  %% The band box exactly as \@topnewpage builds it (content, then -\dbltextfloatsep,
+  %% which \@combinedblfloats adds back), so an empty top area looks as before.
+  \global\setbox\wbcc@hosttop\color@vbox\normalcolor\vbox{%
+    \hsize\textwidth \@parboxrestore \col@number\@ne
+    \vbox{\vskip\wbccskipabove
+      \hb@xt@\textwidth{\hss\box\wbcc@hostband\hss}%
+      \vskip\wbccskipbelow}%
+    \vskip-\dbltextfloatsep}\color@endbox
+  %% Its cost in the top area, by the kernel's own rule (\@addtodblcol): height plus
+  %% \dbltextfloatsep when it is first there, \dblfloatsep after a wide float.
+  \@tempdima\dimexpr\ht\wbcc@hosttop
+    +\ifx\@dbltoplist\@empty\dbltextfloatsep\else\dblfloatsep\fi\relax
+  \wbcc@queuedfalse
+  \ifdim\dimexpr\@colroom-\@tempdima\relax<2.5\baselineskip\else
+    \ifx\@freelist\@empty\else\wbcc@queuedtrue\fi
+  \fi
+  \ifwbcc@queued
+    %% Pending floats stay queued: the page they start (this one) already holds
+    %% whatever the kernel placed at its top; the band joins the full-width top area
+    %% after any wide float there, and the columns shrink by its cost.
+    \PackageInfo{wideband-cc}{band \string##\the\wbcc@serial\space
+      (page \the\c@page): Elsevier adapter; full-width top of this page, pending
+      floats stay queued}%
+    \@next\@currbox\@freelist{}{}%
+    \global\setbox\@currbox\box\wbcc@hosttop
+    \global\count\@currbox\tw@
+    \@cons\@dbltoplist\@currbox
+    \global\@dbltopnum\m@ne
+    \global\advance\@colht-\@tempdima
+    \global\advance\@colroom-\@tempdima
+    \global\vsize\@colroom
+    %% NeoPage re-applies its float reservations for the new top area here too:
+    %% measured on 55 Elsevier articles, leaving this out made 23 lose text.
+    \@ifundefined{spacereserve@syncaftermodeswitch}{}{\spacereserve@syncaftermodeswitch}%
+  \else
+    %% No room beside what is already queued for this page (or no free float box):
+    %% flush the queue onto pages of its own first, then open the top area there.
+    \PackageInfo{wideband-cc}{band \string##\the\wbcc@serial\space
+      (page \the\c@page): Elsevier adapter; pending floats flushed first (no room
+      beside them), then next-page full-width top}%
+    \clearpage
+    \twocolumn[{\unvbox\wbcc@hosttop\vskip\dbltextfloatsep}]%
+    %% \twocolumn resets \@colroom to \@colht. NeoPage's contract for column-mode
+    %% switches is to re-apply its float reservations right after; without this a
+    %% reserved float lands in a full-height column (AA_9001 overflowed 454pt).
+    \@ifundefined{spacereserve@syncaftermodeswitch}{}{\spacereserve@syncaftermodeswitch}%
+  \fi
   \directlua{wbcc.putinserts()}}% the band's footnotes go on the band's page
+%% End the current page WITHOUT \clearpage, so pending floats are not flushed. A page
+%% with nothing on it yet (band authored at the top of column 1) is kept: the band
+%% opens its top area. Otherwise end the column; if that leaves us in column 2, end
+%% the page with an empty column 2.
+\newif\ifwbcc@queued
+\newbox\wbcc@hosttop
+\def\wbcc@endpage{%
+  \par
+  \ifdim\pagegoal=\maxdimen\else\newpage\fi
+  \if@firstcolumn\else\null\newpage\fi}
 
 %% Placement trace. Every decision about a band is logged with its serial number (#n in
 %% document order) and the page it was decided on: a WARNING when a band cannot go where

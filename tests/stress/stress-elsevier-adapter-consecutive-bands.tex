@@ -1,0 +1,20 @@
+%% =====================================================================
+%% ELSEVIER ADAPTER — TWO BANDS WITH NO TEXT BETWEEN THEM
+%% The second band arrives while the band page is still empty; it must join the
+%% same full-width top area instead of ending that page (which used to leave a
+%% page holding only the first band).
+%% ASSERTION: CONSEC-BAND-ONE begins page 2; CONSEC-BAND-TWO begins page 2;
+%% ASSERTION: paras PRE-01..POST-02 once; 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage[elsevier]{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{PRE-01}\Par{PRE-02}
+\begin{wideband}[rules=none]\centering\fbox{CONSEC-BAND-ONE}\end{wideband}
+\begin{wideband}[rules=none]\centering\fbox{CONSEC-BAND-TWO}\end{wideband}
+\Par{POST-01}\Par{POST-02}
+\end{document}
