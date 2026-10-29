@@ -1,0 +1,25 @@
+%% =====================================================================
+%% BAND AUTHORED INSIDE A BOX (elsevier adapter)
+%% A band inside a float, minipage or host box (NeoPage neobox) is in internal
+%% vertical mode: its marker never reaches a column and a page break is illegal
+%% there. It must be set inline as a full-width display, never lost and never
+%% allowed to break the page.
+%% The host pattern (NeoPage boxed floats) typesets the box content more than once
+%% for trial measurement before keeping one copy; each trial must stay harmless.
+%% ASSERTION: INBOX-BAND rendered once; paras 01-08 once; 1 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage[elsevier]{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\newcommand\BoxBody{\centering FIGURE-WITH-BAND-E\par
+  \begin{wideband}\centering INBOX-BAND\end{wideband}}
+\setbox0\vbox{\hsize\columnwidth\BoxBody}% trial
+\setbox0\vbox{\hsize\columnwidth\BoxBody}% kept
+\par\noindent\box0\par
+\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}
+\end{document}

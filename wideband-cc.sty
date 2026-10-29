@@ -379,7 +379,14 @@
 }{%
   \egroup
   \directlua{wbcc.takeinserts(\number\wbcc@band)}% footnotes leave the box; re-added below
-  \if@twocolumn
+  \ifinner
+    %% Inside a box (float, minipage, a host's boxed float that may be typeset more
+    %% than once for measurement): a marker here never reaches a column and a page
+    %% break is illegal, so neither adapter can place it. Set it in place instead.
+    \PackageInfo{wideband-cc}{band inside a box (float, minipage or host box):
+      set inline where it was authored}%
+    \wbcc@inline
+  \else\if@twocolumn
     \ifwbcc@elsevieradapter
       \wbcc@elsevierplace
     \else
@@ -399,7 +406,7 @@
     \fi
   \else
     \wbcc@inline                   % one column: no output routine of ours runs
-  \fi
+  \fi\fi
 }
 
 %% A band deferred on the document's last page (its marker sat past the band page's

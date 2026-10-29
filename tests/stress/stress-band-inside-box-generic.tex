@@ -1,0 +1,22 @@
+%% =====================================================================
+%% BAND AUTHORED INSIDE A BOX (generic adapter)
+%% A band inside a float, minipage or host box (NeoPage neobox) is in internal
+%% vertical mode: its marker never reaches a column and a page break is illegal
+%% there. It must be set inline as a full-width display, never lost and never
+%% allowed to break the page.
+%% ASSERTION: INBOX-BAND rendered once; paras 01-08 once; 1 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}
+\begin{figure}[h]
+  \centering FIGURE-WITH-BAND-G
+  \begin{wideband}\centering INBOX-BAND\end{wideband}
+\end{figure}
+\Par{04}\Par{05}\Par{06}\Par{07}\Par{08}
+\end{document}
