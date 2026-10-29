@@ -35,17 +35,16 @@
 %% git history as design evidence.
 \RequirePackage{iftex}\RequireLuaTeX
 \RequirePackage{keyval}
-%% Host adapters.  The generic engine rebuilds finished kernel-style columns.
-%% Elsevier's NeoPage stack (flsap + flushend + midfloat + spacereserve) owns
-%% additional page state and cannot safely be rebuilt that way.  Its adapter
-%% preserves source order by ending the current page and placing the band in
-%% LaTeX's full-width top area on the next page.  `auto' is deliberately based
-%% on NeoPage-owned capabilities rather than a customer/jobname string: the
-%% public space-reservation interface (\AddSpaceReservation and
-%% \LoadSpaceReservations, in every neopage-float-placement revision checked
-%% back to 2026-04) or the wide-float gate's register (2026-08 onwards).  A
-%% false positive only costs same-page placement; a false negative would put
-%% the generic overlay on the host this adapter exists to protect.
+%% Adapters. `auto' (the default) and `generic' run the same-page engine: a band is
+%% placed on the page it is written on, mid-column, by rebuilding the finished
+%% columns. That is the manual-placement mode (mr-bean on Elsevier NeoPage): one
+%% compile, no .aux state; the operator puts a band where there is room, and when
+%% it cannot be placed there the package says so with a LaTeX error (see
+%% "OPERATOR ERRORS") so the pagination can be adjusted.
+%% `elsevier' forces the page-top placement instead: the band ends the current page
+%% and opens LaTeX's full-width top area on the next one, without rebuilding the
+%% host's columns. It keeps source order with no operator, at the cost of a short
+%% page before each band.
 \newif\ifwbcc@elsevieradapter
 \def\wbcc@adapterrequest{auto}
 \DeclareOption{auto}{\def\wbcc@adapterrequest{auto}}
@@ -55,20 +54,8 @@
   options are auto, generic and elsevier. A mistyped adapter must not silently
   fall back to `auto'.}}
 \ProcessOptions\relax
-\def\wbcc@adapter@auto{auto}
-\def\wbcc@adapter@generic{generic}
 \def\wbcc@adapter@elsevier{elsevier}
-\def\wbcc@detectadapter{%
-  \wbcc@elsevieradapterfalse
-  \ifx\wbcc@adapterrequest\wbcc@adapter@elsevier
-    \wbcc@elsevieradaptertrue
-  \else\ifx\wbcc@adapterrequest\wbcc@adapter@auto
-    \@ifundefined{spacereserve@widegatetransaction}{%
-      \@ifundefined{AddSpaceReservation}{}{%
-        \@ifundefined{LoadSpaceReservations}{}{\wbcc@elsevieradaptertrue}}%
-    }{\wbcc@elsevieradaptertrue}%
-  \fi\fi}
-\wbcc@detectadapter
+\ifx\wbcc@adapterrequest\wbcc@adapter@elsevier \wbcc@elsevieradaptertrue \fi
 %% Use kpathsea rather than the process working directory.  A package installed
 %% in a TEXMF tree is normally loaded from a document directory that does not
 %% contain wideband-cc.lua; plain dofile("wideband-cc.lua") fails there.
@@ -1264,9 +1251,8 @@
     \let\@outputdblcol\wbcc@outputdblcol
   \fi}
 \AtBeginDocument{%
-  %% Re-run auto detection here so wideband-cc may be loaded before the host's
-  %% packages.  The output overlay is installed only for the generic adapter.
-  \wbcc@detectadapter
+  %% The output overlay is installed here (after every package's own changes to
+  %% \@outputdblcol) for the same-page engine; [elsevier] leaves the host routine alone.
   \ifwbcc@elsevieradapter
     \PackageInfo{wideband-cc}{Elsevier NeoPage adapter selected; active bands use
       a source-order-safe next-page full-width top}%

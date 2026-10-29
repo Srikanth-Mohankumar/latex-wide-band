@@ -1,0 +1,41 @@
+%% =====================================================================
+%% NEOPAGE HOST — `auto' PLACES BANDS ON THEIR OWN PAGE (manual placement)
+%% Bands on Elsevier NeoPage are placed by hand in mr-bean, in one compile, on the
+%% page they are written on. A host offering NeoPage's space-reservation
+%% capabilities (the public \AddSpaceReservation / \LoadSpaceReservations before
+%% the package, the wide-float gate register after it) must get the same-page
+%% engine from `auto': its overlay on \@outputdblcol, the band on page 1.
+%% (Before this contract `auto' chose the page-top adapter on such a host; that
+%% adapter is now `[elsevier]'.)
+%% ASSERTION: the overlay is installed; NEOPAGE-BAND placed on page 1 (checked from
+%% the log by scripts/run-cc-tests.sh); paras PRE-01..POST-06 once; 1 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+% Stand-ins for neopage-float-placement.sty's capabilities.
+\newcommand{\AddSpaceReservation}[4]{}
+\newcommand{\LoadSpaceReservations}[1]{}
+\makeatletter
+\let\fixture@hostoutputdblcol\@outputdblcol
+\makeatother
+\usepackage{wideband-cc}
+\makeatletter
+\newcount\spacereserve@widegatetransaction
+\makeatother
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\makeatletter
+\newcommand\CheckOverlay{%
+  \ifx\@outputdblcol\fixture@hostoutputdblcol
+    \PackageError{fixture}{wideband-cc did not install its overlay on this host}{}%
+  \fi}
+\makeatother
+\begin{document}
+\CheckOverlay
+\Par{PRE-01}\Par{PRE-02}\Par{PRE-03}
+\begin{wideband}[rules=none]
+  \centering\fbox{\parbox{.9\textwidth}{\centering NEOPAGE-BAND}}
+\end{wideband}
+\Par{POST-01}\Par{POST-02}\Par{POST-03}\Par{POST-04}\Par{POST-05}\Par{POST-06}
+\end{document}
