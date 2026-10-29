@@ -236,7 +236,7 @@
 \def\wbcc@inline{%
   \wbcc@fptest
   \ifwbcc@fp \global\setbox\@tempboxa\box\wbcc@band \else \wbcc@frame\@tempboxa \fi
-  \par\vskip\wbccskipabove \box\@tempboxa \vskip\wbccskipbelow}
+  \par\vskip\wbccskipabove \box\@tempboxa \directlua{wbcc.putinserts()}\vskip\wbccskipbelow}
 
 %% Elsevier / NeoPage adapter.  The host's output routine carries spacereserve,
 %% float-gate and last-page-balancing state that the generic node rebuild cannot
@@ -265,7 +265,8 @@
   \twocolumn[{\vbox{%
     \vskip\wbccskipabove
     \hb@xt@\textwidth{\hss\box\wbcc@hostband\hss}%
-    \vskip\wbccskipbelow}}]}
+    \vskip\wbccskipbelow}}]%
+  \directlua{wbcc.putinserts()}}% the band's footnotes go on the band's page
 
 %% Placement trace. Every decision about a band is logged with its serial number (#n in
 %% document order) and the page it was decided on: a WARNING when a band cannot go where
@@ -377,6 +378,7 @@
     \hsize\textwidth \columnwidth\textwidth \linewidth\textwidth
 }{%
   \egroup
+  \directlua{wbcc.takeinserts(\number\wbcc@band)}% footnotes leave the box; re-added below
   \if@twocolumn
     \ifwbcc@elsevieradapter
       \wbcc@elsevierplace
@@ -386,6 +388,7 @@
         \expandafter\wbcc@capture\csname wbcc@b@\the\wbcc@np\endcsname{\the\wbcc@np}%
         \global\csname wbcc@Yd@\the\wbcc@np\endcsname=\wbcc@curY\relax
         \directlua{wbcc.mark()}%   % leave a marker at the authored position (page assignment)
+        \directlua{wbcc.putinserts()}% its footnotes ride with the marker to the band's page
       \else
         \PackageError{wideband-cc}{too many bands waiting for placement (\the\wbcc@np\space
           already pending)}{At most \the\wbcc@MAX\space bands are placed per page and a band

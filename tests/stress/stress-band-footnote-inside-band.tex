@@ -1,0 +1,20 @@
+%% =====================================================================
+%% FOOTNOTE INSIDE A BAND (generic adapter)
+%% A \footnote inside the band body is an insert trapped in the captured box;
+%% it must reach the page's footnote area instead of being silently dropped.
+%% ASSERTION: BAND-FOOTNOTE-NOTE and TEXT-FOOTNOTE-NOTE each rendered once;
+%% ASSERTION: BAND-FOOTNOTE-NOTE begins page 1; paras 01-12 once; 1 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}\Par{03}\Par{04} Text\footnote{TEXT-FOOTNOTE-NOTE}\Par{05}\Par{06}
+\begin{wideband}
+  \centering BAND-WITH-FOOTNOTE\footnote{BAND-FOOTNOTE-NOTE}
+\end{wideband}
+\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}
+\end{document}

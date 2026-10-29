@@ -8,6 +8,8 @@
 --   M.joincols       recombine the columns with a correct interline glue at the join
 --   M.takefootnotes  pull each column's footnote block out (re-set at the page bottom)
 --   M.takebotfloats  pull each column's [b] bottom float out (re-set at the page bottom)
+--   M.takeinserts    detach the inserts (footnotes) trapped in the captured band box;
+--   M.putinserts     ... and append them to the flow where the band is placed
 -- See wideband-cc.sty for how they fit together.
 local M = {}
 local N       = node
@@ -34,6 +36,38 @@ function M.mark()
   local w = N.new(WHATSIT, UD)
   w.user_id = USER_ID; w.type = 100; w.value = 0
   N.write(w)                                   -- append to the current (vertical) list
+end
+
+-- A \footnote in the band body leaves an insert node inside the captured box (often
+-- nested in an \hbox, e.g. an \fbox or a display). TeX migrates inserts only out of
+-- paragraph lines, so a boxed one never reaches the page builder and the note is
+-- lost. Detach every insert from the band box (recursively) and hold them; putinserts
+-- appends them to the current vertical list, where the page builder sets them on the
+-- page that list lands on. Host-neutral: whatever the class's \footnote expands to,
+-- its result is an insert.
+local INS = N.id("ins")
+local held = nil
+function M.takeinserts(boxnum)
+  local b = tex.box[boxnum]
+  if not b then return end
+  local function walk(box)
+    local x = box.list
+    while x do
+      local nx = x.next
+      if x.id == INS then
+        box.list = N.remove(box.list, x)
+        x.next = nil; x.prev = nil
+        if held then local t = N.tail(held); t.next = x; x.prev = t else held = x end
+      elseif (x.id == HLIST or x.id == VLIST) and x.list then
+        walk(x)
+      end
+      x = nx
+    end
+  end
+  walk(b)
+end
+function M.putinserts()
+  if held then N.write(held); held = nil end
 end
 
 -- vertical walk: total at a node = TeX's \pagetotal there. Returns the list's full

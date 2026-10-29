@@ -1,0 +1,19 @@
+%% =====================================================================
+%% FOOTNOTE INSIDE A BAND (Elsevier adapter)
+%% The note must be set on the band's page (the next-page top), not lost and
+%% not left on the page before the band.
+%% ASSERTION: BAND-FOOTNOTE-NOTE begins page 2; paras PRE-01..POST-02 once; 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage[elsevier]{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{PRE-01}\Par{PRE-02}
+\begin{wideband}[rules=none]
+  \centering BAND-WITH-FOOTNOTE\footnote{BAND-FOOTNOTE-NOTE}
+\end{wideband}
+\Par{POST-01}\Par{POST-02}
+\end{document}

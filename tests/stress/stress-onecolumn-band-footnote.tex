@@ -1,0 +1,17 @@
+%% =====================================================================
+%% FOOTNOTE INSIDE A BAND (one-column inline fallback)
+%% ASSERTION: BAND-FOOTNOTE-NOTE begins page 1; paras 01-04 once; 1 pages.
+%% =====================================================================
+\documentclass{article}
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}\Par{02}
+\begin{wideband}
+  \centering BAND-WITH-FOOTNOTE\footnote{BAND-FOOTNOTE-NOTE}
+\end{wideband}
+\Par{03}\Par{04}
+\end{document}

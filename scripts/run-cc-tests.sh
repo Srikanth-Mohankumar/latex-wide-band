@@ -32,7 +32,8 @@ for source in stress-*.tex; do
   "$root/scripts/check-cc-stress.py" "$source" "$job.pdf"
   case "$source" in
     stress-elsevier-adapter-safe-top.tex|\
-    stress-elsevier-adapter-band-at-document-end.tex)
+    stress-elsevier-adapter-band-at-document-end.tex|\
+    stress-elsevier-adapter-footnote-inside-band.tex)
       grep -q 'Elsevier NeoPage adapter selected' "$job.log" || {
         echo "ERROR: Elsevier adapter was not selected for $source" >&2
         exit 1
