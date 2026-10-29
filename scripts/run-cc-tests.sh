@@ -48,6 +48,39 @@ for source in stress-*.tex; do
   esac
 done
 
+# Expected failures: each tests/cc-errors document must stop the run AND log the
+# message in its EXPECT-ERROR banner (and never a FORBID text).  The Lua-missing
+# case is compiled with the .sty alone.
+mkdir -p "$build/errors"
+for source in "$root/tests/cc-errors"/*.tex; do
+  job=$(basename "$source" .tex)
+  dir="$build/errors/$job"
+  mkdir -p "$dir"
+  cp "$source" "$root/wideband-cc.sty" "$dir/"
+  [ "$job" = error-lua-missing ] || cp "$root/wideband-cc.lua" "$dir/"
+  echo "[CC expected error] $job"
+  # No -halt-on-error: production compiles keep going after an error, so a
+  # follow-on failure (FORBID) must be visible too.
+  if (cd "$dir" && lualatex -interaction=nonstopmode "$job.tex" >/dev/null 2>&1); then
+    echo "ERROR: $job unexpectedly succeeded" >&2
+    exit 1
+  fi
+  expected=$(sed -n 's/^%% EXPECT-ERROR: //p' "$source")
+  grep -qF "$expected" "$dir/$job.log" || {
+    echo "ERROR: $job failed without the expected message: $expected" >&2
+    exit 1
+  }
+  if grep -qE 'Illegal parameter number|Undefined control sequence' "$dir/$job.log"; then
+    echo "ERROR: $job failed for the wrong reason (malformed message or macro)" >&2
+    exit 1
+  fi
+  forbidden=$(sed -n 's/^%% FORBID: //p' "$source")
+  if [ -n "$forbidden" ] && grep -qF "$forbidden" "$dir/$job.log"; then
+    echo "ERROR: $job log contains forbidden text: $forbidden" >&2
+    exit 1
+  fi
+done
+cd "$build/stress"
 
 # A package-loaded document with no band must be pixel-identical to the same
 # source without the package. This is the strongest guard against accidental

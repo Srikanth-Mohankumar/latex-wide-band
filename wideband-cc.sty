@@ -51,7 +51,9 @@
 \DeclareOption{auto}{\def\wbcc@adapterrequest{auto}}
 \DeclareOption{generic}{\def\wbcc@adapterrequest{generic}}
 \DeclareOption{elsevier}{\def\wbcc@adapterrequest{elsevier}}
-\DeclareOption*{\PackageWarning{wideband-cc}{Unknown option `\CurrentOption'}}
+\DeclareOption*{\PackageError{wideband-cc}{Unknown option `\CurrentOption'}{Valid
+  options are auto, generic and elsevier. A mistyped adapter must not silently
+  fall back to `auto'.}}
 \ProcessOptions\relax
 \def\wbcc@adapter@auto{auto}
 \def\wbcc@adapter@generic{generic}
@@ -79,6 +81,9 @@
     wbcc = dofile(wbccfile)
   end
 }
+%% Without the Lua companion nothing below can work: stop loading here rather than
+%% fail later with Lua errors on every band and every page.
+\ifnum\directlua{tex.sprint(wbcc and 1 or 0)}=\z@ \endinput \fi
 
 \newbox\wbcc@band                          % scratch capture box
 \newbox\wbcc@hostband                      % host-adapter output box
@@ -353,6 +358,20 @@
     \expandafter\wbcc@emitfullpages
   \fi}
 
+%% A band taller than the text area fits no page: it would overprint the page foot.
+%% Like a page's last line, its depth may hang below \textheight up to \maxdepth, and
+%% the excess is judged with \vfuzz, the tolerance TeX itself uses for overfull boxes.
+\def\wbcc@checkheight{%
+  \ifdim\ht\wbcc@band>\dimexpr\textheight+\vfuzz\relax \wbcc@toolarge \else
+    \ifdim\dp\wbcc@band>\maxdepth
+      \ifdim\dimexpr\ht\wbcc@band+\dp\wbcc@band\relax>\dimexpr\textheight+\vfuzz\relax
+        \wbcc@toolarge \fi\fi
+  \fi}
+\def\wbcc@toolarge{%
+  \PackageError{wideband-cc}{band number \the\numexpr\wbcc@serial+\@ne\relax\space
+    is taller than the text area}{It cannot fit on any page and will overprint the
+    page foot. Shorten or split the band.}}
+
 %% Per-band options: \begin{wideband}[<keys>]. Keys: y=<dimen> (explicit split height),
 %% skipabove=, skipbelow=, framesep=, rulewidth= (this band's spacing), fullpage (a page
 %% of its own regardless of size). A bare dimension, [300pt], still means y=300pt. The
@@ -386,6 +405,7 @@
 }{%
   \egroup
   \directlua{wbcc.takeinserts(\number\wbcc@band)}% footnotes leave the box; re-added below
+  \wbcc@checkheight
   \ifinner
     %% Inside a box (float, minipage, a host's boxed float that may be typeset more
     %% than once for measurement): a marker here never reaches a column and a page

@@ -1,0 +1,11 @@
+%% EXPECT-ERROR: wideband-cc.lua not found
+%% FORBID: attempt to index
+%% The runner compiles this with wideband-cc.sty but WITHOUT wideband-cc.lua on the
+%% search path: the package must stop with its own message, not fail later in Lua.
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\begin{document}
+Text.
+\begin{wideband}\centering BAND\end{wideband}
+More text.
+\end{document}

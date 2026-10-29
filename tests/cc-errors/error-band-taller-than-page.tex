@@ -1,0 +1,9 @@
+%% EXPECT-ERROR: band number 1 is taller than the text area
+%% A band that cannot fit on any page would overprint the page foot; say so.
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\begin{document}
+Text.
+\begin{wideband}\centering\rule{2pt}{1.2\textheight}\end{wideband}
+More text.
+\end{document}
