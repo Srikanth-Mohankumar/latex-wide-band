@@ -1,4 +1,4 @@
--- wideband-cc.lua — Continuous-Column wide-band node surgery (throwaway POC).
+-- wideband-cc.lua — Continuous-Column wide-band node surgery.
 --
 -- Operations run in the output routine on the two finished \@makecol columns:
 --   M.mark           write a position marker at the band's authored point in the flow

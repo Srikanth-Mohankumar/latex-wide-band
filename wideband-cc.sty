@@ -1,5 +1,5 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{wideband-cc}[2026/09/09 Continuous-Column wide-band POC (throwaway)]
+\ProvidesPackage{wideband-cc}[2026/10/21 v0.9 Continuous-Column wide-band release candidate]
 %% Continuous-Column (CC) full-width equation bands in two-column mode.
 %%
 %% A band declared mid-column is captured out of the flow. On the page it lands
@@ -30,12 +30,23 @@
 %% \renewcommand\wbccfullpagefraction{.75}: a band this tall (fraction of \textheight)
 %% gets a page of its own instead of text flowed around it.
 %%
-%% NOTE: throwaway POC on the cc/poc branch. The earlier per-rung POCs (col-1
-%% marker CC; col-2 foreknowledge detach-up) are superseded by this single
-%% in-run rebuild and preserved only in git history.
+%% This release-candidate implementation supersedes the earlier per-rung POCs
+%% (column-1 marker CC and column-2 foreknowledge detach-up), which remain in
+%% git history as design evidence.
 \RequirePackage{iftex}\RequireLuaTeX
 \RequirePackage{keyval}
-\directlua{wbcc = dofile("wideband-cc.lua")}
+%% Use kpathsea rather than the process working directory.  A package installed
+%% in a TEXMF tree is normally loaded from a document directory that does not
+%% contain wideband-cc.lua; plain dofile("wideband-cc.lua") fails there.
+\directlua{
+  local wbccfile = kpse.find_file("wideband-cc.lua")
+  if not wbccfile then
+    tex.error("wideband-cc.lua not found",
+      {"Install wideband-cc.lua beside wideband-cc.sty in a searchable TEXMF tree."})
+  else
+    wbcc = dofile(wbccfile)
+  end
+}
 
 \newbox\wbcc@band                          % scratch capture box
 \newbox\wbcc@galley
