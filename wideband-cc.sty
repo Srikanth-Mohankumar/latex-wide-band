@@ -259,6 +259,9 @@
   \else
     \wbcc@frame\wbcc@hostband
   \fi
+  %% NeoPage's wide-float gate replays the tail of a page that ends early unless the
+  %% forced break is announced first; its own column switches do exactly this.
+  \@ifundefined{SpaceReserveMarkColumnSwitchPage}{}{\SpaceReserveMarkColumnSwitchPage}%
   \clearpage
   \PackageInfo{wideband-cc}{band \string##\the\wbcc@serial\space
     (page \the\c@page): Elsevier adapter; moved to next-page full-width top}%

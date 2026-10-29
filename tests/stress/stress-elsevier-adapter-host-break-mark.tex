@@ -1,0 +1,35 @@
+%% =====================================================================
+%% ELSEVIER ADAPTER — HOST NOTIFIED BEFORE THE FORCED PAGE END
+%% NeoPage's wide-float gate reads a page that ends early at a forced break as
+%% "too little text" and replays its tail elsewhere, unless the break is
+%% announced with \SpaceReserveMarkColumnSwitchPage first (the host's own
+%% \spswitchonecolumn and \appendixbeforebalance do this). The stand-in records
+%% that the adapter announces its break on the page being ended.
+%% ASSERTION: the host mark runs once, on page 1, before the band page starts;
+%% ASSERTION: HOST-BREAK-BAND begins page 2; paras PRE-01..POST-02 once; 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\makeatletter
+\newcount\spacereserve@widegatetransaction
+\newcount\fixture@marks
+\newcommand\SpaceReserveMarkColumnSwitchPage{%
+  \global\advance\fixture@marks\@ne
+  \ifnum\c@page=\@ne\else
+    \PackageError{fixture}{break announced on page \the\c@page, not the page it ends}{}\fi}
+\makeatother
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{PRE-01}\Par{PRE-02}
+\begin{wideband}[rules=none]
+  \centering\fbox{\parbox{.9\textwidth}{\centering HOST-BREAK-BAND}}
+\end{wideband}
+\makeatletter
+\ifnum\fixture@marks=\@ne\else
+  \PackageError{fixture}{break announced \the\fixture@marks\space times, expected once}{}\fi
+\makeatother
+\Par{POST-01}\Par{POST-02}
+\end{document}
