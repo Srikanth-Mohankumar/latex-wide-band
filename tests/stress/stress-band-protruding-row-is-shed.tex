@@ -7,8 +7,10 @@
 %% in the same run: page 1 is built normally, the band is set at the top of
 %% page 2 and the operator gets an error naming it. The second band is placed
 %% where it is written.
-%% EXPECT-ERROR: band 1 (input line 24) does not fit on page 1 where it is written
-%% ASSERTION: no Overfull \vbox; ROW-BAND-A begins page 2; ROW-BAND-B begins page 2;
+%% EXPECT-ERROR: band 1 (input line 26) does not fit on page 1 where it is written
+%% ASSERTION: no Overfull \vbox; ROW-BAND-A begins page 2, at its top (Y=0pt, checked from
+%% the log by scripts/run-cc-tests.sh: it once kept page 1's automatic Y and printed
+%% below band B); ROW-BAND-B begins page 2;
 %% paras ROW-P-01..ROW-R-10 once.
 %% =====================================================================
 \documentclass[twocolumn]{article}

@@ -70,6 +70,14 @@ for source in stress-*.tex; do
         exit 1
       }
       ;;
+    stress-band-protruding-row-is-shed.tex)
+      # the shed band is overdue on page 2: at the top, above band B, not at the
+      # automatic Y it was given on page 1
+      grep -q 'band #1 (page 2): placed, Y=0.0pt' "$job.log" || {
+        echo "ERROR: the shed band kept page 1's position on page 2 in $source" >&2
+        exit 1
+      }
+      ;;
     stress-neopage-host-same-page.tex)
       grep -q 'band #1 (page 1): placed' "$job.log" || {
         echo "ERROR: the band was not placed on its own page on the NeoPage host in $source" >&2

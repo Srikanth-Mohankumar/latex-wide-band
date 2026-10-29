@@ -728,6 +728,19 @@
     \fi
     \advance\wbcc@i\@ne}}
 
+%% A band the attempts shed (pool position > \wbcc@nb) may still hold the automatic Y
+%% an attempt gave it on THIS page; \wbcc@shiftpool would carry that to the next page
+%% as if it were explicit (a band shed to page 2 kept page 1's Y and printed below the
+%% band after it, with a clamp warning). Give it the AUTO sentinel back.
+\def\wbcc@unresolveshed{%
+  \wbcc@i\numexpr\wbcc@nb+\@ne\relax
+  \@whilenum\wbcc@i<\numexpr\wbcc@np+\@ne\relax\do{%
+    \@ifundefined{wbcc@au@\the\wbcc@i}{}{%
+      \ifnum\csname wbcc@au@\the\wbcc@i\endcsname=\@ne
+        \csname wbcc@Yd@\the\wbcc@i\endcsname\maxdimen
+      \fi}%
+    \advance\wbcc@i\@ne}}
+
 %% One placement attempt on a fresh copy of the joined galley: budget, Y's, order, split,
 %% measure. If the stack would overshoot \@colht: shorten the last row by the overshoot
 %% and try again (it just gets less text); when the last row is already empty, shed the
@@ -1212,6 +1225,7 @@
       \vfuzz\maxdimen
       \wbcc@attempt
       \vfuzz.1\p@
+      \wbcc@unresolveshed
       %% Still printing past the text area after the attempts (a lone overdue band whose
       %% page holds unsplittable material taller than a row, or a page over \@colht):
       %% the operator must make room.
