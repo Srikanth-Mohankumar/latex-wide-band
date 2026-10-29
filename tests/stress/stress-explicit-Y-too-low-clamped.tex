@@ -1,5 +1,5 @@
 %% =====================================================================
-%% STRESS TEST: an EXPLICIT [Y] too low for the page is clamped (with a warning) rather
+%% STRESS TEST: an EXPLICIT [Y] too low for the page is clamped (with an operator error) rather
 %% than placed where the band plus one line below cannot fit.
 %%
 %% The per-column budget here is ~498pt and Ymax = budget - band - gaps - one line, about
@@ -7,9 +7,10 @@
 %% unclamped split forces a one-line overfull last row (the page overflows by several pt).
 %% With the clamp the band is pulled up to Ymax: a full line fits below it.
 %%
+%% EXPECT-ERROR: band 1 (input line 26) has y=492.0pt, which leaves no room for the band and a line below it on page 1
 %% ASSERTION: TOO-LOW-BAND on page 1 with at least one line of body text below it in
-%% each column; NO "Overfull \vbox"; the log carries a wideband-cc warning that the
-%% split height 492pt was clamped; paras 01-10 each once; "minim" 20 times (10 x 2).
+%% each column; NO "Overfull \vbox"; the operator gets an error that y=492pt was
+%% clamped (an editor that lists only errors shows it); paras 01-10 each once; "minim" 20 times (10 x 2).
 %% =====================================================================
 \documentclass[twocolumn]{article}
 \usepackage{amsmath}

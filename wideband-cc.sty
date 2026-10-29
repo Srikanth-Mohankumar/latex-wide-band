@@ -741,6 +741,22 @@
       \fi}%
     \advance\wbcc@i\@ne}}
 
+%% A placed band whose explicit y the page could not honour (recorded by \wbcc@autoY in
+%% the last attempt) was moved up: tell the operator, since an editor that lists only
+%% errors would not show a warning.
+\def\wbcc@reportclamps{%
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
+    \expandafter\ifx\csname wbcc@cl@\the\wbcc@i\endcsname\relax\else
+      \expandafter\expandafter\expandafter\wbcc@clamperror
+        \csname wbcc@cl@\the\wbcc@i\endcsname
+    \fi
+    \advance\wbcc@i\@ne}}
+\def\wbcc@clamperror#1#2#3{%
+  \wbcc@operror{\the\wbcc@i}{clamp}{has y=#1, which leaves no room for the band and a
+    line below it on page \the\c@page. It is placed at y=#2 instead}{Use a y of at most
+    #3, or remove y to place the band automatically, then compile again.}}
+
 %% One placement attempt on a fresh copy of the joined galley: budget, Y's, order, split,
 %% measure. If the stack would overshoot \@colht: shorten the last row by the overshoot
 %% and try again (it just gets less text); when the last row is already empty, shed the
@@ -969,9 +985,10 @@
     \else                                          % explicit [Y] / \wbccReserve: same
       \dimen@\@tempdimb                            % clamp, but say so — the author asked
       \wbcc@clampY                                 % for a Y the page cannot honour
-      \ifdim\dimen@=\@tempdimb\else
-        \PackageWarning{wideband-cc}{split height \the\dimen@\space leaves no room for the
-          band and a line below it on this page; clamped to \the\@tempdimb}%
+      \expandafter\let\csname wbcc@cl@\the\wbcc@i\endcsname\relax
+      \ifdim\dimen@=\@tempdimb\else                % reported after the attempts, if
+        \expandafter\edef\csname wbcc@cl@\the\wbcc@i\endcsname{%   the band stays here
+          {\the\dimen@}{\the\@tempdimb}{\the\wbcc@ymax}}%
       \fi
     \fi
     \ifdim\@tempdimb=\z@                           % nothing above it: no cue rules
@@ -1226,6 +1243,7 @@
       \wbcc@attempt
       \vfuzz.1\p@
       \wbcc@unresolveshed
+      \wbcc@reportclamps
       %% Still printing past the text area after the attempts (a lone overdue band whose
       %% page holds unsplittable material taller than a row, or a page over \@colht):
       %% the operator must make room.
