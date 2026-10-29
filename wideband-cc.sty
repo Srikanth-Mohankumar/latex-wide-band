@@ -330,6 +330,7 @@
       \csname wbcc@ln@#1\endcsname) #3}{#4}}{}}
 \def\wbcc@movehelp{Make room on that page below the band's position (move or resize
   a figure or table there) or move the band, then compile again.}
+\newif\ifwbcc@pagetop
 
 %% Placement trace. Every decision about a band is logged with its serial number (#n in
 %% document order) and the page it was decided on: a WARNING when a band cannot go where
@@ -474,7 +475,21 @@
       set inline where it was authored}%
     \wbcc@inline
   \else\if@twocolumn
+    %% The host has replaced the two-column routine since \begin{document} (NeoPage's
+    %% \lastpagebalance installs its own for the last pages): no page of ours would see
+    %% this band's marker, and it would be lost. Set it page-top instead, and say so.
+    \wbcc@pagetopfalse
+    \ifwbcc@elsevieradapter\else
+      \ifx\@outputdblcol\wbcc@outputdblcol\else \wbcc@pagetoptrue \fi
+    \fi
     \ifwbcc@elsevieradapter
+      \wbcc@elsevierplace
+    \else\ifwbcc@pagetop
+      \PackageError{wideband-cc}{band \the\numexpr\wbcc@serial+\@ne\relax\space (input
+        line \the\inputlineno) cannot be placed mid-page here: the two-column page
+        routine was replaced before it (NeoPage \string\lastpagebalance). It is set at
+        the top of the next page}{Move the band before \string\lastpagebalance\space (or
+        the command that replaced the routine), or accept the page-top position.}%
       \wbcc@elsevierplace
     \else
       \ifnum\wbcc@np<\numexpr\wbcc@MAX+\@ne\relax   % pool holds MAX+1 (placement caps at MAX/page)
@@ -490,7 +505,7 @@
           It is typeset in the flow here so that nothing is lost.}%
         \wbcc@inline
       \fi
-    \fi
+    \fi\fi
   \else
     \wbcc@inline                   % one column: no output routine of ours runs
   \fi\fi
@@ -506,10 +521,22 @@
 \def\wbcc@atveryend{%
   \wbcc@emitfullpages
   \ifnum\wbcc@overdue>\z@ \null\clearpage \fi
+  %% Any band still pending was never placed: its marker never reached one of our
+  %% pages (e.g. the band was captured just before the host replaced the two-column
+  %% routine for its last page). Rather than lose it, report it and set each on a
+  %% page of its own at the end.
   \ifnum\wbcc@np>\z@
-    \PackageWarningNoLine{wideband-cc}{\the\wbcc@np\space band(s) were captured but never
-      placed: their markers never reached a column's top level (a band inside a box or
-      list cannot be placed)}%
+    \wbcc@i\@ne
+    \@whilenum\wbcc@i<\numexpr\wbcc@np+\@ne\relax\do{%
+      \wbcc@operror{\the\wbcc@i}{never}{could not be placed where it is written: its page
+        was built by another page routine (such as NeoPage's last-page balancing). It
+        is set on a page of its own at the end of the document}{Move the band earlier,
+        onto a page before the last one (or before \string\lastpagebalance), then
+        compile again.}%
+      \expandafter\gdef\csname wbcc@fp@\the\wbcc@i\endcsname{1}%
+      \advance\wbcc@i\@ne}%
+    \global\wbcc@overdue\wbcc@np
+    \wbcc@emitfullpages
   \fi}
 \ifdefined\AddToHook
   \AddToHook{enddocument/afterlastpage}{\wbcc@atveryend}

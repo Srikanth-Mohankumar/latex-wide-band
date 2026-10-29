@@ -1,0 +1,35 @@
+%% =====================================================================
+%% STRESS TEST: A band after the host replaces the two-column routine is not lost
+%% NeoPage's \lastpagebalance installs its own \@outputdblcol for the article's
+%% last pages, removing wideband-cc's overlay; a band written after it was
+%% captured but never placed (5 of 55 corpus articles lost a back-matter band).
+%% This host stand-in saves the routine in force before wideband-cc loads and
+%% puts it back mid-document, as \lastpagebalance does. The band must be set at
+%% the top of the next page in the same run, and the operator told why.
+%% EXPECT-ERROR: band 1 (input line 28) cannot be placed mid-page here
+%% ASSERTION: SWAP-BAND begins page 2; SWAP-POST-01 begins page 2; paras
+%% SWAP-PRE-01..SWAP-POST-30 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\makeatletter
+\let\HostLastPageOutput\@outputdblcol   % the host's own routine, saved before the overlay
+\newcommand\HostLastPageBalance{\global\let\@outputdblcol\HostLastPageOutput}
+\makeatother
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{SWAP-PRE-01}\Par{SWAP-PRE-02}\Par{SWAP-PRE-03}\Par{SWAP-PRE-04}\Par{SWAP-PRE-05}
+\HostLastPageBalance
+\Par{SWAP-PRE-06}\Par{SWAP-PRE-07}
+\begin{wideband}\centering\fbox{\parbox{.9\textwidth}{\centering SWAP-BAND}}\end{wideband}
+\Par{SWAP-POST-01}\Par{SWAP-POST-02}\Par{SWAP-POST-03}\Par{SWAP-POST-04}\Par{SWAP-POST-05}
+\Par{SWAP-POST-06}\Par{SWAP-POST-07}\Par{SWAP-POST-08}\Par{SWAP-POST-09}\Par{SWAP-POST-10}
+\Par{SWAP-POST-11}\Par{SWAP-POST-12}\Par{SWAP-POST-13}\Par{SWAP-POST-14}\Par{SWAP-POST-15}
+\Par{SWAP-POST-16}\Par{SWAP-POST-17}\Par{SWAP-POST-18}\Par{SWAP-POST-19}\Par{SWAP-POST-20}
+\Par{SWAP-POST-21}\Par{SWAP-POST-22}\Par{SWAP-POST-23}\Par{SWAP-POST-24}\Par{SWAP-POST-25}
+\Par{SWAP-POST-26}\Par{SWAP-POST-27}\Par{SWAP-POST-28}\Par{SWAP-POST-29}\Par{SWAP-POST-30}
+\end{document}
