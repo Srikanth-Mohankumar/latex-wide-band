@@ -403,6 +403,17 @@
   \ifnum\wbcc@overdue>\z@ \ifnum\csname wbcc@fp@1\endcsname=\@ne \wbcc@moretrue \fi\fi
   \ifwbcc@more
     \wbcc@logI{1}{set on a page of its own}%
+    %% NeoPage plans floats by physical page: this page is not in its plan, and floats
+    %% planned for this page number are then not set here, and can be lost (5 of 10
+    %% NeoPage test builds, with no error). Later ones each move one page later.
+    \directlua{wbcc.planned(\the\c@page)}%
+    \ifx\wbcc@planned\@empty\else
+      \wbcc@operror{1}{fullpage}{is set on page \the\c@page, a page of its own, but
+        NeoPage's float plan puts \wbcc@planned\space on page \the\c@page: they can be
+        lost or set elsewhere}{In the float panel, move every figure and table planned
+        on page \the\c@page\space or later one page later (or make the band shorter
+        than a page), then compile again.}%
+    \fi
     \setbox\@outputbox\vbox to\textheight{%
       \vskip\z@\@plus\@ne fil
       \hb@xt@\textwidth{\hss\box\csname wbcc@b@1\endcsname\hss}%

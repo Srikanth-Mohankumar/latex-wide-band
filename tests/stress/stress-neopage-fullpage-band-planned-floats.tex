@@ -1,0 +1,40 @@
+%% =====================================================================
+%% NEOPAGE HOST — A PAGE OF ITS OWN FOR A BAND TAKES A PLANNED FLOAT PAGE (operator error)
+%% NeoPage plans floats by physical page (satellite.json, floatReorder). A full-page band
+%% ships a page the plan does not know, and the floats planned for that page number were
+%% dropped with no error (NeoPage KNOSYS_112150: Figs 1-2; YJEMA_126557: Fig. 2, Table 2).
+%% The operator now gets an error naming those floats. Stand-in: a loaded plan (the
+%% fields neopage-float-placement.lua sets) putting fig1 on page 2 and tbl1 on page 9.
+%% Band A ([fullpage]) is set on page 2 -> error naming fig1. Band B ([fullpage]) is set
+%% on a page with nothing planned -> no error.
+%% EXPECT-ERROR: band 1 (input line 34) is set on page 2, a page of its own, but NeoPage's float plan puts fig1 on page 2
+%% ASSERTION: FP-BAND-A alone on page 2, FP-BAND-B alone on a later page; no other TeX
+%% error; paras FP-01..FP-12 once.
+%% =====================================================================
+\begin{filecontents*}[overwrite]{\jobname-plan.json}
+{"floatReorder": {"floatPlacementOrder": [
+  {"page": 2, "column": "column1", "position": "top", "floatMeta": {"no": "fig1"}},
+  {"page": 9, "column": "column1", "position": "top", "floatMeta": {"no": "tbl1"}},
+]}}
+\end{filecontents*}
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+% Stand-in for neopage-float-placement.lua with a loaded float plan.
+\directlua{spacereserve = {float_reorder_loaded = true,
+  loaded_float_reorder_file = "\jobname-plan.json"}}
+\begin{document}
+\Par{FP-01}\Par{FP-02}\Par{FP-03}
+\begin{wideband}[fullpage]
+  \centering\fbox{\parbox{.9\textwidth}{\centering FP-BAND-A}}
+\end{wideband}
+\Par{FP-04}\Par{FP-05}\Par{FP-06}\Par{FP-07}\Par{FP-08}\Par{FP-09}
+\begin{wideband}[fullpage]
+  \centering\fbox{\parbox{.9\textwidth}{\centering FP-BAND-B}}
+\end{wideband}
+\Par{FP-10}\Par{FP-11}\Par{FP-12}
+\end{document}

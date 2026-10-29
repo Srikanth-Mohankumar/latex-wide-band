@@ -172,6 +172,43 @@ function M.overflow(a, b, dreg)
   tex.setdimen("global", tonumber(dreg), math.max(worst, -1073741823))
 end
 
+-- \wbcc@planned := the floats a NeoPage float plan (satellite.json, floatReorder) puts on
+-- physical page `page`, comma-separated ("" without a loaded plan). A page of its own
+-- for a band takes that page number from the plan; those floats are then never set.
+-- The plan's early-page shift is applied as NeoPage applies it.
+local plan
+function M.planned(page)
+  page = tonumber(page)
+  local found = {}
+  local sr = rawget(_G, "spacereserve")
+  if type(sr) == "table" and sr.float_reorder_loaded and sr.loaded_float_reorder_file then
+    if plan == nil then
+      plan = false
+      local f = io.open(sr.loaded_float_reorder_file, "r")
+      local json = utilities and utilities.json
+      if f and json then
+        local ok, data = pcall(json.tolua, (f:read("*a"):gsub(",%s*([}%]])", "%1")))
+        local order = ok and type(data) == "table" and data.floatReorder
+          and data.floatReorder.floatPlacementOrder
+        if type(order) == "table" then plan = order end
+      end
+      if f then f:close() end
+    end
+    local norm = sr.early_page_normalization or {}
+    for _, e in ipairs(plan or {}) do
+      local p = tonumber(e.page)
+      if p and norm.active and tonumber(norm.shift_start_page)
+        and (tonumber(norm.shift_amount) or 0) > 0 and p >= tonumber(norm.shift_start_page) then
+        p = p + tonumber(norm.shift_amount)
+      end
+      if p == page then
+        found[#found + 1] = tostring((e.floatMeta or {}).no or e.no or "?")
+      end
+    end
+  end
+  token.set_macro("wbcc@planned", table.concat(found, ", "), "global")
+end
+
 -- Replace a special column box by its content box, for a page that is rebuilt.
 function M.unwrapcol(num)
   num = tonumber(num)
