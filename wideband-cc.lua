@@ -10,6 +10,8 @@
 --   M.takebotfloats  pull each column's [b] bottom float out (re-set at the page bottom)
 --   M.takeinserts    detach the inserts (footnotes) trapped in the captured band box;
 --   M.putinserts     ... and append them to the flow where the band is placed
+--   M.fninit         tag each footnote with its callout as it reaches the page builder
+--   M.fnmove         move a note whose callout went to the overflow back to its callout
 -- See wideband-cc.sty for how they fit together.
 local M = {}
 local N       = node
@@ -406,6 +408,88 @@ function M.takefootnotes(colnum, holdnum)
     local box = N.vpack(ch); if hb then hb.list = nil end; tex.box[holdnum] = nil
     tex.setbox("global", holdnum, box)
   end
+end
+
+-- Footnotes that ride to the next page. A rebuilt page holds less text than the page
+-- TeX built, so a footnote's callout line can go to the overflow while its note, already
+-- set in the column's footnote block, stays on this page (NeoPage JCLP_146437: note on
+-- page 5, callout on page 6). TeX consumed the insert, so nothing ties a note to its
+-- callout any more; tag them while they are still together. When an insert of class
+-- \footins reaches the page builder, the note's top-level nodes get its id (they keep it
+-- through \box\footins and \@makecol), a marker with the same id stays in the text where
+-- the insert was (right after the callout's line), and a copy of the insert is kept.
+local INS     = N.id("ins")
+local FNATTR  = luatexbase.new_attribute("wbcc@fnid")
+local FN_USER = USER_ID + 1
+local fnclass, fnnext, fnstore = nil, 0, {}
+local function tagnotes()
+  local head = tex.lists.contrib_head
+  local x = head
+  while x do
+    if x.id == INS and x.subtype == fnclass and not N.has_attribute(x, FNATTR) then
+      fnnext = fnnext + 1
+      local lines = 0
+      for y in N.traverse(x.head) do
+        N.set_attribute(y, FNATTR, fnnext)
+        if y.id == HLIST or y.id == VLIST then lines = lines + 1 end
+      end
+      N.set_attribute(x, FNATTR, fnnext)
+      fnstore[fnnext] = {ins = N.copy(x), lines = lines}
+      local w = N.new(WHATSIT, UD)
+      w.user_id = FN_USER; w.type = 100; w.value = fnnext
+      head = N.insert_before(head, x, w)
+    end
+    x = x.next
+  end
+  tex.lists.contrib_head = head
+end
+function M.fninit(class)
+  fnclass = tonumber(class)
+  luatexbase.add_to_callback("buildpage_filter", tagnotes, "wideband-cc.footnotes")
+end
+-- After a rebuild: for every note marker in the overflow galley whose note is in the
+-- hold box (all its lines; a note TeX itself split across pages is left alone), take
+-- the note out of the hold box and put a copy of its insert back after the marker, so
+-- the page builder sets it on the callout's page. count `creg` := notes moved.
+function M.fnmove(galleynum, holdnum, creg)
+  local moved = 0
+  local g, hb = tex.box[tonumber(galleynum)], tex.box[tonumber(holdnum)]
+  if g and g.list and hb and hb.list then
+    local x = g.list
+    while x do
+      if x.id == WHATSIT and x.subtype == UD and x.user_id == FN_USER and fnstore[x.value] then
+        local st, found = fnstore[x.value], {}
+        local lines = 0
+        for y in N.traverse(hb.list) do
+          if N.has_attribute(y, FNATTR, x.value) then
+            found[#found + 1] = y
+            if y.id == HLIST or y.id == VLIST then lines = lines + 1 end
+          end
+        end
+        if lines > 0 and lines == st.lines then
+          for _, y in ipairs(found) do hb.list = N.remove(hb.list, y); N.flush_node(y) end
+          g.list = N.insert_after(g.list, x, N.copy(st.ins))
+          moved = moved + 1
+        elseif lines > 0 then
+          texio.write_nl("log", "wideband-cc: a footnote split across pages stays where TeX set it")
+        end
+      end
+      x = x.next
+    end
+    if moved > 0 then
+      -- the glue that separated the two columns' notes may now lead or trail the block
+      while hb.list and hb.list.id == GLUE and not N.has_attribute(hb.list, FNATTR) do
+        hb.list = N.remove(hb.list, hb.list)
+      end
+      local t = hb.list and N.tail(hb.list)
+      while t and t.id == GLUE and not N.has_attribute(t, FNATTR) do
+        hb.list = N.remove(hb.list, t); t = hb.list and N.tail(hb.list)
+      end
+      local list = hb.list; hb.list = nil
+      tex.setbox("global", tonumber(holdnum), list and N.vpack(list) or nil)
+    end
+  end
+  tex.setcount("global", tonumber(creg), moved)
 end
 
 -- Bottom-float extraction. \@makecol places a column's bottom floats just above

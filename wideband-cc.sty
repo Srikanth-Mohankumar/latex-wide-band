@@ -101,6 +101,7 @@
 \newcount\wbcc@found \edef\wbcc@found@n{\the\allocationnumber}% count-register index for Lua
 \newdimen\wbcc@enl \edef\wbcc@enl@n{\the\allocationnumber}% this page's \enlargethispage
 \newcount\wbcc@ride  \edef\wbcc@ride@n{\the\allocationnumber}% markers riding in the overflow
+\newcount\wbcc@fnmoved \edef\wbcc@fnmoved@n{\the\allocationnumber}% notes moved to the overflow
 \newcount\wbcc@nb       \global\wbcc@nb\z@   % bands PLACED on the current page (overdue + fit)
 \newcount\wbcc@m                             % new markers that fit this page (descent result)
 \newcount\wbcc@i \newcount\wbcc@j            % \wbcc@j: inner counter for the band sort
@@ -561,10 +562,6 @@
   \AtEndDocument{\clearpage\wbcc@atveryend}
 \fi
 
-%% A height-0 \vtop around box #1 (the leading \kern makes the height 0 so all of #1
-%% is depth; see \wbcc@assemble for why). #1 is \box'ed, NOT \unvbox'ed, so a segment
-%% keeps the exact height \wbcc@fitseg gave it.
-\def\wbcc@vtop#1{\vtop{\kern\z@\box#1}}
 
 %% Finish one column segment #1 (a box register) that \wbcc@splitcol just produced
 %% with \vsplit ... to X. \vsplit packages the segment EXACTLY to X, but TeX may have
@@ -1039,6 +1036,29 @@
   \fi
   \ifdim\wbcc@bfh>\z@ \advance\wbcc@bfh\textfloatsep \fi}
 
+%% The band page's bottom block: re-set bottom floats, then the footnotes, boxed so its
+%% exact height is known and the page can be measured. \boxmaxdepth\maxdepth (as in
+%% \@makecol): a re-set float row is a height-0 \vtop whose whole float is DEPTH;
+%% without the clamp that depth became the page box's depth and the float hung below
+%% the text area — invisible to the overfull check, which only sees height (measured: a
+%% [b] float's caption 65pt below the text bottom). Clamped, the excess moves into the
+%% height, where the budget (\wbcc@bfh) already accounts for it. The notes are copied,
+%% not consumed: notes that follow their callout to the next page leave \wbcc@fn after
+%% the placement, and the block is built again.
+\def\wbcc@makebot{%
+  \setbox\wbcc@bot\vbox{%
+    \boxmaxdepth\maxdepth
+    \ifdim\wbcc@bfh>\z@
+      \vskip\textfloatsep
+      \hb@xt@\textwidth{%
+        \hb@xt@\columnwidth{\ifvoid\wbcc@bfL\else\vtop{\kern\z@\copy\wbcc@bfL}\fi\hss}%
+        \hfil
+        \hb@xt@\columnwidth{\ifvoid\wbcc@bfR\else\vtop{\kern\z@\copy\wbcc@bfR}\fi\hss}}%
+    \fi
+    \ifvoid\wbcc@fn\else
+      \vskip\skip\footins \footnoterule \unvcopy\wbcc@fn
+    \fi}}
+
 %% How many bands to place on this page. The overdue prefix (bands deferred from an
 %% earlier page) is always placed; the descent decides how many of THIS page's new
 %% markers also fit. Bands are laid on the recombined galley [col1|col2], so a marker
@@ -1199,25 +1219,8 @@
       \wbcc@bottomdims      % \@tempdimc (notes) and \wbcc@bfh (floats) — the same values
                             % the fit descent already used, now from the real extraction
       %% the bottom block (re-set bottom floats, then the footnotes) boxed first, so
-      %% its exact height is known and the page can be measured.
-      %% \boxmaxdepth\maxdepth (as in \@makecol): a re-set float row is a height-0
-      %% \wbcc@vtop whose whole float is DEPTH; without the clamp that depth became the
-      %% page box's depth and the float hung below the text area — invisible to the
-      %% overfull check, which only sees height (measured: a [b] float's caption 65pt
-      %% below the text bottom). Clamped, the excess moves into the height, where the
-      %% budget (\wbcc@bfh) already accounts for it.
-      \setbox\wbcc@bot\vbox{%
-        \boxmaxdepth\maxdepth
-        \ifdim\wbcc@bfh>\z@
-          \vskip\textfloatsep
-          \hb@xt@\textwidth{%
-            \hb@xt@\columnwidth{\ifvoid\wbcc@bfL\else\wbcc@vtop\wbcc@bfL\fi\hss}%
-            \hfil
-            \hb@xt@\columnwidth{\ifvoid\wbcc@bfR\else\wbcc@vtop\wbcc@bfR\fi\hss}}%
-        \fi
-        \ifvoid\wbcc@fn\else
-          \vskip\skip\footins \footnoterule \unvbox\wbcc@fn
-        \fi}%
+      %% its exact height is known and the page can be measured (\wbcc@makebot)
+      \wbcc@makebot
       %% recombine both finished columns (seam-correct join); keep a copy so the
       %% placement can be run again if the measured page overshoots.
       \@tempdima\baselineskip \@tempdimb\lineskip
@@ -1255,6 +1258,10 @@
       \vfuzz.1\p@
       \wbcc@unresolveshed
       \wbcc@reportclamps
+      %% A footnote whose callout went to the overflow goes with it: its note leaves
+      %% this page's block and its insert is put back after the callout.
+      \directlua{wbcc.fnmove(\number\wbcc@galley, \number\wbcc@fn, \wbcc@fnmoved@n)}%
+      \ifnum\wbcc@fnmoved>\z@ \wbcc@makebot \fi
       %% Still printing past the text area after the attempts (a lone overdue band whose
       %% page holds unsplittable material taller than a row, or a page over \@colht):
       %% the operator must make room.
@@ -1391,6 +1398,9 @@
       a source-order-safe next-page full-width top}%
   \else
     \wbcc@reoverlay
+    %% tag each footnote with its callout, so a rebuilt page can send a note whose
+    %% callout went to the next page after it (see wbcc.fnmove)
+    \directlua{wbcc.fninit(\number\footins)}%
     %% flushend swaps in its last-page balancing routine at \@kernel@after@enddocument
     %% (registered from ITS \AtBeginDocument, which ran before this one); append the
     %% re-overlay after it so the last page is balanced by flushend when it has no band

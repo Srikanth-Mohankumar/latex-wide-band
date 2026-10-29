@@ -1,0 +1,28 @@
+%% =====================================================================
+%% STRESS TEST: a footnote whose callout a band pushes to the next page goes with it
+%% The band on page 1 takes room, so the rebuilt page holds less text than the page TeX
+%% built: the line with [Q-11] and its footnote callout goes to page 2. Its note was
+%% already set in the column's footnote block and stayed on page 1, a page before its
+%% callout (NeoPage JCLP_146437: note on page 5, callout on page 6). The note now
+%% follows its callout.
+%% ASSERTION: Q-11 begins page 2; FN-RIDE-NOTE begins page 2; FN-RIDE-BAND on page 1;
+%% no "Overfull \vbox"; no TeX errors; paras P-01..Q-30 once; "minim" 64 times (32 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\newcommand\ParN[1]{\par\noindent\textbf{[#1]}\footnote{FN-RIDE-NOTE: this note belongs with its callout.}\space
+  \Body\ \Body\par\medskip}
+\begin{document}
+\Par{P-01}\Par{P-02}
+\begin{wideband}\centering\rule{2pt}{120pt} FN-RIDE-BAND\end{wideband}
+\Par{Q-01}\Par{Q-02}\Par{Q-03}\Par{Q-04}\Par{Q-05}\Par{Q-06}\Par{Q-07}\Par{Q-08}
+\Par{Q-09}\Par{Q-10}\ParN{Q-11}\Par{Q-12}\Par{Q-13}\Par{Q-14}\Par{Q-15}\Par{Q-16}
+\Par{Q-17}\Par{Q-18}\Par{Q-19}\Par{Q-20}\Par{Q-21}\Par{Q-22}\Par{Q-23}\Par{Q-24}
+\Par{Q-25}\Par{Q-26}\Par{Q-27}\Par{Q-28}\Par{Q-29}\Par{Q-30}
+\end{document}
