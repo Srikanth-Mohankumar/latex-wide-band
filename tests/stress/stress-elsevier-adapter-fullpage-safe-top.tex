@@ -1,0 +1,21 @@
+%% =====================================================================
+%% ELSEVIER FULLPAGE-DEGRADATION REGRESSION
+%% ASSERTION: fullpage degrades to the source-order-safe page-top adapter;
+%% ASSERTION: ELSEVIER-FULLPAGE-SAFE-TOP begins page 2; paras PRE-01..POST-02 once; 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\makeatletter
+\newcount\spacereserve@widegatetransaction
+\makeatother
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{PRE-01}\Par{PRE-02}
+\begin{wideband}[fullpage,rules=none]
+  \centering\fbox{\parbox{.9\textwidth}{\centering ELSEVIER-FULLPAGE-SAFE-TOP}}
+\end{wideband}
+\Par{POST-01}\Par{POST-02}
+\end{document}

@@ -1,5 +1,5 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{wideband-cc}[2026/10/21 v0.9 Continuous-Column wide-band release candidate]
+\ProvidesPackage{wideband-cc}[2026/10/21 v0.10 Continuous-Column wide-band release candidate]
 %% Continuous-Column (CC) full-width equation bands in two-column mode.
 %%
 %% A band declared mid-column is captured out of the flow. On the page it lands
@@ -35,6 +35,38 @@
 %% git history as design evidence.
 \RequirePackage{iftex}\RequireLuaTeX
 \RequirePackage{keyval}
+%% Host adapters.  The generic engine rebuilds finished kernel-style columns.
+%% Elsevier's NeoPage stack (flsap + flushend + midfloat + spacereserve) owns
+%% additional page state and cannot safely be rebuilt that way.  Its adapter
+%% preserves source order by ending the current page and placing the band in
+%% LaTeX's full-width top area on the next page.  `auto' is deliberately based
+%% on NeoPage-owned capabilities rather than a customer/jobname string: the
+%% public space-reservation interface (\AddSpaceReservation and
+%% \LoadSpaceReservations, in every neopage-float-placement revision checked
+%% back to 2026-04) or the wide-float gate's register (2026-08 onwards).  A
+%% false positive only costs same-page placement; a false negative would put
+%% the generic overlay on the host this adapter exists to protect.
+\newif\ifwbcc@elsevieradapter
+\def\wbcc@adapterrequest{auto}
+\DeclareOption{auto}{\def\wbcc@adapterrequest{auto}}
+\DeclareOption{generic}{\def\wbcc@adapterrequest{generic}}
+\DeclareOption{elsevier}{\def\wbcc@adapterrequest{elsevier}}
+\DeclareOption*{\PackageWarning{wideband-cc}{Unknown option `\CurrentOption'}}
+\ProcessOptions\relax
+\def\wbcc@adapter@auto{auto}
+\def\wbcc@adapter@generic{generic}
+\def\wbcc@adapter@elsevier{elsevier}
+\def\wbcc@detectadapter{%
+  \wbcc@elsevieradapterfalse
+  \ifx\wbcc@adapterrequest\wbcc@adapter@elsevier
+    \wbcc@elsevieradaptertrue
+  \else\ifx\wbcc@adapterrequest\wbcc@adapter@auto
+    \@ifundefined{spacereserve@widegatetransaction}{%
+      \@ifundefined{AddSpaceReservation}{}{%
+        \@ifundefined{LoadSpaceReservations}{}{\wbcc@elsevieradaptertrue}}%
+    }{\wbcc@elsevieradaptertrue}%
+  \fi\fi}
+\wbcc@detectadapter
 %% Use kpathsea rather than the process working directory.  A package installed
 %% in a TEXMF tree is normally loaded from a document directory that does not
 %% contain wideband-cc.lua; plain dofile("wideband-cc.lua") fails there.
@@ -49,6 +81,7 @@
 }
 
 \newbox\wbcc@band                          % scratch capture box
+\newbox\wbcc@hostband                      % host-adapter output box
 \newbox\wbcc@galley
 \newbox\wbcc@fn
 \newbox\wbcc@bfL \newbox\wbcc@bfR
@@ -205,6 +238,35 @@
   \ifwbcc@fp \global\setbox\@tempboxa\box\wbcc@band \else \wbcc@frame\@tempboxa \fi
   \par\vskip\wbccskipabove \box\@tempboxa \vskip\wbccskipbelow}
 
+%% Elsevier / NeoPage adapter.  The host's output routine carries spacereserve,
+%% float-gate and last-page-balancing state that the generic node rebuild cannot
+%% reproduce.  Flush everything authored before the band, then use the kernel's
+%% supported full-width top area.  This is intentionally a safe page-top
+%% degradation: it gives up same-page mid-column placement rather than reorder
+%% article material or corrupt the host's sidecars.  A forced/full-page-sized
+%% band consumes the new page's whole text area; ordinary bands leave the two
+%% columns to continue immediately below them.  NeoPage cannot safely emit an
+%% otherwise-empty band page without disturbing its float/page state, so a
+%% `fullpage' request also degrades to this page-top policy (with a warning).
+\def\wbcc@elsevierplace{%
+  \global\advance\wbcc@serial\@ne
+  \wbcc@fptest
+  \ifwbcc@fp
+    \global\setbox\wbcc@hostband\box\wbcc@band
+    \PackageWarningNoLine{wideband-cc}{Elsevier adapter: fullpage band
+      \string##\the\wbcc@serial\space reduced to a next-page full-width top;
+      NeoPage own-page output is not source-order safe}%
+  \else
+    \wbcc@frame\wbcc@hostband
+  \fi
+  \clearpage
+  \PackageInfo{wideband-cc}{band \string##\the\wbcc@serial\space
+    (page \the\c@page): Elsevier adapter; moved to next-page full-width top}%
+  \twocolumn[{\vbox{%
+    \vskip\wbccskipabove
+    \hb@xt@\textwidth{\hss\box\wbcc@hostband\hss}%
+    \vskip\wbccskipbelow}}]}
+
 %% Placement trace. Every decision about a band is logged with its serial number (#n in
 %% document order) and the page it was decided on: a WARNING when a band cannot go where
 %% it was written (deferred to the top of the next page, held back by the per-page limit
@@ -316,17 +378,21 @@
 }{%
   \egroup
   \if@twocolumn
-    \ifnum\wbcc@np<\numexpr\wbcc@MAX+\@ne\relax   % pool holds MAX+1 (placement caps at MAX/page)
-      \global\advance\wbcc@np\@ne
-      \expandafter\wbcc@capture\csname wbcc@b@\the\wbcc@np\endcsname{\the\wbcc@np}%
-      \global\csname wbcc@Yd@\the\wbcc@np\endcsname=\wbcc@curY\relax
-      \directlua{wbcc.mark()}%   % leave a marker at the authored position (page assignment)
+    \ifwbcc@elsevieradapter
+      \wbcc@elsevierplace
     \else
-      \PackageError{wideband-cc}{too many bands waiting for placement (\the\wbcc@np\space
-        already pending)}{At most \the\wbcc@MAX\space bands are placed per page and a band
-        waits until the text it follows ships. Move this band further into the text.
-        It is typeset in the flow here so that nothing is lost.}%
-      \wbcc@inline
+      \ifnum\wbcc@np<\numexpr\wbcc@MAX+\@ne\relax   % pool holds MAX+1 (placement caps at MAX/page)
+        \global\advance\wbcc@np\@ne
+        \expandafter\wbcc@capture\csname wbcc@b@\the\wbcc@np\endcsname{\the\wbcc@np}%
+        \global\csname wbcc@Yd@\the\wbcc@np\endcsname=\wbcc@curY\relax
+        \directlua{wbcc.mark()}%   % leave a marker at the authored position (page assignment)
+      \else
+        \PackageError{wideband-cc}{too many bands waiting for placement (\the\wbcc@np\space
+          already pending)}{At most \the\wbcc@MAX\space bands are placed per page and a band
+          waits until the text it follows ships. Move this band further into the text.
+          It is typeset in the flow here so that nothing is lost.}%
+        \wbcc@inline
+      \fi
     \fi
   \else
     \wbcc@inline                   % one column: no output routine of ours runs
@@ -1029,7 +1095,6 @@
       \wbcc@emitfullpages           % any overdue full-page band at the pool front: its page now
     \fi
   \fi}
-\let\@outputdblcol\wbcc@outputdblcol
 %% Re-overlay whatever routine is in force now (a package may have installed its own).
 \def\wbcc@reoverlay{%
   \ifx\@outputdblcol\wbcc@outputdblcol\else
@@ -1037,13 +1102,21 @@
     \let\@outputdblcol\wbcc@outputdblcol
   \fi}
 \AtBeginDocument{%
-  \wbcc@reoverlay
-  %% flushend swaps in its last-page balancing routine at \@kernel@after@enddocument
-  %% (registered from ITS \AtBeginDocument, which ran before this one); append the
-  %% re-overlay after it so the last page is balanced by flushend when it has no band
-  %% and rebuilt here when it has one.
-  \ifdefined\@kernel@after@enddocument
-    \g@addto@macro\@kernel@after@enddocument{\wbcc@reoverlay}%
+  %% Re-run auto detection here so wideband-cc may be loaded before the host's
+  %% packages.  The output overlay is installed only for the generic adapter.
+  \wbcc@detectadapter
+  \ifwbcc@elsevieradapter
+    \PackageInfo{wideband-cc}{Elsevier NeoPage adapter selected; active bands use
+      a source-order-safe next-page full-width top}%
+  \else
+    \wbcc@reoverlay
+    %% flushend swaps in its last-page balancing routine at \@kernel@after@enddocument
+    %% (registered from ITS \AtBeginDocument, which ran before this one); append the
+    %% re-overlay after it so the last page is balanced by flushend when it has no band
+    %% and rebuilt here when it has one.
+    \ifdefined\@kernel@after@enddocument
+      \g@addto@macro\@kernel@after@enddocument{\wbcc@reoverlay}%
+    \fi
   \fi}
 
 \endinput

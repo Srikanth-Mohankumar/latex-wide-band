@@ -1,0 +1,24 @@
+%% =====================================================================
+%% ELSEVIER ADAPTER REGRESSION
+%% ASSERTION: the host-safe adapter forces a page boundary before the band;
+%% ASSERTION: ELSEVIER-ADAPTER-BAND begins page 2; paras PRE-01..POST-02 once; 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+% This register is created by Elsevier's neopage-float-placement.sty.  Defining
+% it here exercises host detection without copying a customer template into the
+% repository; the live AA_9001 integration test covers the real host stack.
+\makeatletter
+\newcount\spacereserve@widegatetransaction
+\makeatother
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{PRE-01}\Par{PRE-02}
+\begin{wideband}[rules=none]
+  \centering\fbox{\parbox{.9\textwidth}{\centering ELSEVIER-ADAPTER-BAND}}
+\end{wideband}
+\Par{POST-01}\Par{POST-02}
+\end{document}

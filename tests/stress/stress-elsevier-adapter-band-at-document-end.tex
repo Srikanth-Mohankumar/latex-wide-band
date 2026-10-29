@@ -1,0 +1,21 @@
+%% =====================================================================
+%% ELSEVIER ADAPTER — BAND IS THE LAST THING IN THE DOCUMENT
+%% The adapter ends the page and opens a full-width top area; with nothing
+%% authored after the band, \end{document} must still ship that band page.
+%% ASSERTION: DOCUMENT-END-BAND begins page 2; paras PRE-01..PRE-02 once; 2 pages.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\makeatletter
+\newcount\spacereserve@widegatetransaction
+\makeatother
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength\parindent{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{PRE-01}\Par{PRE-02}
+\begin{wideband}[rules=none]
+  \centering\fbox{\parbox{.9\textwidth}{\centering DOCUMENT-END-BAND}}
+\end{wideband}
+\end{document}

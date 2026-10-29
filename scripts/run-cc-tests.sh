@@ -30,6 +30,21 @@ for source in stress-*.tex; do
     exit 1
   fi
   "$root/scripts/check-cc-stress.py" "$source" "$job.pdf"
+  case "$source" in
+    stress-elsevier-adapter-safe-top.tex|\
+    stress-elsevier-adapter-band-at-document-end.tex)
+      grep -q 'Elsevier NeoPage adapter selected' "$job.log" || {
+        echo "ERROR: Elsevier adapter was not selected for $source" >&2
+        exit 1
+      }
+      ;;
+    stress-elsevier-adapter-fullpage-safe-top.tex)
+      grep -q 'fullpage band.*reduced to a' "$job.log" || {
+        echo "ERROR: Elsevier fullpage safety degradation was not logged for $source" >&2
+        exit 1
+      }
+      ;;
+  esac
 done
 
 
@@ -80,6 +95,9 @@ pdftoppm -png -r 90 \
 pdftoppm -png -r 90 \
   "$build/stress/stress-fullpage-band-own-page.pdf" \
   "$build/renders/fullpage" >/dev/null 2>&1
+pdftoppm -png -r 90 \
+  "$build/stress/stress-elsevier-adapter-safe-top.pdf" \
+  "$build/renders/elsevier" >/dev/null 2>&1
 
 echo "All Continuous-Column stress tests passed."
 echo "Visual-review PNGs: $build/renders"
