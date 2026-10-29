@@ -328,6 +328,12 @@
     \expandafter\gdef\csname wbcc@rep@#2@\wbcc@tmp\endcsname{}%
     \PackageError{wideband-cc}{band \wbcc@tmp\space (input line
       \csname wbcc@ln@#1\endcsname) #3}{#4}}{}}
+%% A page that prints past its text area by more than this, after a band has changed
+%% the pagination, is reported (NeoPage's float plan reserves room for figures page by
+%% page; text a band pushes forward can collide with it and run off the page, taking
+%% text or a figure with it). NeoPage's own band-free pages overflow by up to ~29pt
+%% routinely in the Elsevier corpus, hence the default.
+\newdimen\wbccoverflowlimit \wbccoverflowlimit=30\p@
 \def\wbcc@movehelp{Make room on that page below the band's position (move or resize
   a figure or table there) or move the band, then compile again.}
 \newif\ifwbcc@pagetop
@@ -1305,6 +1311,17 @@
       %% It expects to be entered in its second-column state.
       \global\@firstcolumnfalse
       \advance\@colht-\wbcc@enl
+      \ifnum\wbcc@serial>\z@        % (\wbcc@enl is free again here: reused for the amount)
+        \directlua{wbcc.overflow(\number\@leftcolumn, \number\@outputbox, \wbcc@enl@n)}%
+        \ifdim\wbcc@enl>\wbccoverflowlimit
+          \PackageError{wideband-cc}{page \the\c@page\space prints about
+            \the\wbcc@enl\space past the bottom of its text area: text or a figure on it
+            is cut off}{The bands in this document move text forward, and the page's
+            planned figures or tables no longer fit with it. Move a figure or table off
+            this page (float placement) or adjust the bands before it, then compile
+            again.}%
+        \fi
+      \fi
       \wbcc@orig@outputdblcol
       \wbcc@emitfullpages           % any overdue full-page band at the pool front: its page now
     \fi

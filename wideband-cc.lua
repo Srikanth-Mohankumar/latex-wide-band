@@ -157,6 +157,20 @@ function M.enlargement(a, b, dreg)
   tex.setdimen("global", tonumber(dreg), e)
 end
 
+-- dimen `dreg` := how far the fuller of two finished columns prints past its own height
+-- (natural height of its content minus the box height; <= 0 when it fits).
+function M.overflow(a, b, dreg)
+  local worst = -1073741823
+  for _, num in ipairs({tonumber(a), tonumber(b)}) do
+    local c = colcontent(tex.box[num])
+    if c and c.list then
+      local nat = N.vpack(N.copy_list(c.list))
+      worst = math.max(worst, nat.height - c.height)
+      N.flush_node(nat)
+    end
+  end
+  tex.setdimen("global", tonumber(dreg), math.max(worst, -1073741823))
+end
 
 -- Replace a special column box by its content box, for a page that is rebuilt.
 function M.unwrapcol(num)
