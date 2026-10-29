@@ -6,17 +6,17 @@ compatibility: Linux + TeX Live (verified on TeX Live 2025 / LuaHBTeX 1.22). Nee
 
 # run-wideband
 
-`wideband.sty` + `wideband.lua` provide a full-width band anchored **mid-column**
-in a twocolumn document — both columns flow above it, jump across it, and
+`wideband-cc.sty` + `wideband-cc.lua` are the current production candidate;
+`wideband.sty` + `wideband.lua` retain the earlier stratum implementation. Both
+provide a full-width band anchored **mid-column** in a twocolumn document — both columns flow above it, jump across it, and
 continue below it on the same page (what revtex's `widetext` and `\onecolumn`
 cannot do). "Running" this project means compiling the test documents and
 **looking at the rendered pages** — compilation success proves nothing here,
 because box-surgery bugs produce silently-wrong pages (overlaps, lost text,
 wrong column heights).
 
-Paths below are relative to the **repo root** (the directory holding
-`wideband.sty`); regression inputs live in `tests/`. The driver lives at
-`.claude/skills/run-wideband/driver.sh`.
+Paths below are relative to the **repo root**. Regression inputs live in
+`tests/`; the production driver lives at `.agents/skills/run-wideband/driver.sh`.
 
 ## Prerequisites
 
@@ -32,41 +32,37 @@ apt-get install -y texlive-luatex texlive-latex-recommended poppler-utils python
 One command builds every test, checks the regressions, and renders the bands:
 
 ```bash
-bash .claude/skills/run-wideband/driver.sh
+bash .agents/skills/run-wideband/driver.sh
 ```
 
-It works out of a scratch dir (`/tmp/wb-driver`), so the repo stays clean. It:
-- compiles `test-wideband.tex`, `test-baseline.tex`, `test-edgecases.tex`
-  (twice each, for `\ref`/`\eqref`);
-- greps the log to confirm both band scenario paths fired (`band anchored in
-  column 1`, `Band fell into the second column`) and no references dropped;
-- runs the **inertness regression** — a twocolumn doc that loads the package
-  but uses no band must be **pixel-identical** to the same doc without it
-  (PIL pixel-diff must be 0). This is the non-negotiable safety net: if it
-  fails, the patch stopped being inert and the change is wrong regardless of
-  what else it fixes;
-- renders `test-wideband.pdf` to `/tmp/wb-driver/page-*.png`.
+It works out of `/tmp/wb-driver` by default and runs both maintained gates:
+
+- the v0.5 stratum regression, including pixel-identical no-band inertness;
+- all 56 Continuous-Column stress documents and 3 expected-error documents, compiled twice and checked for
+  TeX errors, vertical overflow, lost/duplicated paragraph and band tokens,
+  explicit body-word conservation, unresolved references, and installed-path
+  Lua discovery;
+- representative Continuous-Column pages rendered for visual review.
 
 Expected tail on success:
 
 ```
-== inertness regression (must be pixel-identical) ==
-ok  inertness: pixel-identical (3 pages)
-...
-ALL GREEN — bands render in /tmp/wb-driver
+ALL GREEN — both implementations passed
+Visual-review PNGs: /tmp/wb-driver/continuous-column/renders
 ```
 
 **Then LOOK at the pages** — this is the actual verification step:
 
 ```
-/tmp/wb-driver/page-1.png   mid-column band: full-width boxed equation (1),
-                            two-column text above AND below it, same page
-/tmp/wb-driver/page-4.png   deferral scenario section
+/tmp/wb-driver/continuous-column/renders/follows-6.png  table band after its source text
+/tmp/wb-driver/continuous-column/renders/follows-7.png  conserved trailing material
+/tmp/wb-driver/continuous-column/renders/fullpage-2.png full-page band with no body text
+/tmp/wb-driver/continuous-column/renders/elsevier-2.png safe Elsevier page-top adapter
 ```
 
-Open the PNGs (Read tool on the file). Page 1 must show the boxed full-width
-equation with two independent text columns above it and below it. A blank
-band, overlapping text, or a flushed/half-empty page = a real bug, not a pass.
+Open the PNGs and inspect the band boundaries, reading order, page bottom, and
+the trailing text page. A blank band, overlapping text, or content outside the
+text area is a real bug, not a pass.
 
 ## Manual iteration (editing the package)
 
