@@ -42,8 +42,13 @@ Each fix has a regression test that fails before it and passes after.
   positions, one compile each): no band lost; 77 placed where written, 52
   deferred and 8 set at the end, each with an operator error; every page more
   than 30pt past its text area reported (5 articles), including both articles
-  that lost text (DAACH_360, EJMFLU_204268). Open: one footnote note set a page
-  before its callout (JCLP_146437).
+  that lost text (DAACH_360, EJMFLU_204268).
+- Fix (generic engine): a footnote whose callout a band page pushed to the next
+  page stayed on the band page, a page before its callout (JCLP_146437). Notes
+  are tagged with their callouts as they reach the page builder, and such a note
+  now goes with its callout. Elsevier (54 articles) and ACS (39) corpora: no
+  note away from its callout because of a band; package-loaded documents with no
+  band unchanged (pixels and NeoPage sidecars); tagged PDF builds unaffected.
 - Fix (generic engine): when the correction for an overshooting band page
   cut the text above a band just placed, the band printed ahead of its own
   text and was bookkept twice; the next page read pool slot 0 ("Missing

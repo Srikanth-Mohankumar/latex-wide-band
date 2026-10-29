@@ -31,7 +31,7 @@ make test
 ```
 
 This runs both maintained implementations. The Continuous-Column half compiles
-all 56 stress documents twice (plus 3 expected-error documents), checks vertical bounds through TeX's overfull
+all 57 stress documents twice (plus 3 expected-error documents), checks vertical bounds through TeX's overfull
 diagnostics, verifies paragraph and band token conservation from extracted PDF
 text, checks explicit body-word counts where fixtures declare them, validates
 declared page counts, requires pixel-identical output for a package-loaded
@@ -98,7 +98,7 @@ variant, one machine. Scripts: `run-article-single.sh`, `analyse-single.py`.
 | Set on an end page: page built by NeoPage's last-page routine (operator error) | 8 |
 | Set inline inside a host box | 11 (9 more unlogged, most likely one-column regions) |
 | Articles with a new overflow over 5pt | 7: 6 reported (all 5 over 30pt, and a 21pt band page); 1 at 8.6pt not reported |
-| Footnote and float inventories, sidecar `.FN` | all present; 1 article (JCLP_146437) with a footnote note one page before its callout (see open issues) |
+| Footnote and float inventories, sidecar `.FN` | all present; 1 article (JCLP_146437) had a footnote note one page before its callout: fixed (see below) |
 | Total pages (baseline 780) | 821 |
 
 Both articles missing more than 40 words (DAACH_360 501, EJMFLU_204268 48) are
@@ -168,6 +168,38 @@ builds: `y` = auto ±12 and ±24pt, `0pt`, `2000pt`; `skipabove`/`skipbelow`
   with the error.
 - `fullpage`: floats lost in 5 of 10, now reported (see Known exclusions).
 - There is no horizontal position: a band spans both columns.
+
+## Footnotes, ACS and tagged PDF (2026-10-29)
+
+One LuaLaTeX run per build (tagged: two, as mr-bean compiles a tagged PDF), from a
+copy of each process folder, one machine; NeoPage (`/app/lamput`) and Simba
+(`/app/simba`) unchanged since 2026-10-21 / 2026-10-16. The same three bands per
+article as the single-pass corpus (before the 2nd, middle and second-to-last
+section). Scripts and results: `/data/neopage/.temporary/wideband-footnote-20261029/`.
+
+**Footnote follows its callout.** Each footnote is now tagged with its callout
+when it reaches the page builder; on a rebuilt page, a note whose callout went
+to the next page leaves the page's footnote block and its insert goes after the
+callout. JCLP_146437 fn1 (note p5, callout p6) is fixed, tagged and untagged.
+
+| | Elsevier (54 articles) | ACS (39: `smoke` + `footnotes` suites) |
+|---|---|---|
+| Package loaded, no band: pixels and NeoPage sidecars (`.FN`, `-apg.xml`, `.fwh`, `.apg`) | identical, 54/54 | identical, 39/39 |
+| Bands; each printed exactly once | 157; all | 73; all |
+| Operator errors | 52 deferred, 9 end page, 2 band-page overflow, 6 host-page overflow | 39 deferred, 6 page overflow |
+| Footnote note on another page than its callout | 2 articles, both also in the no-band build (NeoPage) | 0 |
+| Text lost (more than 10 letters, hyphenation joined) | 2: DAACH_360 (reported), AA_9004 (a continued table splitting once fewer: a repeated header row and "continued on next page" label) | 1: EM_5c00771 (reported, 291pt) |
+| New overflow not reported | 8.6pt (YJEMA_126336) | 12.3pt (NP_5c01252); every ACS page already overflows 1.25pt in Simba, so an extra band page adds one more |
+| Pages (no-band build) | 821 (780) | 500 (484) |
+
+**Tagged PDF** (`\tagpdfsetuptrue`, two runs): 5 Elsevier (AA_9001, DAACH_360,
+JCLP_146437, KNOSYS_112150, YJEMA_126557) and 5 ACS articles, each with and
+without bands. Every PDF has its structure tree; no tagpdf errors with bands;
+tagpdf warnings within ±5 of the same article without bands (Elsevier has 17–308
+of its own); no new LaTeX errors (ACS's `__tag/mc/TAG` errors are Simba's, in
+both); bands printed once; no footnote mismatch. Not checked: whether a band's
+content gets its own structure element (it is set outside the flow), or a PDF/UA
+validator.
 
 ## Elsevier corpus evidence, two-run harness (2026-10-28)
 
@@ -246,11 +278,6 @@ after `\lastpagebalance` or in back matter.
   planned float it can drop the float or text (AA_9001: the Nomenclature, a
   table), and once it stopped the run with a fatal hyperlink-nesting error.
   Operators should prefer moving the band or a float there.
-- **A footnote can land one page before its callout on a rebuilt page**: the
-  engine re-sets every footnote of the finished columns at the band page's foot,
-  including one whose callout line the rebuild pushed to the next page
-  (JCLP_146437, fn1: note page 5, callout page 6). Not reported to the operator;
-  fixing it needs callout-to-note tracking in the engine.
 - Overflows under `\wbccoverflowlimit` (30pt) after a band are not reported
   (one corpus article, 8.6pt).
 
