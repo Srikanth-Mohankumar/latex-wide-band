@@ -1,0 +1,30 @@
+%% =====================================================================
+%% STRESS TEST: A band whose row would print past the text area is shed, not shipped
+%% An unbreakable block (a stand-in for NeoPage's in-column float reservations)
+%% follows the first band. Split into the row under the band, it is taller than
+%% the row: the rebuilt page measured within \@colht but protruded 117pt below
+%% the text area (NeoPage APR_321: 366pt). The band is now taken off that page
+%% in the same run: page 1 is built normally, the band is set at the top of
+%% page 2. The second band is placed
+%% where it is written.
+%% ASSERTION: no Overfull \vbox; ROW-BAND-A begins page 2; ROW-BAND-B begins page 2;
+%% paras ROW-P-01..ROW-R-10 once.
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{wideband-cc}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua.}
+\newcommand\Par[1]{\par\textbf{[#1]} \Body\ \Body\par\medskip}
+\begin{document}
+\Par{ROW-P-01}\Par{ROW-P-02}\Par{ROW-P-03}\Par{ROW-P-04}\Par{ROW-P-05}\Par{ROW-P-06}
+\Par{ROW-P-07}\Par{ROW-P-08}\Par{ROW-P-09}\Par{ROW-P-10}\Par{ROW-P-11}\Par{ROW-P-12}
+\begin{wideband}\centering\rule{2pt}{60pt} ROW-BAND-A\end{wideband}
+\par\vbox to .45\textheight{\hrule\vfil ROW-BLOCK-X\vfil\hrule}
+\Par{ROW-Q-01}\Par{ROW-Q-02}\Par{ROW-Q-03}\Par{ROW-Q-04}\Par{ROW-Q-05}\Par{ROW-Q-06}
+\Par{ROW-Q-07}\Par{ROW-Q-08}
+\begin{wideband}\centering\rule{2pt}{30pt} ROW-BAND-B\end{wideband}
+\Par{ROW-R-01}\Par{ROW-R-02}\Par{ROW-R-03}\Par{ROW-R-04}\Par{ROW-R-05}\Par{ROW-R-06}
+\Par{ROW-R-07}\Par{ROW-R-08}\Par{ROW-R-09}\Par{ROW-R-10}
+\end{document}

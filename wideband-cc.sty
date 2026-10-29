@@ -727,7 +727,41 @@
       \wbcc@lastcut\z@ \wbcc@moretrue
     \fi
   \fi\fi
+  %% It fits by measure, but would a row print past the text area? A row holding
+  %% material that cannot be split (a figure, NeoPage's reserved float space) taller
+  %% than the row protrudes below the page (NeoPage APR_321: 366pt). Shed a band, as
+  %% above: without it the host breaks that page normally.
+  \ifwbcc@more\else
+    \wbcc@protrudes
+    \ifwbcc@over
+      \ifnum\wbcc@m>\z@
+        \advance\wbcc@m\m@ne \wbcc@nb\numexpr\wbcc@overdue+\wbcc@m\relax
+        \wbcc@lastcut\z@ \wbcc@moretrue
+      \else\ifnum\wbcc@nb>\@ne
+        \advance\wbcc@nb\m@ne \wbcc@lastcut\z@ \wbcc@moretrue
+      \fi\fi
+    \fi
+  \fi
   \ifwbcc@more \expandafter\wbcc@attempt \fi}
+
+%% \ifwbcc@over <- some row segment of the current attempt is overfull at its own
+%% height, i.e. prints past it (repacked as \wbcc@segtop will set it; TeX's \badness is
+%% 1000000 exactly when a box is overfull; \vfuzz\maxdimen keeps the probe silent).
+\newif\ifwbcc@over
+\def\wbcc@segover#1{%
+  \expandafter\ifvoid\csname#1\endcsname\else
+    \begingroup
+      \vfuzz\maxdimen \vbadness\@M
+      \setbox\@tempboxa\vbox to\ht\csname#1\endcsname{\unvcopy\csname#1\endcsname}%
+      \ifnum\badness>\@M \aftergroup\wbcc@overtrue \fi
+    \endgroup
+  \fi}
+\def\wbcc@protrudes{%
+  \wbcc@overfalse
+  \wbcc@i\@ne
+  \@whilenum\wbcc@i<\numexpr\wbcc@nb+\tw@\relax\do{%
+    \wbcc@segover{wbcc@L@\the\wbcc@i}\wbcc@segover{wbcc@R@\the\wbcc@i}%
+    \advance\wbcc@i\@ne}}
 
 %% One two-column row from segment #1.
 \def\wbcc@row#1{%
@@ -1111,7 +1145,12 @@
       %% overshoot (\wbcc@attempt). Order matters inside: \wbcc@autoY keys markers to
       %% pool positions and must run after \wbcc@computebud (its clamp needs \wbcc@bud)
       %% and before \wbcc@sortidx.
+      %% Trial splits are silent: an attempt that is then corrected or shed must not log
+      %% an Overfull \vbox for a page that never ships. The assembly below re-packs every
+      %% row at \vfuzz .1pt, so the page that does ship still reports any overflow.
+      \vfuzz\maxdimen
       \wbcc@attempt
+      \vfuzz.1\p@
       %% \wbcc@galley now holds the overflow for the next page; count the deferred-new
       %% markers that ride in it (their bands stay pending WITH a marker, not overdue).
       \directlua{wbcc.countmarks(\number\wbcc@galley, \wbcc@ride@n)}%
