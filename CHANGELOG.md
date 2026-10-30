@@ -4,6 +4,12 @@
 
 Each fix has a regression test that fails before it and passes after.
 
+- The Lua companion is also found beside the `.sty` when the package is loaded
+  by path (`\usepackage{/dir/wideband-cc}`, NeoPage's `\Templatepath` convention,
+  with no `TEXINPUTS`): `kpse.find_file` cannot see such a directory, and the
+  package stopped with "wideband-cc.lua not found". kpathsea is still tried
+  first. Test: the install-path gate now also compiles a path-loaded copy.
+
 - A `\footnote` inside a band is no longer lost (generic, Elsevier and
   one-column paths): the band's inserts move to where the band is placed.
 - Hyperlinks broken across lines no longer abort a run with a band page

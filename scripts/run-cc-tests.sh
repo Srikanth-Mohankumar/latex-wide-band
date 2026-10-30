@@ -167,6 +167,19 @@ TEXMFHOME="$build/texmf" \
   '[INSTALL-01]' '[INSTALL-02]' '[INSTALL-03]' INSTALL-PATH-BAND \
   '[INSTALL-04]' '[INSTALL-05]' '[INSTALL-06]' '[INSTALL-07]'
 
+# Path-loaded package: \usepackage{/abs/dir/wideband-cc} from a directory that holds
+# neither file, with no TEXMFHOME or TEXINPUTS pointing at it (how NeoPage loads its
+# templates through \Templatepath). kpathsea cannot see the .lua; the style must find
+# it beside itself.
+mkdir -p "$build/install-check-abspath"
+sed "s|\\\\usepackage{wideband-cc}|\\\\usepackage{$build/texmf/tex/latex/wideband/wideband-cc}|" \
+  "$root/tests/test-installed-path.tex" > "$build/install-check-abspath/test-installed-abspath.tex"
+cd "$build/install-check-abspath"
+lualatex -interaction=nonstopmode -halt-on-error test-installed-abspath.tex >/dev/null
+"$root/scripts/verify-token-counts.py" test-installed-abspath.pdf \
+  '[INSTALL-01]' '[INSTALL-02]' '[INSTALL-03]' INSTALL-PATH-BAND \
+  '[INSTALL-04]' '[INSTALL-05]' '[INSTALL-06]' '[INSTALL-07]'
+
 # Render representative pages for the mandatory human/agent visual gate.
 pdftoppm -png -r 90 \
   "$build/stress/stress-band-follows-paragraph-end.pdf" \

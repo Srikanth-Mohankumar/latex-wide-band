@@ -59,8 +59,20 @@
 %% Use kpathsea rather than the process working directory.  A package installed
 %% in a TEXMF tree is normally loaded from a document directory that does not
 %% contain wideband-cc.lua; plain dofile("wideband-cc.lua") fails there.
+%% A host that loads the .sty by path (\usepackage{/some/dir/wideband-cc}, as NeoPage
+%% does with its \Templatepath prefix, with no TEXINPUTS) is invisible to kpathsea, so
+%% the directory of the .sty being read (status.filename) is tried next.
 \directlua{
   local wbccfile = kpse.find_file("wideband-cc.lua")
+  if not wbccfile then
+    local sty = status.filename or ""
+    local dir = sty:match("^(.*)[/\\]")
+    if dir then
+      local beside = dir .. "/wideband-cc.lua"
+      local fh = io.open(beside, "r")
+      if fh then fh:close() wbccfile = beside end
+    end
+  end
   if not wbccfile then
     tex.error("wideband-cc.lua not found",
       {"Install wideband-cc.lua beside wideband-cc.sty in a searchable TEXMF tree."})
