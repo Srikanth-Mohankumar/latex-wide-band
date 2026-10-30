@@ -31,7 +31,7 @@ make test
 ```
 
 This runs both maintained implementations. The Continuous-Column half compiles
-all 57 stress documents twice (plus 3 expected-error documents), checks vertical bounds through TeX's overfull
+all 59 stress documents twice (plus 3 expected-error documents), checks vertical bounds through TeX's overfull
 diagnostics, verifies paragraph and band token conservation from extracted PDF
 text, checks explicit body-word counts where fixtures declare them, validates
 declared page counts, requires pixel-identical output for a package-loaded
@@ -201,6 +201,38 @@ both); bands printed once; no footnote mismatch. Not checked: whether a band's
 content gets its own structure element (it is set outside the flow), or a PDF/UA
 validator.
 
+## Text printed over host figures (fixed 2026-10-29)
+
+The evidence above checked words, bands, footnotes and overflow, but not
+whether anything printed over a figure, and it missed this. Viewing the PDFs
+showed text printed over NeoPage/Simba full-width figures on band pages: 14 of
+54 Elsevier and 10 of 39 ACS articles, none without bands. Two causes, two
+fixes: the host's column top areas (a wide figure in column 1, its reserve in
+column 2) were poured into the text, and a band page's bottom floats were
+aligned at their tops. New checks: two stress documents, and per corpus article
+a scan for 15 or more words inside a raster image and for images overlapping
+each other (`/data/neopage/.temporary/wideband-footnote-20261029/overlap/`).
+Same corpora, one run per article, one machine
+(`/data/neopage/.temporary/wideband-topfig-20261029/`):
+
+| | Elsevier (54) | ACS (39) |
+|---|---|---|
+| Articles with text over a figure: no band / previous package / fixed | 0 / 14 / 0 | 0 / 10 / 0 |
+| Articles with images over images: previous package / fixed | 1 / 0 | 2 / 0 |
+| Package loaded, no band: pixels and sidecars | identical, 54/54 | identical, 39/39 |
+| Bands; each printed exactly once | 157; all | 73; all |
+| Operator errors | 50 deferred, 9 end page, 3 page overflow | 39 deferred, 4 page overflow |
+| Text lost (more than 10 letters) | AA_9004 (continued table, as before) | 0 (EM_5c00771's loss is gone) |
+| Pages (no-band build) | 819 (780) | 502 (484) |
+
+Pages that kept the host's figures now hold more than before. On some, the text
+then runs past the text area, and the operator gets an error: Elsevier AA_10515
+page 13 (57pt; before the fix, Fig. 21 printed over Fig. 20), ACS JE_5c00208
+(18.9pt) and NP_5c01252 (17.3pt). Not reported: AA_10515 page 11, a page with no
+band, 16.1pt past (under the 30pt limit for such pages). Two large overflows
+went away: APR_321 and DAACH_360 (294–641pt) and ACS EM_5c00771 (291pt down to
+22.9pt, reported).
+
 ## Elsevier corpus evidence, two-run harness (2026-10-28)
 
 Earlier evidence: page-top adapter and the then-unfixed same-page engine.
@@ -279,7 +311,10 @@ after `\lastpagebalance` or in back matter.
   table), and once it stopped the run with a fatal hyperlink-nesting error.
   Operators should prefer moving the band or a float there.
 - Overflows under `\wbccoverflowlimit` (30pt) after a band are not reported
-  (one corpus article, 8.6pt).
+  (Elsevier YJEMA_126336 8.6pt, AA_10515 16.1pt).
+- A Lua error inside the package is logged without a `! ` line, so an editor
+  that lists only `!` lines does not show it, and the expected-error gate
+  would not catch one either.
 
 Before enabling a new journal class, add a fixture using that class, run the
 full gate, and visually compare both a band page and a package-loaded page with

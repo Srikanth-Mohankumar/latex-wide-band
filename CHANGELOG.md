@@ -63,6 +63,17 @@ Each fix has a regression test that fails before it and passes after.
   given there, so on the next page it was placed as if that Y were explicit:
   below the band after it, with a clamp warning, despite "placed at the top of
   the next page". A shed band's Y is automatic again.
+- Fix (generic engine): on a band page where the host had set a full-width
+  float at the top of the columns (NeoPage/Simba spacereserve: the figure in
+  column 1's `\@texttop`, a reserve of the same height in column 2's), the
+  rebuild poured that area into the text, so text printed over the figure (14
+  of 54 Elsevier and 10 of 39 ACS articles; none without bands). The top
+  areas are now taken off both columns and set as one row above the band
+  rows, at column depth so links across pages still balance.
+- Fix (generic engine): a band page's bottom floats were aligned at their
+  tops, so a host's wide float last in column 1 printed over a taller float
+  in column 2 beside the room reserved for it (ACS JE_5c00208, NP_5c01252).
+  They are aligned at the bottom, as the columns set them.
 - An explicit `y` the page cannot honour (the band is moved up) is an operator
   error instead of a warning, so an editor that lists only errors shows it.
 - NeoPage: a band set on a page of its own takes a page number NeoPage's float

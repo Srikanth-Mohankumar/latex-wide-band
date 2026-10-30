@@ -3,7 +3,7 @@
 ## Continuous-Column v0.10 release candidate
 
 Run `make test-cc` (or `./scripts/run-cc-tests.sh`). The gate builds in
-`build/cc-tests` and currently covers all 57 `tests/stress/stress-*.tex`
+`build/cc-tests` and currently covers all 59 `tests/stress/stress-*.tex`
 documents.
 
 Each document is compiled twice. The gate fails on a LuaLaTeX error, an

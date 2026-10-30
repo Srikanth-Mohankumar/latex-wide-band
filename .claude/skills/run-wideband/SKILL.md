@@ -38,7 +38,7 @@ bash .agents/skills/run-wideband/driver.sh
 It works out of `/tmp/wb-driver` by default and runs both maintained gates:
 
 - the v0.5 stratum regression, including pixel-identical no-band inertness;
-- all 57 Continuous-Column stress documents and 3 expected-error documents, compiled twice and checked for
+- all 59 Continuous-Column stress documents and 3 expected-error documents, compiled twice and checked for
   TeX errors, vertical overflow, lost/duplicated paragraph and band tokens,
   explicit body-word conservation, unresolved references, and installed-path
   Lua discovery;
