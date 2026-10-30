@@ -8,6 +8,8 @@
 --   M.joincols       recombine the columns with a correct interline glue at the join
 --   M.takefootnotes  pull each column's footnote block out (re-set at the page bottom)
 --   M.takebotfloats  pull each column's [b] bottom float out (re-set at the page bottom)
+--   M.taketop        pull each column's top area out (host figures and reserved room,
+--                    top floats; re-set as one row at the page top), M.topheight its height
 --   M.takeinserts    detach the inserts (footnotes) trapped in the captured band box;
 --   M.putinserts     ... and append them to the flow where the band is placed
 --   M.fninit         tag each footnote with its callout as it reaches the page builder
@@ -239,6 +241,51 @@ local function vscan(head, visit)
   return total + depth
 end
 
+-- A column's top area: what \@makecol set above the column's first line — the host's
+-- \@texttop (NeoPage/Simba spacereserve: a wide figure in column 1, sticking out over
+-- column 2, and the empty box reserving its room in column 2) and the kernel's top
+-- floats. It is everything before the page builder's \topskip glue. Returns that glue
+-- (nil when the column has no top area) and the area's height in the column.
+local TOPSKIP = (N.subtypes and (function()
+  for k, v in pairs(N.subtypes("glue")) do if v == "topskip" then return k end end
+end)()) or 10
+local function topend(head)
+  local n = head
+  while n and not (n.id == GLUE and n.subtype == TOPSKIP) do n = n.next end
+  if not n or n == head then return nil, 0 end
+  local p = n.prev
+  p.next = nil                          -- measure the area alone
+  local h = vscan(head)
+  p.next = n
+  return n, h
+end
+local function toparea(num)
+  local b = colcontent(tex.box[tonumber(num)])
+  if not (b and b.list) then return 0 end
+  local _, h = topend(b.list)
+  return h
+end
+
+-- \wbcc@toph := the taller of the two columns' top areas. A rebuilt page sets both
+-- areas as one row at the top, and lays the text and bands out below it.
+function M.topheight(a, b, dreg)
+  tex.setdimen("global", tonumber(dreg), math.max(toparea(a), toparea(b)))
+end
+
+-- Move column `colnum`'s top area into box `holdnum` (void when it has none).
+function M.taketop(colnum, holdnum)
+  local b = tex.box[tonumber(colnum)]
+  tex.box[tonumber(holdnum)] = nil
+  if not (b and b.list) then return end
+  local g = topend(b.list)
+  if not g then return end
+  local head = b.list
+  g.prev.next = nil; g.prev = nil
+  b.list = g
+  local box = N.vpack(head)             -- capture: vpack also returns badness
+  tex.setbox("global", tonumber(holdnum), box)
+end
+
 -- Scan the two finished columns (boxes a, b) for band markers, in reading order:
 -- all of column a top-to-bottom, then all of column b. Store the number found in
 -- count register `kreg`, and each marker's GALLEY position (its \pagetotal, in sp,
@@ -260,14 +307,16 @@ function M.markpos(a, b, kreg, base, maxn)
     if k < maxn then tex.setdimen("global", base + k, pos) end
     k = k + 1
   end
+  -- positions are in the galley a rebuilt page lays out: without the top areas
+  local ta, tb = toparea(a), toparea(b)
   local ba = colcontent(tex.box[tonumber(a)])
   local aend = (ba and ba.list) and vscan(ba.list, function(n, total)
-    if is_marker(n) then store(total) end
-  end) or 0
+    if is_marker(n) then store(total - ta) end
+  end) - ta or 0
   local bb = colcontent(tex.box[tonumber(b)])
   if bb and bb.list then
     vscan(bb.list, function(n, total)
-      if is_marker(n) then store(aend + total) end
+      if is_marker(n) then store(aend + total - tb) end
     end)
   end
   tex.setcount("global", tonumber(kreg), k)

@@ -1,0 +1,54 @@
+%% =====================================================================
+%% STRESS TEST: a host's wide figure at the top of a band page keeps its room
+%% NeoPage and Simba (spacereserve) set a planned wide figure through \@texttop: the
+%% figure goes in column 1's top area and sticks out over column 2, whose top area is
+%% an empty box of the same height; both columns are built that much shorter. This
+%% document sets page 2 up the same way. The rebuild mixed both top areas into the
+%% text, so column 2's text printed over the figure (NeoPage JCLP_146437 page 5,
+%% BAE_113592 page 3; ACS SB_5c00470 page 12). The top areas now stay a row at the top.
+%% Every paragraph is a hyperlink, so links run from page to page: the row must keep
+%% the rows' box depth (one level deeper stopped AA_9001 with the fatal 'endlink'
+%% nesting error).
+%% ASSERTION: nothing printed between FIG-TL and FIG-BR; HOSTFIG-BAND begins page 2;
+%% FIG-TL begins page 2; no "Overfull \vbox"; no TeX errors; paras P-01..P-60 once;
+%% "minim" 120 times (60 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{hyperref}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\href{https://example.org/}{\Body\ \Body}\par\medskip}
+\makeatletter
+%% the host's plan: a 150pt wide figure + 12pt at the top of page 2
+\newdimen\hostfig \hostfig=150pt
+\g@addto@macro\@startcolumn{%
+  \ifnum\c@page=2 \global\advance\@colroom-\dimexpr\hostfig+12pt\relax \fi}
+\AddToHook{build/column/before}{%
+  \ifnum\c@page=2
+    \def\@texttop{%
+      \if@firstcolumn
+        \vbox to\hostfig{\hsize\textwidth
+          \hrule\hbox to\textwidth{\strut FIG-TL\hfil}\vfil
+          \hbox to\textwidth{\hfil FIG-BR\strut}\hrule}%
+      \else
+        \vbox to\hostfig{\vfil}%
+      \fi
+      \vskip12pt}%
+  \fi}
+\AddToHook{build/column/after}{\let\@texttop\relax}
+\makeatother
+\begin{document}
+\Par{P-01}\Par{P-02}\Par{P-03}\Par{P-04}\Par{P-05}\Par{P-06}\Par{P-07}\Par{P-08}
+\Par{P-09}\Par{P-10}\Par{P-11}\Par{P-12}\Par{P-13}\Par{P-14}\Par{P-15}
+\begin{wideband}\centering\rule{2pt}{60pt} HOSTFIG-BAND\end{wideband}
+\Par{P-16}\Par{P-17}\Par{P-18}\Par{P-19}\Par{P-20}\Par{P-21}\Par{P-22}\Par{P-23}
+\Par{P-24}\Par{P-25}\Par{P-26}\Par{P-27}\Par{P-28}\Par{P-29}\Par{P-30}\Par{P-31}\Par{P-32}
+\Par{P-33}\Par{P-34}\Par{P-35}\Par{P-36}\Par{P-37}\Par{P-38}\Par{P-39}\Par{P-40}
+\Par{P-41}\Par{P-42}\Par{P-43}\Par{P-44}\Par{P-45}\Par{P-46}\Par{P-47}\Par{P-48}
+\Par{P-49}\Par{P-50}\Par{P-51}\Par{P-52}\Par{P-53}\Par{P-54}\Par{P-55}\Par{P-56}
+\Par{P-57}\Par{P-58}\Par{P-59}\Par{P-60}
+\end{document}

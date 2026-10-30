@@ -78,6 +78,7 @@
 \newbox\wbcc@fn
 \newbox\wbcc@bfL \newbox\wbcc@bfR
 \newbox\wbcc@top \newbox\wbcc@bot            % band page: rows+bands above the last row / bottom block
+\newbox\wbcc@tpL \newbox\wbcc@tpR            % band page: each column's top area (host figures, top floats)
 \newdimen\wbcc@bfh \newdimen\@tempdimd
 \newdimen\wbcc@detachY  \wbcc@detachY=\maxdimen% AUTO sentinel: derive Y from the marker
 %% User spacing controls (\setlength). Recorded PER BAND when \end{wideband} is reached,
@@ -100,6 +101,7 @@
 \newcount\wbcc@overdue  \global\wbcc@overdue\z@% front prefix of the pool forced onto THIS page
 \newcount\wbcc@found \edef\wbcc@found@n{\the\allocationnumber}% count-register index for Lua
 \newdimen\wbcc@enl \edef\wbcc@enl@n{\the\allocationnumber}% this page's \enlargethispage
+\newdimen\wbcc@toph \edef\wbcc@toph@n{\the\allocationnumber}% the columns' top areas (taller)
 \newcount\wbcc@ride  \edef\wbcc@ride@n{\the\allocationnumber}% markers riding in the overflow
 \newcount\wbcc@fnmoved \edef\wbcc@fnmoved@n{\the\allocationnumber}% notes moved to the overflow
 \newcount\wbcc@nb       \global\wbcc@nb\z@   % bands PLACED on the current page (overdue + fit)
@@ -1173,6 +1175,12 @@
     %% operator asked for (local to this output run; undone if the host ships the page).
     \directlua{wbcc.enlargement(\number\@leftcolumn, \number\@outputbox, \wbcc@enl@n)}%
     \advance\@colht\wbcc@enl
+    %% The columns' top areas (a host's figures and the room it reserved for them,
+    %% top floats) stay at the top of a rebuilt page, side by side as \@makecol set
+    %% them; the text and bands are laid out in the height below. Mixed into the text,
+    %% NeoPage's wide figure printed over the text of the right column.
+    \directlua{wbcc.topheight(\number\@leftcolumn, \number\@outputbox, \wbcc@toph@n)}%
+    \advance\@colht-\wbcc@toph
     \wbcc@j\numexpr\wbcc@np-\wbcc@overdue\relax     % pending bands still carrying a marker
     \ifnum\wbcc@found>\wbcc@j
       \PackageWarning{wideband-cc}{markpos found \the\wbcc@found\space markers but
@@ -1206,6 +1214,8 @@
       %% footnotes: pull each finished column's \@makecol footnote block out and
       %% hold it; one clean block goes at the true page bottom.
       \directlua{wbcc.unwrapcol(\number\@leftcolumn) wbcc.unwrapcol(\number\@outputbox)}%
+      \directlua{wbcc.taketop(\number\@leftcolumn, \number\wbcc@tpL)
+        wbcc.taketop(\number\@outputbox, \number\wbcc@tpR)}%
       \global\setbox\wbcc@fn\box\voidb@x
       \directlua{wbcc.takefootnotes(\number\@leftcolumn, \number\wbcc@fn)
         wbcc.takefootnotes(\number\@outputbox, \number\wbcc@fn)}%
@@ -1307,8 +1317,15 @@
           \expandafter\wbcc@refill\csname wbcc@R@\wbcc@lr\endcsname
         \fi
       \fi
-      \setbox\@outputbox\vbox to\@colht{%
+      \setbox\@outputbox\vbox to\dimexpr\@colht+\wbcc@toph\relax{%
         \boxmaxdepth\maxdepth
+        \ifdim\wbcc@toph>\z@           % the columns' top areas, a row above it all (see
+          \hb@xt@\textwidth{%          % \wbcc@toph); in this box, not around it, so its
+            \hb@xt@\columnwidth{\vbox to\wbcc@toph{\ifvoid\wbcc@tpL\else\unvbox\wbcc@tpL\fi\vss}\hss}%
+            \hfil                      % lines keep the rows' depth (a link that runs on
+            \hb@xt@\columnwidth{\vbox to\wbcc@toph{\ifvoid\wbcc@tpR\else\unvbox\wbcc@tpR\fi\vss}\hss}}%
+          \nointerlineskip             % to the next page ends at its own level)
+        \fi
         \unvbox\wbcc@top
         \nointerlineskip
         \wbcc@row{\wbcc@lr}%
@@ -1369,6 +1386,7 @@
       %% It expects to be entered in its second-column state.
       \global\@firstcolumnfalse
       \advance\@colht-\wbcc@enl
+      \advance\@colht\wbcc@toph
       \ifnum\wbcc@serial>\z@        % (\wbcc@enl is free again here: reused for the amount)
         \directlua{wbcc.overflow(\number\@leftcolumn, \number\@outputbox, \wbcc@enl@n)}%
         \ifdim\wbcc@enl>\wbccoverflowlimit

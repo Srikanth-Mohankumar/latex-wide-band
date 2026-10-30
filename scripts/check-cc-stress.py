@@ -33,6 +33,18 @@ def extracted_page_text(pdf: Path, page: int) -> str:
     )
 
 
+def page_words(pdf: Path) -> list[tuple[int, float, float, float, float, str]]:
+    html = subprocess.check_output(["pdftotext", "-bbox", str(pdf), "-"], text=True)
+    words = []
+    for number, page in enumerate(html.split("<page ")[1:], 1):
+        for x0, y0, x1, y1, word in re.findall(
+            r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">([^<]*)</word>',
+            page,
+        ):
+            words.append((number, float(x0), float(y0), float(x1), float(y1), word))
+    return words
+
+
 def fail(message: str) -> None:
     print(f"ERROR: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -100,6 +112,23 @@ for expected in map(int, re.findall(r'["“]minim["”]\s+(?:appears\s+)?(\d+)\s
     rendered = len(re.findall(r"\bminim\b", text, re.I))
     if rendered != expected:
         fail(f"{pdf_path.name}: minim rendered {rendered} time(s), expected {expected}")
+
+# "nothing printed between FIG-TL and FIG-BR": labels set at a figure's top-left and
+# bottom-right corners; no other word may print inside the rectangle they span (text
+# set over a figure the host reserved room for).
+for top_left, bottom_right in re.findall(
+    r"nothing\s+printed\s+between\s+([A-Z][A-Z0-9-]+)\s+and\s+([A-Z][A-Z0-9-]+)", assertion
+):
+    words = page_words(pdf_path)
+    corners = {w[5]: w for w in words if w[5] in (top_left, bottom_right)}
+    if len(corners) != 2 or corners[top_left][0] != corners[bottom_right][0]:
+        fail(f"{pdf_path.name}: {top_left} and {bottom_right} are not on one page")
+    page, x0, y0 = corners[top_left][:3]
+    x1, y1 = corners[bottom_right][3:5]
+    inside = [w[5] for w in words if w[0] == page and w[5] not in corners
+              and w[1] < x1 and w[3] > x0 and w[2] < y1 and w[4] > y0]
+    if inside:
+        fail(f"{pdf_path.name}: printed over the figure on page {page}: {' '.join(inside[:8])}")
 
 if "??" in text:
     fail(f"{pdf_path.name}: unresolved reference marker (??) found")
