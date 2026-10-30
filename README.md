@@ -46,6 +46,16 @@ Supported keys are `y`, `skipabove`, `skipbelow`, `framesep`, `rulewidth`,
 `rules`, and `fullpage`. Large bands automatically receive their own page;
 `fullpage` forces that policy for one band.
 
+`y=top` sets the band first on its page and `y=bottom` makes it the last thing
+on the page (the text after it continues on the next page), neither with a
+clamp error. `rules=` takes the automatic arrangements `column` (default),
+`revtex`, `mirror` and `none`, which draw nothing on a page-top band, and the
+explicit ones `same` (one rule above and one below, both on the right half),
+`same-left`, `above`, `above-left`, `below` and `below-left` (one rule), which
+are drawn exactly as asked. A proof's page-top band with one rule under it is
+`[y=top,rules=below]`; its page-bottom band with one rule over it is
+`[y=bottom,rules=above]`.
+
 The package option defaults to `auto` (same as `generic`): a band is placed on
 the page where it is written, mid-column, on every host including Elsevier
 NeoPage. This is the manual-placement mode used from mr-bean: one LuaLaTeX run,

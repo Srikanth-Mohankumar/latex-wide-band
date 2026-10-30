@@ -1,0 +1,30 @@
+%% =====================================================================
+%% STRESS TEST (explicit page-top / page-bottom bands with one cue rule, as in a
+%% journal proof): band TOPBAND has y=top,rules=below -> set first on its page, one rule
+%% UNDER it on the right half (the automatic arrangements draw nothing on a page-top
+%% band; the explicit one must). Band BOTTOMBAND has y=bottom,rules=above -> set as
+%% low as its page allows, one rule OVER it on the right half, and NO clamp error
+%% (y=bottom is resolved per attempt like an automatic Y). Band SAMEBAND has
+%% rules=same -> both rules on the right half.
+%% ASSERTION: no "! Package wideband-cc Error"; the three band tags once each; paras
+%% 01-22 once each; every band on the page its paragraph is on (y=bottom does not move a
+%% band to the next page).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{amsmath}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\Body\ \Body\par\medskip}
+\begin{document}
+\Par{01}
+\begin{wideband}[y=top,rules=below]\[ a^2+b^2=c^2 \quad[\text{TOPBAND}] \]\end{wideband}
+\Par{02}\Par{03}\Par{04}\Par{05}\Par{06}
+\begin{wideband}[y=bottom,rules=above]\[ \int_0^1 x\,dx=\tfrac12 \quad[\text{BOTTOMBAND}] \]\end{wideband}
+\Par{07}\Par{08}\Par{09}\Par{10}\Par{11}\Par{12}\Par{13}\Par{14}\Par{15}\Par{16}
+\begin{wideband}[rules=same]\[ e^{i\pi}+1=0 \quad[\text{SAMEBAND}] \]\end{wideband}
+\Par{17}\Par{18}\Par{19}\Par{20}\Par{21}\Par{22}
+\end{document}

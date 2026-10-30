@@ -4,6 +4,14 @@
 
 Each fix has a regression test that fails before it and passes after.
 
+- `y=top` and `y=bottom` place a band first on its page and as the last thing
+  on it (the row below is left empty and the text goes on to the next page),
+  with no clamp error; `y=bottom` is re-resolved per placement attempt like an
+  automatic Y. Explicit cue-rule arrangements `same`, `same-left`, `above`,
+  `above-left`, `below`, `below-left` are drawn as asked, on a page-top band too
+  (the automatic arrangements still draw nothing there). Stress test
+  `stress-band-top-bottom-rules`.
+
 - The Lua companion is also found beside the `.sty` when the package is loaded
   by path (`\usepackage{/dir/wideband-cc}`, NeoPage's `\Templatepath` convention,
   with no `TEXINPUTS`): `kpse.find_file` cannot see such a directory, and the

@@ -174,7 +174,16 @@
 %%   \wbccrulestyle{revtex|mirror|none}    one fixed arrangement for every band
 %%   \begin{wideband}[rules=revtex|mirror|column|none]   this band only
 %% A band at the top of a page (both columns read it first) and a full-page band get no
-%% rules. There is no full-width frame.
+%% rules from these automatic arrangements. There is no full-width frame.
+%% EXPLICIT arrangements, for a band the operator places by hand (mr-bean), drawn exactly
+%% as asked, a page-top band included (a proof's style: a band at the top of the page with
+%% one rule under it, a band at the bottom with one rule over it, both on the same half):
+%%   same        above RIGHT and below RIGHT      same-left    both on the LEFT half
+%%   above       one rule above, RIGHT half       above-left   ... LEFT half
+%%   below       one rule below, RIGHT half       below-left   ... LEFT half
+%% y=top and y=bottom place a band at the top of its page (Y=0) and as low as the page
+%% allows (Y=\wbcc@ymax, no clamp error); with rules=below / rules=above they give the
+%% page-top and page-bottom bands of that style.
 \newcommand\wbccrulefraction{.5}
 \newdimen\wbccruletick \wbccruletick=\z@
 \newcommand\wbccrulestyle[1]{\def\wbcc@rulestyle{#1}}
@@ -185,12 +194,20 @@
 %% \wbcc@above / \wbcc@below (L|R|N: the half the rule occupies, N = no rule).
 \def\wbcc@rulesides#1#2{%
   \def\wbcc@above{N}\def\wbcc@below{N}%
+  \def\wbcc@tmp{#1}\def\wbcc@tmpb{column}%
+  \ifx\wbcc@tmp\wbcc@tmpb \if R#2\let\wbcc@tmp\wbcc@rulesR\else\let\wbcc@tmp\wbcc@rulesL\fi\fi
+  %% The automatic arrangements draw nothing on a page-top band (both columns read it
+  %% first); the explicit ones below are drawn wherever the band is.
   \if T#2\else
-    \def\wbcc@tmp{#1}\def\wbcc@tmpb{column}%
-    \ifx\wbcc@tmp\wbcc@tmpb \if R#2\let\wbcc@tmp\wbcc@rulesR\else\let\wbcc@tmp\wbcc@rulesL\fi\fi
     \def\wbcc@tmpb{revtex}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{L}\def\wbcc@below{R}\fi
     \def\wbcc@tmpb{mirror}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{R}\def\wbcc@below{L}\fi
-  \fi}
+  \fi
+  \def\wbcc@tmpb{same}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{R}\def\wbcc@below{R}\fi
+  \def\wbcc@tmpb{same-left}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{L}\def\wbcc@below{L}\fi
+  \def\wbcc@tmpb{above}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{R}\fi
+  \def\wbcc@tmpb{above-left}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@above{L}\fi
+  \def\wbcc@tmpb{below}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@below{R}\fi
+  \def\wbcc@tmpb{below-left}\ifx\wbcc@tmp\wbcc@tmpb \def\wbcc@below{L}\fi}
 %% The two rule boxes (full-width hboxes). The tick sits at the rule's inner end: up on
 %% the rule above the band, down on the rule below it.
 %% Every \vrule gets BOTH \@height and \@depth: a dimension left out "runs" to the
@@ -470,7 +487,17 @@
 %% of its own regardless of size). A bare dimension, [300pt], still means y=300pt. The
 %% settings are local to the environment, which is exactly the scope \wbcc@capture reads
 %% at \end{wideband}.
-\define@key{wbcc}{y}{\def\wbcc@curY{#1}}
+%% y=<dimen>, or y=top (Y=0) / y=bottom (as low as the page allows: \wbcc@ymax, resolved
+%% per attempt in \wbcc@autoY like an automatic Y, and never a clamp error). The bottom
+%% sentinel is a dimension no real Y reaches, distinct from the AUTO sentinel \maxdimen.
+\newdimen\wbcc@bottomY \wbcc@bottomY=16383\p@
+\def\wbcc@ykw@top{top}\def\wbcc@ykw@bottom{bottom}
+\def\wbcc@sety#1{%
+  \def\wbcc@ykw{#1}%
+  \ifx\wbcc@ykw\wbcc@ykw@top \def\wbcc@curY{\z@}\else
+  \ifx\wbcc@ykw\wbcc@ykw@bottom \def\wbcc@curY{\wbcc@bottomY}\else
+  \def\wbcc@curY{#1}\fi\fi}
+\define@key{wbcc}{y}{\wbcc@sety{#1}}
 \define@key{wbcc}{skipabove}{\setlength\wbccskipabove{#1}}
 \define@key{wbcc}{skipbelow}{\setlength\wbccskipbelow{#1}}
 \define@key{wbcc}{framesep}{\setlength\wbccframesep{#1}}
@@ -484,7 +511,7 @@
     \ifx\wbcc@tmp\wbcc@fullpagekey \setkeys{wbcc}{#1}%
     \else
       \in@{=}{#1}%
-      \ifin@ \setkeys{wbcc}{#1}\else \def\wbcc@curY{#1}\fi   % no "=": a bare Y
+      \ifin@ \setkeys{wbcc}{#1}\else \wbcc@sety{#1}\fi   % no "=": a bare Y (or top/bottom)
     \fi
   \fi}
 
@@ -738,16 +765,19 @@
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
     \ifdim\csname wbcc@Yd@\the\wbcc@i\endcsname=\maxdimen
       \expandafter\def\csname wbcc@au@\the\wbcc@i\endcsname{1}%
+    \else\ifdim\csname wbcc@Yd@\the\wbcc@i\endcsname=\wbcc@bottomY
+      \expandafter\def\csname wbcc@au@\the\wbcc@i\endcsname{2}%  y=bottom: re-resolved too
     \else
       \expandafter\def\csname wbcc@au@\the\wbcc@i\endcsname{0}%
-    \fi
+    \fi\fi
     \advance\wbcc@i\@ne}}
+\def\wbcc@restoreY#1{%  the sentinel band #1 had before the attempts, from its \wbcc@au@ flag
+  \ifnum\csname wbcc@au@#1\endcsname=\@ne \csname wbcc@Yd@#1\endcsname\maxdimen \fi
+  \ifnum\csname wbcc@au@#1\endcsname=\tw@ \csname wbcc@Yd@#1\endcsname\wbcc@bottomY \fi}
 \def\wbcc@resetauto{%
   \wbcc@i\@ne
   \@whilenum\wbcc@i<\numexpr\wbcc@nb+\@ne\relax\do{%
-    \ifnum\csname wbcc@au@\the\wbcc@i\endcsname=\@ne
-      \csname wbcc@Yd@\the\wbcc@i\endcsname\maxdimen
-    \fi
+    \wbcc@restoreY{\the\wbcc@i}%
     \advance\wbcc@i\@ne}}
 
 %% A band the attempts shed (pool position > \wbcc@nb) may still hold the automatic Y
@@ -757,10 +787,7 @@
 \def\wbcc@unresolveshed{%
   \wbcc@i\numexpr\wbcc@nb+\@ne\relax
   \@whilenum\wbcc@i<\numexpr\wbcc@np+\@ne\relax\do{%
-    \@ifundefined{wbcc@au@\the\wbcc@i}{}{%
-      \ifnum\csname wbcc@au@\the\wbcc@i\endcsname=\@ne
-        \csname wbcc@Yd@\the\wbcc@i\endcsname\maxdimen
-      \fi}%
+    \@ifundefined{wbcc@au@\the\wbcc@i}{}{\wbcc@restoreY{\the\wbcc@i}}%
     \advance\wbcc@i\@ne}}
 
 %% A placed band whose explicit y the page could not honour (recorded by \wbcc@autoY in
@@ -1004,6 +1031,14 @@
         \@tempdimb\z@                              % overdue band: its text ended on the
       \fi                                          % previous page -> the very top, Y=0
       \wbcc@clampY
+    \else\ifdim\@tempdimb=\wbcc@bottomY           % y=bottom: the band ends the page
+      %% Y = the whole text budget: the row below the band is then shorter than a line
+      %% and \wbcc@splitcol leaves it empty, so the band is the last thing on the page
+      %% and the text after it goes on to the next page (the stack is still bud + band,
+      %% within \@colht by construction). Not \wbcc@ymax, which keeps a band's height of
+      %% text under the band.
+      \@tempdimb\wbcc@bud
+      \expandafter\let\csname wbcc@cl@\the\wbcc@i\endcsname\relax
     \else                                          % explicit [Y] / \wbccReserve: same
       \dimen@\@tempdimb                            % clamp, but say so — the author asked
       \wbcc@clampY                                 % for a Y the page cannot honour
@@ -1012,7 +1047,7 @@
         \expandafter\edef\csname wbcc@cl@\the\wbcc@i\endcsname{%   the band stays here
           {\the\dimen@}{\the\@tempdimb}{\the\wbcc@ymax}}%
       \fi
-    \fi
+    \fi\fi
     \ifdim\@tempdimb=\z@                           % nothing above it: no cue rules
       \expandafter\gdef\csname wbcc@sd@\the\wbcc@i\endcsname{T}%
     \fi
