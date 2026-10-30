@@ -1,0 +1,57 @@
+%% =====================================================================
+%% STRESS TEST: a host's wide figure at the bottom of a band page keeps its room
+%% NeoPage and Simba (spacereserve) set column-bottom floats through \@textbottom: a
+%% wide figure goes last in column 1's bottom area and sticks out over column 2, whose
+%% bottom area ends with an empty box of the same height. Both bottom areas end at the
+%% column bottom, so the wide figure sits beside its reserved room, whatever floats are
+%% above it. This document sets page 2 up the same way, with a taller float above the
+%% room in column 2. A band page set the two bottom areas from the top, so the wide
+%% figure printed over column 2's float (ACS JE_5c00208 page 2: Table 1 over Figure 2).
+%% They are now aligned at the bottom.
+%% ASSERTION: nothing printed between WIDE-TL and WIDE-BR; HOSTBOT-BAND begins page 2;
+%% WIDE-TL begins page 2; no "Overfull \vbox"; no TeX errors; paras P-01..P-60 once;
+%% "minim" 120 times (60 x 2).
+%% =====================================================================
+\documentclass[twocolumn]{article}
+\usepackage{hyperref}
+\usepackage{wideband-cc}
+\raggedbottom
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand\Body{Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim.}
+\newcommand\Par[1]{\par\noindent\textbf{[#1]}\space\href{https://example.org/}{\Body\ \Body}\par\medskip}
+\makeatletter
+%% the host's plan for page 2: column 1 ends with a 40pt float and a 100pt wide
+%% figure, column 2 with a 120pt float and the figure's 100pt room
+\g@addto@macro\@startcolumn{%
+  \ifnum\c@page=2
+    \if@firstcolumn \global\advance\@colroom-140pt \else \global\advance\@colroom-220pt \fi
+  \fi}
+\AddToHook{build/column/before}{%
+  \ifnum\c@page=2
+    \def\@textbottom{%
+      \vfill
+      \if@firstcolumn
+        \vbox to40pt{\hrule\hbox{\strut SHORT-FLOAT}\vfil\hrule}%
+        \vbox to100pt{\hsize\textwidth
+          \hrule\hbox to\textwidth{\strut WIDE-TL\hfil}\vfil
+          \hbox to\textwidth{\hfil WIDE-BR\strut}\hrule}%
+      \else
+        \vbox to120pt{\hrule\vfil\hbox{TALL-FLOAT}\vfil\hrule}%
+        \vbox to100pt{\vfil}%
+      \fi}%
+  \fi}
+\AddToHook{build/column/after}{\let\@textbottom\relax}
+\makeatother
+\begin{document}
+\Par{P-01}\Par{P-02}\Par{P-03}\Par{P-04}\Par{P-05}\Par{P-06}\Par{P-07}\Par{P-08}
+\Par{P-09}\Par{P-10}\Par{P-11}\Par{P-12}\Par{P-13}\Par{P-14}\Par{P-15}
+\begin{wideband}\centering\rule{2pt}{60pt} HOSTBOT-BAND\end{wideband}
+\Par{P-16}\Par{P-17}\Par{P-18}\Par{P-19}\Par{P-20}\Par{P-21}\Par{P-22}\Par{P-23}
+\Par{P-24}\Par{P-25}\Par{P-26}\Par{P-27}\Par{P-28}\Par{P-29}\Par{P-30}\Par{P-31}\Par{P-32}
+\Par{P-33}\Par{P-34}\Par{P-35}\Par{P-36}\Par{P-37}\Par{P-38}\Par{P-39}\Par{P-40}
+\Par{P-41}\Par{P-42}\Par{P-43}\Par{P-44}\Par{P-45}\Par{P-46}\Par{P-47}\Par{P-48}
+\Par{P-49}\Par{P-50}\Par{P-51}\Par{P-52}\Par{P-53}\Par{P-54}\Par{P-55}\Par{P-56}
+\Par{P-57}\Par{P-58}\Par{P-59}\Par{P-60}
+\end{document}

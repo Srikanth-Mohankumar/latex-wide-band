@@ -1052,10 +1052,13 @@
     \boxmaxdepth\maxdepth
     \ifdim\wbcc@bfh>\z@
       \vskip\textfloatsep
+      %% aligned at the bottom, as the columns set them: a host's wide float last in
+      %% column 1 sits beside the room column 2 reserved for it, below a float above
+      %% that room of any height (top-aligned, it printed over the taller one)
       \hb@xt@\textwidth{%
-        \hb@xt@\columnwidth{\ifvoid\wbcc@bfL\else\vtop{\kern\z@\copy\wbcc@bfL}\fi\hss}%
+        \hb@xt@\columnwidth{\ifvoid\wbcc@bfL\else\vbox{\copy\wbcc@bfL\kern\z@}\fi\hss}%
         \hfil
-        \hb@xt@\columnwidth{\ifvoid\wbcc@bfR\else\vtop{\kern\z@\copy\wbcc@bfR}\fi\hss}}%
+        \hb@xt@\columnwidth{\ifvoid\wbcc@bfR\else\vbox{\copy\wbcc@bfR\kern\z@}\fi\hss}}%
     \fi
     \ifvoid\wbcc@fn\else
       \vskip\skip\footins \footnoterule \unvcopy\wbcc@fn
